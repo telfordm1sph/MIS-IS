@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { Table, Spin, Card } from "antd";
+import { Table, Spin, Card, Tag } from "antd";
 import { usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import DetailsDrawer from "@/Components/drawer/DetailsDrawer";
 import axios from "axios";
 import dayjs from "dayjs";
+import { getPaginationConfig } from "@/Config/pagination";
 const HardwareTable = () => {
     const { hardware, pagination, pageSizeOptions } = usePage().props;
 
@@ -37,21 +38,19 @@ const HardwareTable = () => {
         { title: "Brand", dataIndex: "brand", key: "brand" },
         { title: "Category", dataIndex: "category", key: "category" },
         { title: "Location", dataIndex: "location", key: "location" },
+        {
+            title: "Status",
+            key: "status",
+            render: (_, record) => (
+                <Tag color={record.status_color}>{record.status_label}</Tag>
+            ),
+        },
     ];
 
     const paginationConfig = useMemo(
-        () => ({
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
-            showSizeChanger: true,
-            pageSizeOptions,
-            showTotal: (total, range) =>
-                `${range[0]}-${range[1]} of ${total} items`,
-        }),
-        [pagination, pageSizeOptions],
+        () => getPaginationConfig(pagination),
+        [pagination],
     );
-
     const getFieldGroups = (item) => {
         if (!item) return [];
 
@@ -61,18 +60,59 @@ const HardwareTable = () => {
             { label: "Model", value: item.model || "-" },
             { label: "Category", value: item.category || "-" },
             { label: "Serial Number", value: item.serial_number || "-" },
+            { label: "Processor", value: item.processor || "-" },
+            { label: "Motherboard", value: item.motherboard || "-" },
+            { label: "IP Address", value: item.ip_address || "-" },
+            { label: "Wifi MAC", value: item.wifi_mac || "-" },
+            { label: "LAN MAC", value: item.lan_mac || "-" },
+            {
+                label: "Status",
+                value: {
+                    value: item.status_label || "-",
+                    color: item.status_color || "default",
+                },
+            },
         ];
 
-        const hardwarePartsFields =
-            item.parts?.map((p) => ({
-                label: p.part_type,
-                value: `${p.brand} ${p.model}${p.serial_number ? ` (${p.serial_number})` : ""} [${p.status}]`,
-            })) || [];
+        // Group parts by part_type
+        const partsByType = {};
+        item.parts?.forEach((p) => {
+            const type = p.part_type || "Part";
+            if (!partsByType[type]) partsByType[type] = [];
+            partsByType[type].push(p);
+        });
 
-        const softwareFields =
+        const partsSubGroups = Object.keys(partsByType).map((type) => {
+            return {
+                title: type,
+                column: 2,
+                fields: partsByType[type].map((p, idx) => ({
+                    Brand: p.brand || "-",
+                    Model: p.model || "N/A",
+                    "Serial No.": p.serial_number || "-",
+                    Details:
+                        `${p.specifications || ""} ${p.status ? `[${p.status}]` : ""}`.trim(),
+                })),
+            };
+        });
+
+        const softwareSubGroups =
             item.software?.map((s) => ({
-                label: s.inventory?.software_name,
-                value: `Version: ${s.inventory?.version || "-"} (Installed on ${dayjs(s.installation_date).format("MMM DD, YYYY")}) - License: ${s.license?.license_key || "-"}`,
+                title: s.inventory?.software_name || "Software",
+                column: 2,
+                fields: [
+                    { label: "Version", value: s.inventory?.version || "-" },
+                    {
+                        label: "Installed On",
+                        value: dayjs(s.installation_date).format(
+                            "MMM DD, YYYY",
+                        ),
+                    },
+                    {
+                        label: "License Key",
+                        value: s.license?.license_key || "-",
+                    },
+                ],
             })) || [];
 
         return [
@@ -81,14 +121,14 @@ const HardwareTable = () => {
                 column: 2,
                 fields: hardwareFields,
             },
-            { title: "Parts", column: 2, fields: hardwarePartsFields },
-            { title: "Software", column: 2, fields: softwareFields },
+            { title: "Parts", column: 2, subGroups: partsSubGroups },
+            { title: "Software", column: 2, subGroups: softwareSubGroups },
         ];
     };
 
     return (
         <AuthenticatedLayout>
-            <Card title="Hardware List" bordered style={{ margin: "16px" }}>
+            <Card title="Hardware List" style={{ margin: "16px" }}>
                 <Table
                     columns={columns}
                     dataSource={hardware}

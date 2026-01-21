@@ -17,6 +17,7 @@ class HardwareDetailController extends Controller
                 'part_type',
                 'brand',
                 'model',
+                'specifications',
                 'serial_number',
                 'status'
             )

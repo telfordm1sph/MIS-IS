@@ -2,7 +2,7 @@ import { usePage } from "@inertiajs/react";
 
 import SidebarLink from "@/Components/sidebar/SidebarLink";
 
-import { Table2Icon } from "lucide-react";
+import { Table2Icon, ToolCase } from "lucide-react";
 
 export default function NavLinks({ isSidebarOpen }) {
     const { emp_data } = usePage().props;
@@ -16,6 +16,12 @@ export default function NavLinks({ isSidebarOpen }) {
                 href={route("hardware.table")}
                 icon={<Table2Icon className="w-5 h-5" />}
                 label="Inventory"
+                isSidebarOpen={isSidebarOpen}
+            />
+            <SidebarLink
+                href={route("parts.table")}
+                icon={<ToolCase className="w-5 h-5" />}
+                label="Parts"
                 isSidebarOpen={isSidebarOpen}
             />
         </nav>

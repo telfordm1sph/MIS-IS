@@ -16,6 +16,9 @@ require __DIR__ . '/general.php';
 
 // Hardware
 require __DIR__ . '/hardware.php';
+
+// Parts
+require __DIR__ . '/parts.php';
 Route::get("/demo", [DemoController::class, 'index'])->name('demo');
 
 Route::fallback(function () {

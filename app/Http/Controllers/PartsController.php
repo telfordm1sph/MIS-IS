@@ -2,19 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\HardwareService;
+use App\Services\PartsService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
-class HardwareController extends Controller
+class PartsController extends Controller
 {
-    protected HardwareService $hardwareService;
+    protected PartsService $partsService;
 
-    public function __construct(HardwareService $hardwareService,)
+    public function __construct(PartsService $partsService,)
     {
-        $this->hardwareService = $hardwareService;
+        $this->partsService = $partsService;
     }
-    public function getHardwareTable(Request $request)
+    public function getPartsTable(Request $request)
     {
         $empData = session('emp_data');
         // Decode base64 filters
@@ -30,12 +30,12 @@ class HardwareController extends Controller
             'status' => $filters['status'] ?? '',
         ];
         // dd($empData);
-        $result = $this->hardwareService->getHardwareTable($filters, $empData);
+        $result = $this->partsService->getPartsTable($filters, $empData);
         // dd($result);
-        return Inertia::render('Inventory/HardwareTable', [
-            'hardware' => $result['data'],
+        return Inertia::render('Inventory/PartsTable', [
+            'parts' => $result['data'],
             'pagination' => $result['pagination'],
-            'statusCounts' => $result['statusCounts'],
+            // 'statusCounts' => $result['statusCounts'],
             'filters' => $result['filters'],
         ]);
     }
