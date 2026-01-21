@@ -8,7 +8,7 @@ use App\Traits\Loggable;
 class SoftwareLicense extends Model
 {
     use Loggable;
-
+    protected $table = 'software_licenses';
     protected $fillable = [
         'software_inventory_id',
         'license_key',

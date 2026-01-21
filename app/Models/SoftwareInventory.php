@@ -8,7 +8,7 @@ use App\Traits\Loggable;
 class SoftwareInventory extends Model
 {
     use Loggable;
-
+    protected $table = 'software_inventory';
     protected $fillable = [
         'software_name',
         'software_type',
