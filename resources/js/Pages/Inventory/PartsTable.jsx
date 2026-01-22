@@ -1,56 +1,134 @@
 import { getPaginationConfig } from "@/Config/pagination";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import FormDrawer from "@/Components/Drawer/FormDrawer";
 import { usePage } from "@inertiajs/react";
-import { Card, Table } from "antd";
-import React, { useMemo } from "react";
+import { Card, Table, Button, Space, Popconfirm } from "antd";
+import React, { useMemo, useState } from "react";
+import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 
 const PartsTable = () => {
-    const { parts, pagination, filters } = usePage().props;
-    console.log(usePage().props);
+    const { parts, pagination } = usePage().props;
+
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [mode, setMode] = useState("create");
+    const [selectedRow, setSelectedRow] = useState(null);
+
+    /** 🔹 Fields (condition is SELECT) */
+    const fields = [
+        {
+            name: "part_type",
+            label: "Part Type",
+            rules: [{ required: true, message: "Part type is required" }],
+        },
+        {
+            name: "brand",
+            label: "Brand",
+            rules: [{ required: true, message: "Brand is required" }],
+        },
+        {
+            name: "model",
+            label: "Model",
+        },
+        {
+            name: "specifications",
+            label: "Specifications",
+        },
+        {
+            name: "quantity",
+            label: "Quantity",
+            type: "number",
+            rules: [{ required: true }],
+        },
+        {
+            name: "condition",
+            label: "Condition",
+            type: "select",
+            placeholder: "Select condition",
+            rules: [{ required: true }],
+            options: [
+                { label: "New", value: "New" },
+                { label: "Used", value: "Used" },
+                { label: "Defective", value: "Defective" },
+            ],
+        },
+    ];
+
+    const openCreate = () => {
+        setMode("create");
+        setSelectedRow(null);
+        setDrawerOpen(true);
+    };
+
+    const openEdit = (record) => {
+        setMode("edit");
+        setSelectedRow(record);
+        setDrawerOpen(true);
+    };
+
+    const handleSubmit = (values) => {
+        if (mode === "create") {
+            console.log("Create Part:", values);
+        } else {
+            console.log("Update Part ID:", selectedRow.id, values);
+        }
+        setDrawerOpen(false);
+    };
+
+    const handleDelete = (id) => {
+        console.log("Delete Part ID:", id);
+    };
+
     const columns = [
-        {
-            title: "ID",
-            dataIndex: "id",
-            key: "id",
-        },
-        {
-            title: "Part Type",
-            dataIndex: "part_type",
-            key: "part_type",
-        },
-        {
-            title: "Brand",
-            dataIndex: "brand",
-            key: "brand",
-        },
-        {
-            title: "Model",
-            dataIndex: "model",
-            key: "model",
-        },
+        { title: "ID", dataIndex: "id", key: "id" },
+        { title: "Part Type", dataIndex: "part_type", key: "part_type" },
+        { title: "Brand", dataIndex: "brand", key: "brand" },
+        { title: "Model", dataIndex: "model", key: "model" },
         {
             title: "Specifications",
             dataIndex: "specifications",
             key: "specifications",
         },
+        { title: "Quantity", dataIndex: "quantity", key: "quantity" },
+        { title: "Condition", dataIndex: "condition", key: "condition" },
         {
-            title: "Quantity",
-            dataIndex: "quantity",
-            key: "quantity",
-        },
-        {
-            title: "Condition",
-            dataIndex: "condition",
-            key: "condition",
+            title: "Action",
+            key: "action",
+            align: "center",
+            render: (_, record) => (
+                <Space>
+                    <Button
+                        type="link"
+                        icon={<EditOutlined />}
+                        onClick={() => openEdit(record)}
+                    />
+                    <Popconfirm
+                        title="Delete this part?"
+                        description="This action cannot be undone."
+                        onConfirm={() => handleDelete(record.id)}
+                    >
+                        <Button type="link" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                </Space>
+            ),
         },
     ];
+
     const paginationConfig = useMemo(
         () => getPaginationConfig(pagination),
         [pagination],
     );
+
     return (
         <AuthenticatedLayout>
-            <Card title="Parts Inventory" style={{ margin: "16px" }}>
+            <Card
+                title="Parts Inventory"
+                style={{ margin: "16px" }}
+                extra={
+                    <Button type="primary" onClick={openCreate}>
+                        <PlusOutlined /> Add Part
+                    </Button>
+                }
+            >
                 <Table
                     columns={columns}
                     rowKey="id"
@@ -60,6 +138,16 @@ const PartsTable = () => {
                     size="middle"
                 />
             </Card>
+
+            <FormDrawer
+                open={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
+                title={mode === "create" ? "Add Part" : "Edit Part"}
+                mode={mode}
+                initialValues={selectedRow}
+                fields={fields}
+                onSubmit={handleSubmit}
+            />
         </AuthenticatedLayout>
     );
 };

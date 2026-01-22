@@ -1,18 +1,76 @@
 import { getPaginationConfig } from "@/Config/pagination";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import FormDrawer from "@/Components/Drawer/FormDrawer";
 import { usePage } from "@inertiajs/react";
-import { Card, Table } from "antd";
-import React, { useMemo } from "react";
+import { Card, Table, Button, Space, Popconfirm } from "antd";
+import React, { useMemo, useState } from "react";
+import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 
-const PartsTable = () => {
-    const { softwares, pagination, filters } = usePage().props;
-    console.log(usePage().props);
-    const columns = [
+const SoftwareTable = () => {
+    const { softwares, pagination } = usePage().props;
+
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [mode, setMode] = useState("create"); // create | edit
+    const [selectedRow, setSelectedRow] = useState(null);
+
+    /** 🔹 Fields inside this file */
+    const fields = [
         {
-            title: "ID",
-            dataIndex: "id",
-            key: "id",
+            name: "software_name",
+            label: "Software Name",
+            rules: [{ required: true, message: "Software name is required" }],
         },
+        {
+            name: "software_type",
+            label: "Software Type",
+        },
+        {
+            name: "version",
+            label: "Version",
+        },
+        {
+            name: "publisher",
+            label: "Publisher",
+        },
+        {
+            name: "total_licenses",
+            label: "Total Licenses",
+            type: "number",
+            rules: [{ required: true }],
+        },
+    ];
+
+    // Open drawer for creating new software
+    const openCreate = () => {
+        setMode("create");
+        setSelectedRow(null);
+        setDrawerOpen(true);
+    };
+
+    // Open drawer for editing existing software
+    const openEdit = (record) => {
+        setMode("edit");
+        setSelectedRow(record);
+        setDrawerOpen(true);
+    };
+
+    // Handle form submission
+    const handleSubmit = (values) => {
+        if (mode === "create") {
+            console.log("Create Software:", values);
+        } else {
+            console.log("Update Software ID:", selectedRow.id, values);
+        }
+        setDrawerOpen(false);
+    };
+
+    // Handle deletion (example)
+    const handleDelete = (id) => {
+        console.log("Delete Software ID:", id);
+    };
+
+    const columns = [
+        { title: "ID", dataIndex: "id", key: "id" },
         {
             title: "Software Name",
             dataIndex: "software_name",
@@ -23,29 +81,54 @@ const PartsTable = () => {
             dataIndex: "software_type",
             key: "software_type",
         },
-        {
-            title: "Version",
-            dataIndex: "version",
-            key: "version",
-        },
-        {
-            title: "Publisher",
-            dataIndex: "publisher",
-            key: "publisher",
-        },
+        { title: "Version", dataIndex: "version", key: "version" },
+        { title: "Publisher", dataIndex: "publisher", key: "publisher" },
         {
             title: "Total Licenses",
             dataIndex: "total_licenses",
             key: "total_licenses",
         },
+        {
+            title: "Action",
+            key: "action",
+            align: "center",
+            render: (_, record) => (
+                <Space>
+                    <Button
+                        type="link"
+                        icon={<EditOutlined />}
+                        onClick={() => openEdit(record)}
+                    />
+                    <Popconfirm
+                        title="Delete this software?"
+                        description="This action cannot be undone."
+                        onConfirm={() => handleDelete(record.id)}
+                        okText="Yes"
+                        cancelText="No"
+                    >
+                        <Button type="link" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                </Space>
+            ),
+        },
     ];
+
     const paginationConfig = useMemo(
         () => getPaginationConfig(pagination),
         [pagination],
     );
+
     return (
         <AuthenticatedLayout>
-            <Card title="Software Inventory" style={{ margin: "16px" }}>
+            <Card
+                title="Software Inventory"
+                style={{ margin: "16px" }}
+                extra={
+                    <Button type="primary" onClick={openCreate}>
+                        <PlusOutlined /> Add Software
+                    </Button>
+                }
+            >
                 <Table
                     columns={columns}
                     rowKey="id"
@@ -55,8 +138,18 @@ const PartsTable = () => {
                     size="middle"
                 />
             </Card>
+
+            <FormDrawer
+                open={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
+                title={mode === "create" ? "Add Software" : "Edit Software"}
+                mode={mode}
+                initialValues={mode === "create" ? {} : selectedRow} // <-- Fix for create mode
+                fields={fields}
+                onSubmit={handleSubmit}
+            />
         </AuthenticatedLayout>
     );
 };
 
-export default PartsTable;
+export default SoftwareTable;
