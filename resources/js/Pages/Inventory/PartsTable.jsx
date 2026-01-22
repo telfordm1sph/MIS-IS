@@ -1,8 +1,8 @@
 import { getPaginationConfig } from "@/Config/pagination";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import FormDrawer from "@/Components/Drawer/FormDrawer";
-import { usePage } from "@inertiajs/react";
-import { Card, Table, Button, Space, Popconfirm } from "antd";
+import { router, usePage } from "@inertiajs/react";
+import { Card, Table, Button, Space, Popconfirm, message } from "antd";
 import React, { useMemo, useState } from "react";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 
@@ -65,17 +65,67 @@ const PartsTable = () => {
         setDrawerOpen(true);
     };
 
-    const handleSubmit = (values) => {
-        if (mode === "create") {
-            console.log("Create Part:", values);
-        } else {
-            console.log("Update Part ID:", selectedRow.id, values);
+    const handleSubmit = async (data) => {
+        const payload = { ...data };
+
+        // Add id if editing
+        if (mode === "edit" && selectedRow?.id) {
+            payload.id = selectedRow.id;
         }
-        setDrawerOpen(false);
+
+        console.log("Form values with ID:", payload);
+
+        try {
+            let response;
+            if (payload.id) {
+                response = await axios.put(
+                    route("parts.update", payload.id),
+                    payload,
+                );
+            } else {
+                response = await axios.post(route("parts.store"), payload);
+            }
+
+            if (response.data.success) {
+                message.success(
+                    payload.id
+                        ? "Part updated successfully!"
+                        : `Part created successfully! ID: ${response.data.id || ""}`,
+                );
+                setDrawerOpen(false);
+                router.reload({ only: ["parts"] });
+            } else {
+                message.error(response.data.message || "Operation failed");
+            }
+        } catch (error) {
+            message.error(
+                payload.id
+                    ? "Failed to update part. Please try again."
+                    : "Failed to create part. Please try again.",
+            );
+            console.error("Part submission error:", error);
+        }
     };
 
-    const handleDelete = (id) => {
-        console.log("Delete Part ID:", id);
+    const handleDelete = async (id, e) => {
+        // Stop propagation to prevent row click
+        e?.stopPropagation();
+
+        try {
+            const response = await axios.delete(route("parts.destroy", id));
+
+            if (response.data.success) {
+                message.success("Parts deleted successfully!");
+                router.reload({ only: ["parts"] });
+            } else {
+                message.error(
+                    response.data.message || "Delete operation failed",
+                );
+            }
+        } catch (error) {
+            message.error("Failed to delete part. Please try again.");
+            console.error("Request type deletion error:", error);
+        }
     };
 
     const columns = [
@@ -105,6 +155,10 @@ const PartsTable = () => {
                         title="Delete this part?"
                         description="This action cannot be undone."
                         onConfirm={() => handleDelete(record.id)}
+                        onCancel={(e) => e?.stopPropagation()}
+                        okText="Yes"
+                        cancelText="No"
+                        okButtonProps={{ danger: true }}
                     >
                         <Button type="link" danger icon={<DeleteOutlined />} />
                     </Popconfirm>

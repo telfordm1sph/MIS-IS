@@ -19,7 +19,6 @@ class PartsService
         // Start query from repository
         $tableQuery = $this->partsRepository->query();
 
-        // ----- Apply status filter -----
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $tableQuery->where('status', $filters['status']);
         }
@@ -68,5 +67,26 @@ class PartsService
             // 'statusCounts' => $statusCounts,
             'filters' => $filters,
         ];
+    }
+    public function create(array $data)
+    {
+        return $this->partsRepository->create($data);
+    }
+
+    public function update(int $id, array $data)
+    {
+        return $this->partsRepository->update($id, $data);
+    }
+
+
+    public function delete(int $id): bool
+    {
+        return $this->partsRepository->delete($id);
+    }
+
+
+    public function findById(int $id)
+    {
+        return $this->partsRepository->findById($id);
     }
 }

@@ -2,7 +2,6 @@
 
 namespace App\Repositories;
 
-use App\Constants\Status;
 use App\Models\PartInventory;
 
 class PartsRepository
@@ -12,29 +11,56 @@ class PartsRepository
         return PartInventory::query();
     }
 
-    // public function getPartsStatusCount($query): array
-    // {
-    //     $statusCounts = $query->clone()
-    //         ->groupBy('status')
-    //         ->selectRaw('status, COUNT(*) as count')
-    //         ->pluck('count', 'status')
-    //         ->toArray();
+    public function create(array $data): object
+    {
+        // Use Eloquent create to trigger created event
+        $part = PartInventory::create([
+            'part_type'      => $data['part_type'],
+            'brand'          => $data['brand'],
+            'model'          => $data['model'] ?? null,
+            'specifications' => $data['specifications'] ?? null,
+            'quantity'       => $data['quantity'] ?? null,
+            'condition'      => $data['condition'] ?? null,
+        ]);
 
-    //     $result = [];
-    //     $total = array_sum($statusCounts);
+        return $part;
+    }
 
-    //     $result['All'] = [
-    //         'count' => $total,
-    //         'color' => 'default',
-    //     ];
+    public function update(int $id, array $data): ?object
+    {
+        $part = PartInventory::find($id);
 
-    //     foreach (Status::LABELS as $value => $label) {
-    //         $result[$label] = [
-    //             'count' => $statusCounts[$value] ?? 0,
-    //             'color' => Status::COLORS[$value] ?? 'default',
-    //         ];
-    //     }
+        if (!$part) {
+            return null;
+        }
 
-    //     return $result;
-    // }
+        // Update via model instance to trigger updated event
+        $part->update([
+            'part_type'      => $data['part_type'],
+            'brand'          => $data['brand'],
+            'model'          => $data['model'] ?? null,
+            'specifications' => $data['specifications'] ?? null,
+            'quantity'       => $data['quantity'] ?? null,
+            'condition'      => $data['condition'] ?? null,
+        ]);
+
+        return $part;
+    }
+
+    public function delete(int $id): bool
+    {
+        $part = PartInventory::find($id);
+
+        if (!$part) {
+            return false;
+        }
+
+        // Delete via model instance to trigger deleted event
+        return $part->delete();
+    }
+
+    public function findById(int $id): ?object
+    {
+        return PartInventory::find($id);
+    }
 }

@@ -16,22 +16,21 @@ trait Loggable
         });
 
         static::updated(function ($model) {
-            if ($model->isDirty()) {
-                $model->writeLog('updated');
-            }
+            // no isDirty() here, let writeLog handle checking for changes
+            $model->writeLog('updated');
         });
 
         static::deleted(function ($model) {
             $model->writeLog('deleted');
         });
 
-        // Register restored only if SoftDeletes is used
         if (in_array(SoftDeletes::class, class_uses_recursive(static::class))) {
             static::restored(function ($model) {
                 $model->writeLog('restored');
             });
         }
     }
+
 
     protected function writeLog(string $action): void
     {

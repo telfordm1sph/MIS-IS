@@ -61,9 +61,11 @@ const FormDrawer = ({
                         >
                             <Component
                                 style={{ width: "100%" }}
-                                allowClear
                                 placeholder={field.placeholder}
                                 disabled={field.disabled}
+                                {...(field.type !== "number"
+                                    ? { allowClear: true }
+                                    : {})}
                             />
                         </Form.Item>
                     );

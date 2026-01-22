@@ -17,6 +17,7 @@ class PartInventory extends Model
         'model',
         'specifications',
         'quantity',
+        'condition',
         'location',
         'reorder_level',
         'reorder_quantity',

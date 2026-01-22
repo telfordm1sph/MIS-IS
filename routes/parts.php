@@ -9,4 +9,8 @@ Route::prefix($app_name)
     ->group(function () {
 
         Route::get('/parts', [PartsController::class, 'getPartsTable'])->name('parts.table');
+
+        Route::post('parts', [PartsController::class, 'store'])->name('parts.store');
+        Route::put('/parts/{id}', [PartsController::class, 'update'])->name('parts.update');
+        Route::delete('/parts/{id}', [PartsController::class, 'destroy'])->name('parts.destroy');
     });
