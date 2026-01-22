@@ -74,6 +74,15 @@ class HardwareService
             return array_merge($hardwareArray, [
                 'status_label' => Status::getLabel($hardwareArray['status']),
                 'status_color' => Status::getColor($hardwareArray['status']),
+                'issued_to_label' => $this->getUserName(
+                    $hardwareArray['issued_to'] ?? null,
+                    $hardware->issuedToUser ?? null
+                ),
+
+                'installed_by_label' => $this->getUserName(
+                    $hardwareArray['installed_by'] ?? null,
+                    $hardware->installedByUser ?? null
+                ),
             ]);
         });
 
@@ -96,5 +105,13 @@ class HardwareService
             'statusCounts' => $statusCounts,
             'filters'      => $filters,
         ];
+    }
+    private function getUserName($userId, $userObject): string
+    {
+        if (is_numeric($userId) && $userObject) {
+            return $userObject->EMPNAME ?? $userId;
+        }
+
+        return $userId ?? '';
     }
 }

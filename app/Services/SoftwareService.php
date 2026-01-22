@@ -3,21 +3,21 @@
 namespace App\Services;
 
 use App\Constants\Status;
-use App\Repositories\PartsRepository;
+use App\Repositories\SoftwareRepository;
 
-class PartsService
+class SoftwareService
 {
-    protected PartsRepository $partsRepository;
+    protected SoftwareRepository $softwareRepository;
 
-    public function __construct(PartsRepository $partsRepository)
+    public function __construct(SoftwareRepository $softwareRepository)
     {
-        $this->partsRepository = $partsRepository;
+        $this->softwareRepository = $softwareRepository;
     }
 
-    public function getPartsTable(array $filters): array
+    public function getSoftwareTable(array $filters): array
     {
         // Start query from repository
-        $tableQuery = $this->partsRepository->query();
+        $tableQuery = $this->softwareRepository->query();
 
         // ----- Apply status filter -----
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
@@ -49,7 +49,7 @@ class PartsService
         $data = $paginated->items(); // Get current page data
 
         // Optional: Status counts (uncomment if needed)
-        // $statusCounts = $this->partsRepository->query()
+        // $statusCounts = $this->softwareRepository->query()
         //     ->select('status', \DB::raw('count(*) as count'))
         //     ->groupBy('status')
         //     ->pluck('count', 'status')

@@ -20,7 +20,9 @@ class HardwareRepository
                     'softwareInventory:id,software_name,software_type,version',
                     'softwareLicense:id,license_key,account_user'
                 ]);
-            }
+            },
+            'issuedToUser',
+            'installedByUser'
         ]);
     }
 

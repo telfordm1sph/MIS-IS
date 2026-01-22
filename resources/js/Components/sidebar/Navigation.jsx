@@ -3,6 +3,7 @@ import { usePage } from "@inertiajs/react";
 import SidebarLink from "@/Components/sidebar/SidebarLink";
 
 import { Table2Icon, ToolCase } from "lucide-react";
+import { WindowsOutlined } from "@ant-design/icons";
 
 export default function NavLinks({ isSidebarOpen }) {
     const { emp_data } = usePage().props;
@@ -22,6 +23,12 @@ export default function NavLinks({ isSidebarOpen }) {
                 href={route("parts.table")}
                 icon={<ToolCase className="w-5 h-5" />}
                 label="Parts"
+                isSidebarOpen={isSidebarOpen}
+            />
+            <SidebarLink
+                href={route("software.table")}
+                icon={<WindowsOutlined className="w-5 h-5" />}
+                label="Softwares"
                 isSidebarOpen={isSidebarOpen}
             />
         </nav>

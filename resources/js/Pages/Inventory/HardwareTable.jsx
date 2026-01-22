@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import { getPaginationConfig } from "@/Config/pagination";
 const HardwareTable = () => {
     const { hardware, pagination, pageSizeOptions } = usePage().props;
+    console.log(usePage().props);
 
     const [drawerVisible, setDrawerVisible] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
@@ -39,6 +40,11 @@ const HardwareTable = () => {
         { title: "Category", dataIndex: "category", key: "category" },
         { title: "Location", dataIndex: "location", key: "location" },
         {
+            title: "Issued To",
+            dataIndex: "issued_to_label",
+            key: "issued_to_label",
+        },
+        {
             title: "Status",
             key: "status",
             render: (_, record) => (
@@ -65,6 +71,9 @@ const HardwareTable = () => {
             { label: "IP Address", value: item.ip_address || "-" },
             { label: "Wifi MAC", value: item.wifi_mac || "-" },
             { label: "LAN MAC", value: item.lan_mac || "-" },
+            { label: "Issued To", value: item.issued_to_label || "-" },
+            { label: "Department", value: item.department || "-" },
+            { label: "Installed By", value: item.installed_by || "-" },
             {
                 label: "Status",
                 value: {
