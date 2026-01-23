@@ -17,15 +17,6 @@ class SoftwareInventory extends Model
         'license_type',
         'requires_key_tracking',
         'total_licenses',
-        'assigned_licenses',
-        'subscription_start',
-        'subscription_end',
-        'renewal_reminder_days',
-        'cost_per_license',
-        'total_cost',
-        'purchase_date',
-        'purchase_order',
-        'vendor',
         'notes'
     ];
 

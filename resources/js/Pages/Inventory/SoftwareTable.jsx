@@ -1,8 +1,8 @@
 import { getPaginationConfig } from "@/Config/pagination";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import FormDrawer from "@/Components/Drawer/FormDrawer";
-import { usePage } from "@inertiajs/react";
-import { Card, Table, Button, Space, Popconfirm } from "antd";
+import { router, usePage } from "@inertiajs/react";
+import { Card, Table, Button, Space, Popconfirm, message } from "antd";
 import React, { useMemo, useState } from "react";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 
@@ -54,19 +54,67 @@ const SoftwareTable = () => {
         setDrawerOpen(true);
     };
 
-    // Handle form submission
-    const handleSubmit = (values) => {
-        if (mode === "create") {
-            console.log("Create Software:", values);
-        } else {
-            console.log("Update Software ID:", selectedRow.id, values);
+    const handleSubmit = async (data) => {
+        const payload = { ...data };
+
+        // Add id if editing
+        if (mode === "edit" && selectedRow?.id) {
+            payload.id = selectedRow.id;
         }
-        setDrawerOpen(false);
+
+        console.log("Form values with ID:", payload);
+
+        try {
+            let response;
+            if (payload.id) {
+                response = await axios.put(
+                    route("software.update", payload.id),
+                    payload,
+                );
+            } else {
+                response = await axios.post(route("software.store"), payload);
+            }
+
+            if (response.data.success) {
+                message.success(
+                    payload.id
+                        ? "Software updated successfully!"
+                        : `Software created successfully! ID: ${response.data.id || ""}`,
+                );
+                setDrawerOpen(false);
+                router.reload({ only: ["softwares"] });
+            } else {
+                message.error(response.data.message || "Operation failed");
+            }
+        } catch (error) {
+            message.error(
+                payload.id
+                    ? "Failed to update software. Please try again."
+                    : "Failed to create software. Please try again.",
+            );
+            console.error("Software submission error:", error);
+        }
     };
 
-    // Handle deletion (example)
-    const handleDelete = (id) => {
-        console.log("Delete Software ID:", id);
+    const handleDelete = async (id, e) => {
+        // Stop propagation to prevent row click
+        e?.stopPropagation();
+
+        try {
+            const response = await axios.delete(route("software.destroy", id));
+
+            if (response.data.success) {
+                message.success("Software deleted successfully!");
+                router.reload({ only: ["softwares"] });
+            } else {
+                message.error(
+                    response.data.message || "Delete operation failed",
+                );
+            }
+        } catch (error) {
+            message.error("Failed to delete software. Please try again.");
+            console.error("Request type deletion error:", error);
+        }
     };
 
     const columns = [

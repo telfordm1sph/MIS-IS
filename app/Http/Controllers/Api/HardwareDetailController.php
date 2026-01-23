@@ -36,7 +36,7 @@ class HardwareDetailController extends Controller
                 'status'
             )
             ->with([
-                'softwareInventory:id,software_name,version,publisher,license_type',
+                'softwareInventory:id,software_name,software_type,version,publisher,license_type',
                 'softwareLicense:id,license_key,max_activations,current_activations,account_user'
             ])
             ->get()
@@ -46,6 +46,7 @@ class HardwareDetailController extends Controller
                 'status' => $s->status,
                 'inventory' => $s->softwareInventory?->only([
                     'software_name',
+                    'software_type',
                     'version',
                     'publisher',
                     'license_type',

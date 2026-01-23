@@ -16,6 +16,10 @@ class SoftwareLicense extends Model
         'account_password',
         'max_activations',
         'current_activations',
+        'subscription_start',
+        'subscription_end',
+        'renewal_reminder_days',
+        'cost_per_license',
         'remarks',
         'created_by',
         'updated_by'

@@ -69,4 +69,23 @@ class SoftwareService
             'filters' => $filters,
         ];
     }
+    public function create(array $data)
+    {
+        return $this->softwareRepository->create($data);
+    }
+
+    public function update(int $id, array $data)
+    {
+        return $this->softwareRepository->update($id, $data);
+    }
+
+
+    public function delete(int $id): bool
+    {
+        return $this->softwareRepository->delete($id);
+    }
+    public function findById(int $id)
+    {
+        return $this->softwareRepository->findById($id);
+    }
 }

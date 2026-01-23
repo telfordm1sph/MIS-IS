@@ -45,26 +45,59 @@ const DetailsDrawer = ({ visible, fieldGroups = [], loading, onClose }) => {
                 <Title level={5} style={{ marginBottom: 8 }}>
                     {sub.title}
                 </Title>
-                {sub.fields?.length ? (
-                    sub.fields.map((field, idx) => (
-                        <Descriptions
-                            key={idx}
-                            layout="vertical"
-                            size="small"
-                            column={sub.column || 2}
-                            bordered={false}
-                            style={{
-                                marginBottom: 12,
-                                padding: 8,
-                                border: "1px solid #f5f5f5",
-                                borderRadius: 4,
-                            }}
-                        >
-                            {renderFields(field)}
-                        </Descriptions>
-                    ))
-                ) : (
+
+                {!sub.fields?.length && !sub.subGroups?.length ? (
                     <Empty description={`No ${sub.title} Data`} />
+                ) : (
+                    <>
+                        {sub.fields?.length && sub.fields[0].label ? (
+                            // This is software style: array of { label, value }
+                            <Descriptions
+                                layout="vertical"
+                                size="small"
+                                column={sub.column || 2}
+                                bordered={false}
+                            >
+                                {sub.fields.map((field, idx) => (
+                                    <Descriptions.Item
+                                        key={idx}
+                                        label={field.label}
+                                    >
+                                        {field.value || "-"}
+                                    </Descriptions.Item>
+                                ))}
+                            </Descriptions>
+                        ) : (
+                            // This is parts style: array of objects with multiple keys
+                            sub.fields?.map((fieldObj, idx) => (
+                                <Descriptions
+                                    key={idx}
+                                    layout="vertical"
+                                    size="small"
+                                    column={sub.column || 2}
+                                    bordered={false}
+                                    style={{
+                                        marginBottom: 12,
+                                        padding: 8,
+                                        border: "1px solid #f5f5f5",
+                                        borderRadius: 4,
+                                    }}
+                                >
+                                    {Object.entries(fieldObj).map(([k, v]) => (
+                                        <Descriptions.Item key={k} label={k}>
+                                            {v || "-"}
+                                        </Descriptions.Item>
+                                    ))}
+                                </Descriptions>
+                            ))
+                        )}
+
+                        {sub.subGroups?.length &&
+                            renderSubGroups(
+                                sub.subGroups,
+                                `No ${sub.title} Data`,
+                            )}
+                    </>
                 )}
             </div>
         ));
