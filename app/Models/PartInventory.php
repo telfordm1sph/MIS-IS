@@ -12,12 +12,9 @@ class PartInventory extends Model
     protected $table = 'part_inventory';
 
     protected $fillable = [
-        'part_type',
-        'brand',
-        'model',
-        'specifications',
-        'quantity',
+        'part_id',
         'condition',
+        'quantity',
         'location',
         'reorder_level',
         'reorder_quantity',
@@ -27,6 +24,11 @@ class PartInventory extends Model
     ];
 
     // Relationships
+    public function part()
+    {
+        return $this->belongsTo(Part::class);
+    }
+
     public function hardwareParts()
     {
         return $this->hasMany(HardwarePart::class, 'source_inventory_id');

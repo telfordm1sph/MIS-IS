@@ -27,6 +27,7 @@ class HardwarePart extends Model
         'updated_by'
     ];
 
+    // Relationships
     public function hardware()
     {
         return $this->belongsTo(Hardware::class, 'hardware_id', 'hostname');
@@ -35,5 +36,10 @@ class HardwarePart extends Model
     public function sourceInventory()
     {
         return $this->belongsTo(PartInventory::class, 'source_inventory_id');
+    }
+
+    public function part()
+    {
+        return $this->belongsTo(Part::class, 'part_id');
     }
 }

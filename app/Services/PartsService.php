@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Constants\Status;
 use App\Repositories\PartsRepository;
 
 class PartsService
@@ -16,58 +15,48 @@ class PartsService
 
     public function getPartsTable(array $filters): array
     {
-        // Start query from repository
-        $tableQuery = $this->partsRepository->query();
+        $query = $this->partsRepository->query();
 
+        // Status filter
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
-            $tableQuery->where('status', $filters['status']);
+            $query->where('status', $filters['status']);
         }
 
-        // ----- Apply search filter -----
+        // Search filter
         if (!empty($filters['search'])) {
             $search = $filters['search'];
-            $tableQuery->where(function ($q) use ($search) {
-                $q->where('part_type', 'like', "%$search%")
-                    ->orWhere('brand', 'like', "%$search%")
-                    ->orWhere('model', 'like', "%$search%")
-                    ->orWhere('specifications', 'like', "%$search%")
-                    ->orWhere('location', 'like', "%$search%");
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('part', function ($q2) use ($search) {
+                    $q2->where('part_type', 'like', "%$search%")
+                        ->orWhere('brand', 'like', "%$search%")
+                        ->orWhere('model', 'like', "%$search%")
+                        ->orWhere('specifications', 'like', "%$search%");
+                })->orWhere('location', 'like', "%$search%");
             });
         }
 
-        // ----- Sorting -----
+        // Sorting
         $sortField = $filters['sortField'] ?? 'created_at';
         $sortOrder = $filters['sortOrder'] ?? 'desc';
-        $tableQuery->orderBy($sortField, $sortOrder);
+        $query->orderBy($sortField, $sortOrder);
 
-        // ----- Pagination -----
-        $page     = $filters['page'] ?? 1;
+        // Pagination
+        $page = $filters['page'] ?? 1;
         $pageSize = $filters['pageSize'] ?? 10;
-        $paginated = $tableQuery->paginate($pageSize, ['*'], 'page', $page);
-
-        $data = $paginated->items(); // Get current page data
-
-        // Optional: Status counts (uncomment if needed)
-        // $statusCounts = $this->partsRepository->query()
-        //     ->select('status', \DB::raw('count(*) as count'))
-        //     ->groupBy('status')
-        //     ->pluck('count', 'status')
-        //     ->toArray();
+        $paginated = $query->paginate($pageSize, ['*'], 'page', $page);
 
         return [
-            'data' => $data,
+            'data' => $paginated->items(),
             'pagination' => [
-                'current'     => $paginated->currentPage(),
-                'currentPage' => $paginated->currentPage(),
-                'lastPage'    => $paginated->lastPage(),
-                'total'       => $paginated->total(),
-                'perPage'     => $paginated->perPage(),
-                'pageSize'    => $paginated->perPage(),
+                'current' => $paginated->currentPage(),
+                'lastPage' => $paginated->lastPage(),
+                'total' => $paginated->total(),
+                'perPage' => $paginated->perPage(),
             ],
-            // 'statusCounts' => $statusCounts,
             'filters' => $filters,
         ];
     }
+
     public function create(array $data)
     {
         return $this->partsRepository->create($data);
@@ -78,12 +67,10 @@ class PartsService
         return $this->partsRepository->update($id, $data);
     }
 
-
     public function delete(int $id): bool
     {
         return $this->partsRepository->delete($id);
     }
-
 
     public function findById(int $id)
     {

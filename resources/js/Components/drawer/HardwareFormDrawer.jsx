@@ -6,12 +6,12 @@ import {
     Select,
     Button,
     DatePicker,
-    Divider,
     Tabs,
     Spin,
 } from "antd";
 import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
+import axios from "axios";
 
 const { TextArea } = Input;
 
@@ -19,16 +19,33 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
     const [removedItems, setRemovedItems] = useState({});
     const [loading, setLoading] = useState(false);
     const [form] = Form.useForm();
-    console.log("Field", fieldGroups);
+    
+    // Store options for cascading selects
+    const [partsOptions, setPartsOptions] = useState({
+        types: [],
+        brands: [],
+        models: [],
+        specifications: []
+    });
+
+    // Store options for software cascading selects
+    const [softwareOptions, setSoftwareOptions] = useState({
+        names: [],
+        types: [],
+        versions: [],
+        licenses: []
+    });
+
+    // Store inventory quantities for parts
+    const [inventoryData, setInventoryData] = useState({});
+    
+    // Store license activation data for software
+    const [licenseData, setLicenseData] = useState({});
 
     // Convert date strings to dayjs objects recursively
     const convertDatesToDayjs = (obj) => {
         if (!obj) return obj;
-
-        if (Array.isArray(obj)) {
-            return obj.map((item) => convertDatesToDayjs(item));
-        }
-
+        if (Array.isArray(obj)) return obj.map(convertDatesToDayjs);
         if (typeof obj === "object") {
             const converted = {};
             for (const [key, value] of Object.entries(obj)) {
@@ -42,20 +59,277 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             }
             return converted;
         }
-
         return obj;
+    };
+
+    // Load initial part types when drawer opens
+    useEffect(() => {
+        if (open) {
+            loadPartTypes();
+            loadSoftwareNames();
+        }
+    }, [open]);
+
+    const loadPartTypes = async () => {
+        try {
+            const { data } = await axios.get(route("hardware.parts.options"));
+            setPartsOptions(prev => ({
+                ...prev,
+                types: data.types.map(t => ({ label: t, value: t }))
+            }));
+        } catch (error) {
+            console.error("Error loading part types:", error);
+        }
+    };
+
+    const loadSoftwareNames = async () => {
+        try {
+            const { data } = await axios.get(route("hardware.software.options"));
+            setSoftwareOptions(prev => ({
+                ...prev,
+                names: data.names.map(n => ({ label: n, value: n }))
+            }));
+        } catch (error) {
+            console.error("Error loading software names:", error);
+        }
+    };
+
+    const loadBrands = async (partType, fieldName) => {
+        if (!partType) return;
+        
+        try {
+            const filters = btoa(JSON.stringify({ type: partType }));
+            const { data } = await axios.get(
+                route("hardware.parts.options", filters)
+            );
+            
+            // Store brands for this specific field
+            setPartsOptions(prev => ({
+                ...prev,
+                [`brands_${fieldName}`]: data.brands.map(b => ({ label: b, value: b }))
+            }));
+        } catch (error) {
+            console.error("Error loading brands:", error);
+        }
+    };
+
+    const loadModels = async (partType, brand, fieldName) => {
+        if (!partType || !brand) return;
+        
+        try {
+            const filters = btoa(JSON.stringify({ type: partType, brand }));
+            const { data } = await axios.get(
+                route("hardware.parts.options", filters)
+            );
+            
+            setPartsOptions(prev => ({
+                ...prev,
+                [`models_${fieldName}`]: data.models.map(m => ({ label: m, value: m }))
+            }));
+        } catch (error) {
+            console.error("Error loading models:", error);
+        }
+    };
+
+    const loadSpecifications = async (partType, brand, model, fieldName, currentRowIndex) => {
+        if (!partType || !brand || !model) return;
+        
+        try {
+            const filters = btoa(JSON.stringify({ type: partType, brand, model }));
+            const { data } = await axios.get(
+                route("hardware.parts.options", filters)
+            );
+            
+            // Get available quantities for each specification
+            const inventoryResponse = await axios.get(
+                route("hardware.parts.inventory", filters)
+            );
+            
+            const inventoryMap = {};
+            inventoryResponse.data.forEach(inv => {
+                inventoryMap[inv.specifications] = inv.available_quantity;
+            });
+            
+            setInventoryData(prev => ({
+                ...prev,
+                [`${partType}_${brand}_${model}`]: inventoryMap
+            }));
+            
+            // Filter specifications based on what's already selected in other rows
+            const currentParts = form.getFieldValue("parts") || [];
+            const usedSpecs = currentParts
+                .map((part, idx) => {
+                    if (idx !== currentRowIndex && 
+                        part?.part_type === partType && 
+                        part?.brand === brand && 
+                        part?.model === model) {
+                        return part.specifications;
+                    }
+                    return null;
+                })
+                .filter(Boolean);
+            
+            // Count how many times each spec is used
+            const specCounts = {};
+            usedSpecs.forEach(spec => {
+                specCounts[spec] = (specCounts[spec] || 0) + 1;
+            });
+            
+            // Filter out specs that are fully used
+            const availableSpecs = data.specifications.filter(spec => {
+                const available = inventoryMap[spec] || 0;
+                const used = specCounts[spec] || 0;
+                return available > used;
+            });
+            
+            setPartsOptions(prev => ({
+                ...prev,
+                [`specifications_${fieldName}`]: availableSpecs.map(s => ({
+                    label: `${s} (${inventoryMap[s] - (specCounts[s] || 0)} available)`,
+                    value: s
+                }))
+            }));
+        } catch (error) {
+            console.error("Error loading specifications:", error);
+        }
+    };
+
+    // Software cascading functions
+    const loadSoftwareTypes = async (softwareName, fieldName) => {
+        if (!softwareName) return;
+        
+        try {
+            const filters = btoa(JSON.stringify({ name: softwareName }));
+            const { data } = await axios.get(
+                route("hardware.software.options", filters)
+            );
+            
+            setSoftwareOptions(prev => ({
+                ...prev,
+                [`types_${fieldName}`]: data.types.map(t => ({ label: t, value: t }))
+            }));
+        } catch (error) {
+            console.error("Error loading software types:", error);
+        }
+    };
+
+    const loadSoftwareVersions = async (softwareName, softwareType, fieldName) => {
+        if (!softwareName || !softwareType) return;
+        
+        try {
+            const filters = btoa(JSON.stringify({ name: softwareName, type: softwareType }));
+            const { data } = await axios.get(
+                route("hardware.software.options", filters)
+            );
+            
+            setSoftwareOptions(prev => ({
+                ...prev,
+                [`versions_${fieldName}`]: data.versions.map(v => ({ label: v, value: v }))
+            }));
+        } catch (error) {
+            console.error("Error loading software versions:", error);
+        }
+    };
+
+    const loadSoftwareLicenses = async (softwareName, softwareType, version, fieldName, currentRowIndex) => {
+        if (!softwareName || !softwareType || !version) return;
+        
+        try {
+            const filters = btoa(JSON.stringify({ name: softwareName, type: softwareType, version }));
+            const licensesResponse = await axios.get(
+                route("hardware.software.licenses", filters)
+            );
+            
+            // Store license activation data
+            const licenseMap = {};
+            licensesResponse.data.forEach(lic => {
+                const key = lic.identifier; // Either license_key or account_user
+                licenseMap[key] = {
+                    license_id: lic.license_id,
+                    available_activations: lic.available_activations,
+                    max_activations: lic.max_activations,
+                    current_activations: lic.current_activations,
+                    display_type: lic.display_type,
+                    license_key: lic.license_key,
+                    account_user: lic.account_user,
+                    account_password: lic.account_password
+                };
+            });
+            
+            setLicenseData(prev => ({
+                ...prev,
+                [`${softwareName}_${softwareType}_${version}`]: licenseMap
+            }));
+            
+            // Filter licenses based on what's already selected in other rows
+            const currentSoftware = form.getFieldValue("software") || [];
+            const usedLicenses = currentSoftware
+                .map((sw, idx) => {
+                    if (idx !== currentRowIndex && 
+                        sw?.software_name === softwareName && 
+                        sw?.software_type === softwareType && 
+                        sw?.version === version) {
+                        // Return the identifier (either license_key or account_user)
+                        return sw.license_key || sw.account_user;
+                    }
+                    return null;
+                })
+                .filter(Boolean);
+            
+            // Count how many times each license is used
+            const licenseCounts = {};
+            usedLicenses.forEach(key => {
+                licenseCounts[key] = (licenseCounts[key] || 0) + 1;
+            });
+            
+            // Filter out licenses that are fully activated
+            const availableLicenses = Object.keys(licenseMap).filter(key => {
+                const available = licenseMap[key].available_activations;
+                const used = licenseCounts[key] || 0;
+                return available > used;
+            });
+            
+            setSoftwareOptions(prev => ({
+                ...prev,
+                [`licenses_${fieldName}`]: availableLicenses.map(key => {
+                    const lic = licenseMap[key];
+                    const remaining = lic.available_activations - (licenseCounts[key] || 0);
+                    const displayKey = lic.display_type === 'Account' 
+                        ? `Account: ${key}` 
+                        : key;
+                    
+                    return {
+                        label: `${displayKey} (${remaining} of ${lic.max_activations} available)`,
+                        value: key,
+                        license_data: lic // Store full license data for later use
+                    };
+                })
+            }));
+        } catch (error) {
+            console.error("Error loading software licenses:", error);
+        }
     };
 
     useEffect(() => {
         if (!open) return;
         if (item) {
             setLoading(true);
-            // Convert all date fields to dayjs objects
             const formattedItem = convertDatesToDayjs({
                 ...item,
                 date_issued: item.date_issued ? dayjs(item.date_issued) : null,
                 remarks: "",
             });
+            
+            // Set _license_identifier for software items
+            if (formattedItem.software && Array.isArray(formattedItem.software)) {
+                formattedItem.software = formattedItem.software.map(sw => ({
+                    ...sw,
+                    _license_identifier: sw.license_key || sw.account_user || null,
+                    // Also set license_key to the identifier for form display
+                    license_key: sw.license_key || sw.account_user || null
+                }));
+            }
+            
             form.setFieldsValue(formattedItem);
             setLoading(false);
         } else {
@@ -66,8 +340,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
     const handleFinish = (values) => {
         const convertDayjsToStrings = (obj) => {
             if (!obj) return obj;
-            if (Array.isArray(obj))
-                return obj.map((item) => convertDayjsToStrings(item));
+            if (Array.isArray(obj)) return obj.map(convertDayjsToStrings);
             if (dayjs.isDayjs(obj)) return obj.format("YYYY-MM-DD");
             if (typeof obj === "object") {
                 const converted = {};
@@ -80,6 +353,21 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
         };
 
         const formattedValues = convertDayjsToStrings(values);
+        
+        // Process software to get actual license_key from hidden fields
+        if (formattedValues.software && Array.isArray(formattedValues.software)) {
+            formattedValues.software = formattedValues.software.map(sw => {
+                // Get the actual license data from hidden fields
+                const licenseKey = sw.account_user ? null : sw._license_identifier;
+                
+                return {
+                    ...sw,
+                    license_key: licenseKey,
+                    // Remove the temporary identifier field
+                    _license_identifier: undefined
+                };
+            });
+        }
 
         Object.entries(removedItems).forEach(([key, ids]) => {
             formattedValues[key] = formattedValues[key] || [];
@@ -92,125 +380,264 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
         setRemovedItems([]);
     };
 
-    const renderField = (field) => {
+    // Render field based on type with cascading logic for parts and software
+    const renderField = (field, parentFieldName = null, rowIndex = null) => {
         const isDisabled = field.editable === false;
+        const fieldName = parentFieldName ? `${parentFieldName}_${rowIndex}` : field.dataIndex;
 
         switch (field.type) {
-            case "select":
+            case "license_select":
+                // Special handling for license/account select
+                let licenseOptions = [];
+                
+                if (parentFieldName === "software") {
+                    licenseOptions = softwareOptions[`licenses_${fieldName}`] || [];
+                }
+                
                 return (
                     <Select
                         placeholder={`Select ${field.label}`}
-                        options={field.options}
+                        options={licenseOptions}
                         allowClear
                         disabled={isDisabled}
                         showSearch
                         optionFilterProp="label"
+                        style={{ minWidth: 250 }}
+                        onFocus={async () => {
+                            if (parentFieldName === "software") {
+                                const currentValues = form.getFieldValue("software")?.[rowIndex] || {};
+                                if (currentValues.software_name && currentValues.software_type && currentValues.version) {
+                                    await loadSoftwareLicenses(currentValues.software_name, currentValues.software_type, currentValues.version, fieldName, rowIndex);
+                                }
+                            }
+                        }}
+                        onChange={(val) => {
+                            if (parentFieldName === "software") {
+                                const software = form.getFieldValue("software") || [];
+                                
+                                // Get the full license data from the selected option
+                                const selectedOption = licenseOptions.find(opt => opt.value === val);
+                                const licenseData = selectedOption?.license_data;
+                                
+                                if (licenseData) {
+                                    // Update the hidden fields
+                                    const parts = ['_license_identifier', 'account_user', 'account_password'];
+                                    parts.forEach(part => {
+                                        form.setFieldValue(['software', rowIndex, part], 
+                                            part === '_license_identifier' ? val : licenseData[part] || null
+                                        );
+                                    });
+                                    
+                                    // Set the display value to the identifier
+                                    form.setFieldValue(['software', rowIndex, 'license_key'], val);
+                                }
+                            }
+                        }}
                     />
                 );
-            case "date":
+            
+            case "select":
+                let options = field.options || [];
+                
+                // Handle cascading selects for hardware parts
+                if (parentFieldName === "parts") {
+                    const currentValues = form.getFieldValue("parts")?.[rowIndex] || {};
+                    
+                    if (field.dataIndex === "part_type") {
+                        options = partsOptions.types || [];
+                    } else if (field.dataIndex === "brand") {
+                        options = partsOptions[`brands_${fieldName}`] || [];
+                    } else if (field.dataIndex === "model") {
+                        options = partsOptions[`models_${fieldName}`] || [];
+                    } else if (field.dataIndex === "specifications") {
+                        options = partsOptions[`specifications_${fieldName}`] || [];
+                    }
+                }
+
+                // Handle cascading selects for software
+                if (parentFieldName === "software") {
+                    const currentValues = form.getFieldValue("software")?.[rowIndex] || {};
+                    
+                    if (field.dataIndex === "software_name") {
+                        options = softwareOptions.names || [];
+                    } else if (field.dataIndex === "software_type") {
+                        options = softwareOptions[`types_${fieldName}`] || [];
+                    } else if (field.dataIndex === "version") {
+                        options = softwareOptions[`versions_${fieldName}`] || [];
+                    }
+                }
+
                 return (
-                    <DatePicker
-                        format="YYYY-MM-DD"
-                        style={{ width: "100%" }}
+                    <Select
                         placeholder={`Select ${field.label}`}
+                        options={options}
+                        allowClear
                         disabled={isDisabled}
+                        showSearch
+                        optionFilterProp="label"
+                        style={{ minWidth: parentFieldName === "software" ? 200 : undefined }}
+                        onFocus={async () => {
+                            if (parentFieldName === "parts") {
+                                const currentValues = form.getFieldValue("parts")?.[rowIndex] || {};
+                                
+                                if (field.dataIndex === "brand" && currentValues.part_type) {
+                                    await loadBrands(currentValues.part_type, fieldName);
+                                } else if (field.dataIndex === "model" && currentValues.part_type && currentValues.brand) {
+                                    await loadModels(currentValues.part_type, currentValues.brand, fieldName);
+                                } else if (field.dataIndex === "specifications" && currentValues.part_type && currentValues.brand && currentValues.model) {
+                                    await loadSpecifications(currentValues.part_type, currentValues.brand, currentValues.model, fieldName, rowIndex);
+                                }
+                            }
+                            
+                            if (parentFieldName === "software") {
+                                const currentValues = form.getFieldValue("software")?.[rowIndex] || {};
+                                
+                                if (field.dataIndex === "software_type" && currentValues.software_name) {
+                                    await loadSoftwareTypes(currentValues.software_name, fieldName);
+                                } else if (field.dataIndex === "version" && currentValues.software_name && currentValues.software_type) {
+                                    await loadSoftwareVersions(currentValues.software_name, currentValues.software_type, fieldName);
+                                }
+                            }
+                        }}
+                        onChange={(val) => {
+                            if (parentFieldName === "parts") {
+                                const parts = form.getFieldValue("parts") || [];
+                                const currentPart = parts[rowIndex] || {};
+                                
+                                if (field.dataIndex === "part_type") {
+                                    parts[rowIndex] = {
+                                        ...currentPart,
+                                        part_type: val,
+                                        brand: undefined,
+                                        model: undefined,
+                                        specifications: undefined
+                                    };
+                                    form.setFieldsValue({ parts });
+                                } else if (field.dataIndex === "brand") {
+                                    parts[rowIndex] = {
+                                        ...currentPart,
+                                        brand: val,
+                                        model: undefined,
+                                        specifications: undefined
+                                    };
+                                    form.setFieldsValue({ parts });
+                                } else if (field.dataIndex === "model") {
+                                    parts[rowIndex] = {
+                                        ...currentPart,
+                                        model: val,
+                                        specifications: undefined
+                                    };
+                                    form.setFieldsValue({ parts });
+                                }
+                            }
+                            
+                            if (parentFieldName === "software") {
+                                const software = form.getFieldValue("software") || [];
+                                const currentSoftware = software[rowIndex] || {};
+                                
+                                if (field.dataIndex === "software_name") {
+                                    software[rowIndex] = {
+                                        ...currentSoftware,
+                                        software_name: val,
+                                        software_type: undefined,
+                                        version: undefined,
+                                        license_key: undefined,
+                                        account_user: undefined,
+                                        account_password: undefined
+                                    };
+                                    form.setFieldsValue({ software });
+                                } else if (field.dataIndex === "software_type") {
+                                    software[rowIndex] = {
+                                        ...currentSoftware,
+                                        software_type: val,
+                                        version: undefined,
+                                        license_key: undefined,
+                                        account_user: undefined,
+                                        account_password: undefined
+                                    };
+                                    form.setFieldsValue({ software });
+                                } else if (field.dataIndex === "version") {
+                                    software[rowIndex] = {
+                                        ...currentSoftware,
+                                        version: val,
+                                        license_key: undefined,
+                                        account_user: undefined,
+                                        account_password: undefined,
+                                        _license_identifier: undefined
+                                    };
+                                    form.setFieldsValue({ software });
+                                }
+                            }
+                        }}
                     />
                 );
+
+            case "date":
+                return <DatePicker format="YYYY-MM-DD" style={{ width: "100%" }} placeholder={`Select ${field.label}`} disabled={isDisabled} />;
+
             case "textarea":
-                return (
-                    <TextArea
-                        rows={4}
-                        placeholder={`Enter ${field.label}`}
-                        maxLength={500}
-                        showCount
-                        disabled={isDisabled}
-                    />
-                );
+                return <TextArea rows={4} placeholder={`Enter ${field.label}`} maxLength={500} showCount disabled={isDisabled} />;
+
             case "hidden":
                 return <Input type="hidden" />;
+
             case "dynamicList":
                 return (
                     <Form.List name={field.dataIndex}>
                         {(fields, { add, remove }) => (
                             <>
                                 {fields.map((f, rowIndex) => (
-                                    <div
-                                        key={f.key}
-                                        style={{
-                                            display: "flex",
-                                            gap: 8,
-                                            alignItems: "start",
-                                            marginBottom: 8,
-                                            flexWrap: "wrap",
-                                        }}
-                                    >
-                                        {field.subFields.map((sub) => (
-                                            <Form.Item
-                                                {...f}
-                                                key={sub.key}
-                                                name={[f.name, sub.dataIndex]}
-                                                fieldKey={[
-                                                    f.fieldKey,
-                                                    sub.dataIndex,
-                                                ]}
-                                                rules={sub.rules || []}
-                                                style={{ flex: sub.flex || 1 }}
-                                                label={
-                                                    rowIndex === 0
-                                                        ? sub.label
-                                                        : ""
-                                                }
-                                            >
-                                                {renderField({
-                                                    ...sub,
-                                                    editable:
-                                                        sub.editable !== false,
-                                                })}
-                                            </Form.Item>
-                                        ))}
+                                    <div key={f.key} style={{ display: "flex", gap: 8, alignItems: "start", marginBottom: 8, flexWrap: "wrap" }}>
+                                        <div style={{ display: "flex", gap: 8, alignItems: "start", flex: 1, flexWrap: "wrap" }}>
+                                            {field.subFields.filter(sub => sub.type !== "hidden").map((sub) => (
+                                                <Form.Item
+                                                    {...f}
+                                                    key={sub.key}
+                                                    name={[f.name, sub.dataIndex]}
+                                                    fieldKey={[f.fieldKey, sub.dataIndex]}
+                                                    rules={sub.rules || []}
+                                                    style={{ flex: sub.flex || 1 }}
+                                                    label={rowIndex === 0 ? sub.label : ""}
+                                                >
+                                                    {renderField({ ...sub, editable: sub.editable !== false }, field.dataIndex, f.name)}
+                                                </Form.Item>
+                                            ))}
+                                            {field.subFields.filter(sub => sub.type === "hidden").map((sub) => (
+                                                <Form.Item
+                                                    {...f}
+                                                    key={sub.key}
+                                                    name={[f.name, sub.dataIndex]}
+                                                    fieldKey={[f.fieldKey, sub.dataIndex]}
+                                                    rules={sub.rules || []}
+                                                    style={{ display: "none" }}
+                                                >
+                                                    {renderField({ ...sub, editable: sub.editable !== false }, field.dataIndex, f.name)}
+                                                </Form.Item>
+                                            ))}
+                                        </div>
                                         {!isDisabled && (
                                             <MinusCircleOutlined
                                                 onClick={() => {
-                                                    const row =
-                                                        form.getFieldValue(
-                                                            field.dataIndex,
-                                                        )?.[f.name];
-
+                                                    const row = form.getFieldValue(field.dataIndex)?.[f.name];
                                                     if (row?.id) {
-                                                        setRemovedItems(
-                                                            (prev) => ({
-                                                                ...prev,
-                                                                [field.dataIndex]:
-                                                                    [
-                                                                        ...(prev[
-                                                                            field
-                                                                                .dataIndex
-                                                                        ] ||
-                                                                            []),
-                                                                        row.id,
-                                                                    ],
-                                                            }),
-                                                        );
+                                                        setRemovedItems((prev) => ({
+                                                            ...prev,
+                                                            [field.dataIndex]: [
+                                                                ...(prev[field.dataIndex] || []),
+                                                                row.id,
+                                                            ],
+                                                        }));
                                                     }
-
                                                     remove(f.name);
                                                 }}
-                                                style={{
-                                                    marginTop:
-                                                        rowIndex === 0 ? 30 : 4,
-                                                }}
+                                                style={{ marginTop: rowIndex === 0 ? 30 : 4 }}
                                             />
                                         )}
                                     </div>
                                 ))}
                                 {!isDisabled && (
                                     <Form.Item style={{ gridColumn: "1 / -1" }}>
-                                        <Button
-                                            type="dashed"
-                                            onClick={() => add()}
-                                            block
-                                            icon={<PlusOutlined />}
-                                        >
+                                        <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
                                             Add {field.label}
                                         </Button>
                                     </Form.Item>
@@ -219,45 +646,137 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                         )}
                     </Form.List>
                 );
+
             default:
-                return (
-                    <Input
-                        allowClear
-                        placeholder={`Enter ${field.label}`}
-                        maxLength={field.maxLength || 255}
-                        disabled={isDisabled}
-                    />
-                );
+                return <Input allowClear placeholder={`Enter ${field.label}`} maxLength={field.maxLength || 255} disabled={isDisabled} />;
         }
     };
 
-    // Group fieldGroups into tabs
+    // Build hardware parts fields dynamically
+    const hardwarePartsFields = [
+        {
+            key: "parts",
+            label: "Hardware Part",
+            type: "dynamicList",
+            dataIndex: "parts",
+            subFields: [
+                {
+                    key: "part_type",
+                    dataIndex: "part_type",
+                    label: "Type",
+                    type: "select",
+                    flex: 1,
+                },
+                {
+                    key: "brand",
+                    dataIndex: "brand",
+                    label: "Brand",
+                    type: "select",
+                    flex: 1,
+                },
+                {
+                    key: "model",
+                    dataIndex: "model",
+                    label: "Model",
+                    type: "select",
+                    flex: 1,
+                },
+                {
+                    key: "specifications",
+                    dataIndex: "specifications",
+                    label: "Specifications",
+                    type: "select",
+                    flex: 1.5,
+                },
+                {
+                    key: "serial_number",
+                    dataIndex: "serial_number",
+                    label: "Serial Number",
+                    type: "input",
+                    flex: 1,
+                },
+            ],
+        },
+    ];
+
+    // Build software fields dynamically
+    const softwareFields = [
+        {
+            key: "software",
+            label: "Software",
+            type: "dynamicList",
+            dataIndex: "software",
+            subFields: [
+                {
+                    key: "software_name",
+                    dataIndex: "software_name",
+                    label: "Software Name",
+                    type: "select",
+                    flex: 1,
+                },
+                {
+                    key: "software_type",
+                    dataIndex: "software_type",
+                    label: "Type",
+                    type: "select",
+                    flex: 1,
+                },
+                {
+                    key: "version",
+                    dataIndex: "version",
+                    label: "Version",
+                    type: "select",
+                    flex: 1,
+                },
+                {
+                    key: "license_key",
+                    dataIndex: "license_key",
+                    label: "License/Account",
+                    type: "license_select", // Custom type
+                    flex: 1.5,
+                },
+                {
+                    key: "_license_identifier",
+                    dataIndex: "_license_identifier",
+                    type: "hidden",
+                },
+                {
+                    key: "account_user",
+                    dataIndex: "account_user",
+                    type: "hidden",
+                },
+                {
+                    key: "account_password",
+                    dataIndex: "account_password",
+                    type: "hidden",
+                },
+            ],
+        },
+    ];
+
+    // Update fieldGroups with cascading parts and software fields
+    const updatedFieldGroups = fieldGroups?.map(group => {
+        if (group.title === "Hardware Parts") {
+            return { ...group, fields: hardwarePartsFields };
+        }
+        if (group.title === "Installed Software") {
+            return { ...group, fields: softwareFields };
+        }
+        return group;
+    }) || [];
+
+    // Tabs configuration
     const tabItems = [
         {
             key: "assignment",
             label: "Assignment",
             children: (
                 <div style={{ marginBottom: 24 }}>
-                    <h3 className="font-bold text-xl mb-3 text-gray-900 dark:text-blue-400">
-                        Assignment Details
-                    </h3>
-                    <Divider style={{ margin: "12px 0 16px" }} />
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(2, 1fr)",
-                            gap: 16,
-                        }}
-                    >
-                        {fieldGroups
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+                        {updatedFieldGroups
                             .find((g) => g.title === "Assignment Details")
                             ?.fields.map((field) => (
-                                <Form.Item
-                                    key={field.key}
-                                    name={field.dataIndex}
-                                    label={field.label}
-                                    rules={field.rules || []}
-                                >
+                                <Form.Item key={field.key} name={field.dataIndex} label={field.label} rules={field.rules || []}>
                                     {renderField(field)}
                                 </Form.Item>
                             ))}
@@ -270,26 +789,11 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             label: "Hardware",
             children: (
                 <div style={{ marginBottom: 24 }}>
-                    <h3 className="font-bold text-xl mb-3 text-gray-900 dark:text-blue-400">
-                        Hardware Specifications
-                    </h3>
-                    <Divider style={{ margin: "12px 0 16px" }} />
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(2, 1fr)",
-                            gap: 16,
-                        }}
-                    >
-                        {fieldGroups
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+                        {updatedFieldGroups
                             .find((g) => g.title === "Hardware Specifications")
                             ?.fields.map((field) => (
-                                <Form.Item
-                                    key={field.key}
-                                    name={field.dataIndex}
-                                    label={field.label}
-                                    rules={field.rules || []}
-                                >
+                                <Form.Item key={field.key} name={field.dataIndex} label={field.label} rules={field.rules || []}>
                                     {renderField(field)}
                                 </Form.Item>
                             ))}
@@ -302,26 +806,11 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             label: "Parts",
             children: (
                 <div style={{ marginBottom: 24 }}>
-                    <h3 className="font-bold text-xl mb-3 text-gray-900 dark:text-blue-400">
-                        Hardware Parts
-                    </h3>
-                    <Divider style={{ margin: "12px 0 16px" }} />
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr",
-                            gap: 16,
-                        }}
-                    >
-                        {fieldGroups
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+                        {updatedFieldGroups
                             .find((g) => g.title === "Hardware Parts")
                             ?.fields.map((field) => (
-                                <Form.Item
-                                    key={field.key}
-                                    name={field.dataIndex}
-                                    label={field.label}
-                                    rules={field.rules || []}
-                                >
+                                <Form.Item key={field.key} name={field.dataIndex} label={field.label} rules={field.rules || []}>
                                     {renderField(field)}
                                 </Form.Item>
                             ))}
@@ -334,26 +823,11 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             label: "Software",
             children: (
                 <div style={{ marginBottom: 24 }}>
-                    <h3 className="font-bold text-xl mb-3 text-gray-900 dark:text-blue-400">
-                        Installed Software
-                    </h3>
-                    <Divider style={{ margin: "12px 0 16px" }} />
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr",
-                            gap: 16,
-                        }}
-                    >
-                        {fieldGroups
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+                        {updatedFieldGroups
                             .find((g) => g.title === "Installed Software")
                             ?.fields.map((field) => (
-                                <Form.Item
-                                    key={field.key}
-                                    name={field.dataIndex}
-                                    label={field.label}
-                                    rules={field.rules || []}
-                                >
+                                <Form.Item key={field.key} name={field.dataIndex} label={field.label} rules={field.rules || []}>
                                     {renderField(field)}
                                 </Form.Item>
                             ))}
@@ -366,26 +840,11 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             label: "Notes",
             children: (
                 <div style={{ marginBottom: 24 }}>
-                    <h3 className="font-bold text-xl mb-3 text-gray-900 dark:text-blue-400">
-                        Additional Information
-                    </h3>
-                    <Divider style={{ margin: "12px 0 16px" }} />
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr",
-                            gap: 16,
-                        }}
-                    >
-                        {fieldGroups
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+                        {updatedFieldGroups
                             .find((g) => g.title === "Additional Information")
                             ?.fields.map((field) => (
-                                <Form.Item
-                                    key={field.key}
-                                    name={field.dataIndex}
-                                    label={field.label}
-                                    rules={field.rules || []}
-                                >
+                                <Form.Item key={field.key} name={field.dataIndex} label={field.label} rules={field.rules || []}>
                                     {renderField(field)}
                                 </Form.Item>
                             ))}
@@ -397,12 +856,8 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
 
     return (
         <Drawer
-            title={
-                item
-                    ? `Edit: ${item.hostname || "Hardware"}`
-                    : "Create New Hardware"
-            }
-            size={900}
+            title={item ? `Edit: ${item.hostname || "Hardware"}` : "Create New Hardware"}
+            size={1000}
             onClose={onClose}
             open={open}
             styles={{ body: { paddingBottom: 80 } }}
@@ -422,12 +877,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                     <Spin size="large" />
                 </div>
             ) : (
-                <Form
-                    form={form}
-                    layout="vertical"
-                    onFinish={handleFinish}
-                    autoComplete="off"
-                >
+                <Form form={form} layout="vertical" onFinish={handleFinish} autoComplete="off">
                     <Tabs defaultActiveKey="assignment" items={tabItems} />
                 </Form>
             )}

@@ -63,27 +63,37 @@ const HardwareTable = () => {
         // }
     };
 
-    const handleEdit = async (record) => {
-        const partsSoftware = await fetchHardwareDetails(record.hostname);
+const handleEdit = async (record) => {
+    const partsSoftware = await fetchHardwareDetails(record.hostname);
 
-        // Flatten software objects
-        const softwareFlattened = partsSoftware.software.map((s) => ({
-            ...s,
-            software_name: s.inventory?.software_name || "",
-            software_type: s.inventory?.software_type || s.software_type || "",
-            version: s.inventory?.version || s.version || "",
-            license_key: s.license?.license_key || s.license_key || "",
-        }));
+    // Flatten hardware parts
+    const partsFlattened = partsSoftware.parts.map((p) => ({
+        part_type: p.part_info?.part_type || "",
+        brand: p.part_info?.brand || "",
+        model: p.part_info?.model || "",
+        specifications: p.part_info?.specifications || "",
+        serial_number: p.serial_number || "",
+    }));
 
-        const item = {
-            ...record,
-            parts: partsSoftware.parts,
-            software: softwareFlattened,
-        };
+    // Flatten software objects
+    const softwareFlattened = partsSoftware.software.map((s) => ({
+        ...s,
+        software_name: s.inventory?.software_name || "",
+        software_type: s.inventory?.software_type || s.software_type || "",
+        version: s.inventory?.version || s.version || "",
+        license_key: s.license?.license_key || s.license_key || "",
+    }));
 
-        setEditingItem(item);
-        setFormDrawerOpen(true);
+    const item = {
+        ...record,
+        parts: partsFlattened,
+        software: softwareFlattened,
     };
+
+    setEditingItem(item);
+    setFormDrawerOpen(true);
+};
+
 
     const handleView = async (record) => {
         setLoading(true);
@@ -193,27 +203,26 @@ const HardwareTable = () => {
             },
         ];
 
-        // Group parts by part_type
-        const partsByType = {};
-        item.parts?.forEach((p) => {
-            const type = p.part_type || "Part";
-            if (!partsByType[type]) partsByType[type] = [];
-            partsByType[type].push(p);
-        });
+      // Group parts by part_type
+const partsByType = {};
+item.parts?.forEach((p) => {
+    const type = p.part_info?.part_type || "Part";
+    if (!partsByType[type]) partsByType[type] = [];
+    partsByType[type].push(p);
+});
 
-        const partsSubGroups = Object.keys(partsByType).map((type) => {
-            return {
-                title: type,
-                column: 2,
-                fields: partsByType[type].map((p, idx) => ({
-                    Brand: p.brand || "-",
-                    Model: p.model || "N/A",
-                    "Serial No.": p.serial_number || "-",
-                    Details:
-                        `${p.specifications || ""} ${p.status ? `[${p.status}]` : ""}`.trim(),
-                })),
-            };
-        });
+const partsSubGroups = Object.keys(partsByType).map((type) => {
+    return {
+        title: type,
+        column: 2,
+        fields: partsByType[type].map((p, idx) => ({
+            Brand: p.part_info?.brand || "-",
+            Model: p.part_info?.model || "N/A",
+            "Serial No.": p.serial_number || "-",
+            Details: `${p.part_info?.specifications || ""} ${p.status ? `[${p.status}]` : ""}`.trim(),
+        })),
+    };
+});
 
         const softwareSubGroups =
             item.software?.map((s) => ({
