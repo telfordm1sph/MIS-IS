@@ -63,38 +63,41 @@ const HardwareTable = () => {
         // }
     };
 
-const handleEdit = async (record) => {
-    const partsSoftware = await fetchHardwareDetails(record.hostname);
+    const handleEdit = async (record) => {
+        const partsSoftware = await fetchHardwareDetails(record.hostname);
 
-    // Flatten hardware parts
-    const partsFlattened = partsSoftware.parts.map((p) => ({
-        part_type: p.part_info?.part_type || "",
-        brand: p.part_info?.brand || "",
-        model: p.part_info?.model || "",
-        specifications: p.part_info?.specifications || "",
-        serial_number: p.serial_number || "",
-    }));
+        // Flatten hardware parts
+        const partsFlattened = partsSoftware.parts.map((p) => ({
+            id: p.id,
+            part_type: p.part_info?.part_type || "",
+            brand: p.part_info?.brand || "",
+            model: p.part_info?.model || "",
+            specifications: p.part_info?.specifications || "",
+            serial_number: p.serial_number || "",
+        }));
 
-    // Flatten software objects
-    const softwareFlattened = partsSoftware.software.map((s) => ({
-        ...s,
-        software_name: s.inventory?.software_name || "",
-        software_type: s.inventory?.software_type || s.software_type || "",
-        version: s.inventory?.version || s.version || "",
-        license_key: s.license?.license_key || s.license_key || "",
-    }));
+        // Flatten software objects - properly handle both license_key and account_user
+        const softwareFlattened = partsSoftware.software.map((s) => ({
+            ...s,
+            id: s.id,
+            software_name: s.inventory?.software_name || "",
+            software_type: s.inventory?.software_type || s.software_type || "",
+            version: s.inventory?.version || s.version || "",
+            // Keep both license_key and account_user from the license object
+            license_key: s.license?.license_key || null,
+            account_user: s.license?.account_user || null,
+            account_password: s.license?.account_password || null,
+        }));
 
-    const item = {
-        ...record,
-        parts: partsFlattened,
-        software: softwareFlattened,
+        const item = {
+            ...record,
+            parts: partsFlattened,
+            software: softwareFlattened,
+        };
+
+        setEditingItem(item);
+        setFormDrawerOpen(true);
     };
-
-    setEditingItem(item);
-    setFormDrawerOpen(true);
-};
-
-
     const handleView = async (record) => {
         setLoading(true);
         try {
@@ -203,26 +206,27 @@ const handleEdit = async (record) => {
             },
         ];
 
-      // Group parts by part_type
-const partsByType = {};
-item.parts?.forEach((p) => {
-    const type = p.part_info?.part_type || "Part";
-    if (!partsByType[type]) partsByType[type] = [];
-    partsByType[type].push(p);
-});
+        // Group parts by part_type
+        const partsByType = {};
+        item.parts?.forEach((p) => {
+            const type = p.part_info?.part_type || "Part";
+            if (!partsByType[type]) partsByType[type] = [];
+            partsByType[type].push(p);
+        });
 
-const partsSubGroups = Object.keys(partsByType).map((type) => {
-    return {
-        title: type,
-        column: 2,
-        fields: partsByType[type].map((p, idx) => ({
-            Brand: p.part_info?.brand || "-",
-            Model: p.part_info?.model || "N/A",
-            "Serial No.": p.serial_number || "-",
-            Details: `${p.part_info?.specifications || ""} ${p.status ? `[${p.status}]` : ""}`.trim(),
-        })),
-    };
-});
+        const partsSubGroups = Object.keys(partsByType).map((type) => {
+            return {
+                title: type,
+                column: 2,
+                fields: partsByType[type].map((p, idx) => ({
+                    Brand: p.part_info?.brand || "-",
+                    Model: p.part_info?.model || "N/A",
+                    "Serial No.": p.serial_number || "-",
+                    Details:
+                        `${p.part_info?.specifications || ""} ${p.status ? `[${p.status}]` : ""}`.trim(),
+                })),
+            };
+        });
 
         const softwareSubGroups =
             item.software?.map((s) => ({
@@ -238,8 +242,11 @@ const partsSubGroups = Object.keys(partsByType).map((type) => {
                             : "-",
                     },
                     {
-                        label: "License Key",
-                        value: s.license?.license_key ?? "N/A",
+                        label: "License Key/Account User",
+                        value:
+                            s.license?.license_key ??
+                            s.license?.account_user ??
+                            "-",
                     },
                 ],
             })) || [];
@@ -256,38 +263,6 @@ const partsSubGroups = Object.keys(partsByType).map((type) => {
     };
 
     const formFieldGroups = [
-        {
-            title: "Assignment Details",
-            column: 2,
-            fields: [
-                {
-                    key: "issued_to_label",
-                    label: "Issued To",
-                    dataIndex: "issued_to_label",
-                    type: "input",
-                    editable: false,
-                },
-                {
-                    key: "issued_to",
-                    dataIndex: "issued_to",
-                    type: "hidden",
-                },
-                {
-                    key: "location",
-                    label: "Location",
-                    dataIndex: "location",
-                    type: "input",
-                    editable: false,
-                },
-                {
-                    key: "date_issued",
-                    label: "Issued Date",
-                    dataIndex: "date_issued",
-                    type: "date",
-                    editable: false,
-                },
-            ],
-        },
         {
             title: "Hardware Specifications",
             column: 2,
@@ -377,6 +352,11 @@ const partsSubGroups = Object.keys(partsByType).map((type) => {
                     dataIndex: "parts",
                     subFields: [
                         {
+                            key: "id",
+                            dataIndex: "id",
+                            type: "hidden",
+                        },
+                        {
                             key: "part_type",
                             label: "Part Type",
                             dataIndex: "part_type",
@@ -394,14 +374,14 @@ const partsSubGroups = Object.keys(partsByType).map((type) => {
                             dataIndex: "model",
                             type: "input",
                         },
-                     
+
                         {
                             key: "specifications",
                             label: "Specifications",
                             dataIndex: "specifications",
                             type: "input",
                         },
-                           {
+                        {
                             key: "serial_number",
                             label: "Serial Number",
                             dataIndex: "serial_number",
@@ -415,6 +395,11 @@ const partsSubGroups = Object.keys(partsByType).map((type) => {
             title: "Installed Software",
             column: 1,
             fields: [
+                {
+                    key: "id",
+                    dataIndex: "id",
+                    type: "hidden",
+                },
                 {
                     key: "software",
                     label: "Software",
@@ -446,18 +431,6 @@ const partsSubGroups = Object.keys(partsByType).map((type) => {
                             type: "input",
                         },
                     ],
-                },
-            ],
-        },
-        {
-            title: "Additional Information",
-            column: 1,
-            fields: [
-                {
-                    key: "remarks",
-                    label: "Notes",
-                    dataIndex: "remarks",
-                    type: "textarea",
                 },
             ],
         },
