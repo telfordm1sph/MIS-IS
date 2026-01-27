@@ -350,4 +350,26 @@ class HardwareDetailController extends Controller
                 ]),
             ]);
     }
+
+    public function softwareInventoryOptions()
+    {
+        $software = SoftwareInventory::query()
+            ->select('id', 'software_name', 'software_type', 'version', 'publisher')
+            ->orderBy('software_name')
+            ->get()
+            ->map(function ($sw) {
+                return [
+                    'value' => $sw->id,
+                    'label' => $sw->software_name .
+                        ($sw->software_type ? " ({$sw->software_type})" : '') .
+                        ($sw->version ? " - v{$sw->version}" : ''),
+                    'software_name' => $sw->software_name,
+                    'software_type' => $sw->software_type,
+                    'version' => $sw->version,
+                    'publisher' => $sw->publisher,
+                ];
+            });
+
+        return response()->json($software);
+    }
 }

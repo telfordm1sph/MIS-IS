@@ -1,19 +1,188 @@
-import { getPaginationConfig } from "@/Config/pagination";
+import React, { useCallback, useMemo } from "react";
+import { usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import {
+    Breadcrumb,
+    Card,
+    Table,
+    Button,
+    Dropdown,
+    Space,
+    Popconfirm,
+    Input,
+} from "antd";
+import {
+    PlusCircleOutlined,
+    EditOutlined,
+    DeleteOutlined,
+    HistoryOutlined,
+    SearchOutlined,
+} from "@ant-design/icons";
+import { EllipsisVertical } from "lucide-react";
+
+import { useInventoryFilters } from "@/Components/Hooks/useInventoryFilters";
+import { useFormDrawer } from "@/Components/Hooks/useFormDrawer";
+import { useLogsModal } from "@/Components/Hooks/useLogsModal";
+import { useCrudOperations } from "@/Components/Hooks/useCrudOperations";
+import { useTableConfig } from "@/Components/Hooks/useTableConfig";
 import FormDrawer from "@/Components/Drawer/FormDrawer";
-import { router, usePage } from "@inertiajs/react";
-import { Card, Table, Button, Space, Popconfirm, message } from "antd";
-import React, { useMemo, useState } from "react";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
 
 const SoftwareTable = () => {
-    const { softwares, pagination } = usePage().props;
+    const { softwares, pagination, filters } = usePage().props;
 
-    const [drawerOpen, setDrawerOpen] = useState(false);
-    const [mode, setMode] = useState("create"); // create | edit
-    const [selectedRow, setSelectedRow] = useState(null);
+    const {
+        isOpen: formDrawerOpen,
+        editingItem,
+        openCreate,
+        openEdit,
+        close: closeForm,
+    } = useFormDrawer();
 
-    /** 🔹 Fields inside this file */
+    const {
+        isVisible: logsModalVisible,
+        entityId,
+        open: openLogs,
+        close: closeLogs,
+    } = useLogsModal();
+
+    const { searchText, handleSearch, handleResetFilters, handleTableChange } =
+        useInventoryFilters({
+            filters,
+            pagination,
+            routeName: "software.table",
+        });
+
+    const { handleSave, handleDelete } = useCrudOperations({
+        updateRoute: "software.update",
+        storeRoute: "software.store",
+        deleteRoute: "software.destroy",
+        updateSuccessMessage: "Software updated successfully!",
+        createSuccessMessage: "Software created successfully!",
+        deleteSuccessMessage: "Software deleted successfully!",
+        reloadProps: ["softwares"],
+    });
+
+    // ✅ Wrapper for handleSave to close form on success
+    const handleFormSave = async (values, id) => {
+        const result = await handleSave(values, id);
+        if (result?.success) {
+            closeForm();
+        }
+    };
+
+    // ✅ Column definitions (page-specific)
+    const columnDefinitions = useMemo(
+        () => [
+            {
+                title: "ID",
+                dataIndex: "id",
+                key: "id",
+                width: 80,
+                sorter: true,
+            },
+            {
+                title: "Software Name",
+                dataIndex: "software_name",
+                key: "software_name",
+                sorter: true,
+            },
+            {
+                title: "Software Type",
+                dataIndex: "software_type",
+                key: "software_type",
+                sorter: true,
+            },
+            {
+                title: "Version",
+                dataIndex: "version",
+                key: "version",
+                sorter: true,
+            },
+            {
+                title: "Publisher",
+                dataIndex: "publisher",
+                key: "publisher",
+                sorter: true,
+            },
+            {
+                title: "Total Licenses",
+                dataIndex: "total_licenses",
+                key: "total_licenses",
+                sorter: true,
+                width: 150,
+            },
+            {
+                title: "Actions",
+                key: "actions",
+                width: 100,
+                align: "center",
+                render: (_, record) => {
+                    const items = [
+                        {
+                            key: "edit",
+                            label: "Edit",
+                            onClick: () => openEdit(record),
+                            icon: <EditOutlined />,
+                        },
+                        {
+                            key: "logs",
+                            label: "View Logs",
+                            onClick: () => openLogs(record.id),
+                            icon: <HistoryOutlined />,
+                        },
+                        {
+                            type: "divider",
+                        },
+                        {
+                            key: "delete",
+                            label: (
+                                <Popconfirm
+                                    title="Delete this software?"
+                                    description="This action cannot be undone."
+                                    onConfirm={() => handleDelete(record.id)}
+                                    okText="Yes"
+                                    cancelText="No"
+                                    okButtonProps={{ danger: true }}
+                                >
+                                    <span style={{ color: "#ff4d4f" }}>
+                                        Delete
+                                    </span>
+                                </Popconfirm>
+                            ),
+                            icon: (
+                                <DeleteOutlined style={{ color: "#ff4d4f" }} />
+                            ),
+                            danger: true,
+                        },
+                    ];
+
+                    return (
+                        <Dropdown
+                            menu={{ items }}
+                            trigger={["click"]}
+                            placement="bottomRight"
+                        >
+                            <Button
+                                type="text"
+                                icon={<EllipsisVertical className="w-5 h-5" />}
+                            />
+                        </Dropdown>
+                    );
+                },
+            },
+        ],
+        [openEdit, openLogs, handleDelete],
+    );
+
+    // ✅ Table configuration from hook
+    const { columns, paginationConfig } = useTableConfig({
+        filters,
+        pagination,
+        columnDefinitions,
+    });
+
+    /** 🔹 Form Fields */
     const fields = [
         {
             name: "software_name",
@@ -36,166 +205,103 @@ const SoftwareTable = () => {
             name: "total_licenses",
             label: "Total Licenses",
             type: "number",
-            rules: [{ required: true }],
+            rules: [{ required: true, message: "Total licenses is required" }],
         },
     ];
-
-    // Open drawer for creating new software
-    const openCreate = () => {
-        setMode("create");
-        setSelectedRow(null);
-        setDrawerOpen(true);
-    };
-
-    // Open drawer for editing existing software
-    const openEdit = (record) => {
-        setMode("edit");
-        setSelectedRow(record);
-        setDrawerOpen(true);
-    };
-
-    const handleSubmit = async (data) => {
-        const payload = { ...data };
-
-        // Add id if editing
-        if (mode === "edit" && selectedRow?.id) {
-            payload.id = selectedRow.id;
-        }
-
-        console.log("Form values with ID:", payload);
-
-        try {
-            let response;
-            if (payload.id) {
-                response = await axios.put(
-                    route("software.update", payload.id),
-                    payload,
-                );
-            } else {
-                response = await axios.post(route("software.store"), payload);
-            }
-
-            if (response.data.success) {
-                message.success(
-                    payload.id
-                        ? "Software updated successfully!"
-                        : `Software created successfully! ID: ${response.data.id || ""}`,
-                );
-                setDrawerOpen(false);
-                router.reload({ only: ["softwares"] });
-            } else {
-                message.error(response.data.message || "Operation failed");
-            }
-        } catch (error) {
-            message.error(
-                payload.id
-                    ? "Failed to update software. Please try again."
-                    : "Failed to create software. Please try again.",
-            );
-            console.error("Software submission error:", error);
-        }
-    };
-
-    const handleDelete = async (id, e) => {
-        // Stop propagation to prevent row click
-        e?.stopPropagation();
-
-        try {
-            const response = await axios.delete(route("software.destroy", id));
-
-            if (response.data.success) {
-                message.success("Software deleted successfully!");
-                router.reload({ only: ["softwares"] });
-            } else {
-                message.error(
-                    response.data.message || "Delete operation failed",
-                );
-            }
-        } catch (error) {
-            message.error("Failed to delete software. Please try again.");
-            console.error("Request type deletion error:", error);
-        }
-    };
-
-    const columns = [
-        { title: "ID", dataIndex: "id", key: "id" },
-        {
-            title: "Software Name",
-            dataIndex: "software_name",
-            key: "software_name",
-        },
-        {
-            title: "Software Type",
-            dataIndex: "software_type",
-            key: "software_type",
-        },
-        { title: "Version", dataIndex: "version", key: "version" },
-        { title: "Publisher", dataIndex: "publisher", key: "publisher" },
-        {
-            title: "Total Licenses",
-            dataIndex: "total_licenses",
-            key: "total_licenses",
-        },
-        {
-            title: "Action",
-            key: "action",
-            align: "center",
-            render: (_, record) => (
-                <Space>
-                    <Button
-                        type="link"
-                        icon={<EditOutlined />}
-                        onClick={() => openEdit(record)}
-                    />
-                    <Popconfirm
-                        title="Delete this software?"
-                        description="This action cannot be undone."
-                        onConfirm={() => handleDelete(record.id)}
-                        okText="Yes"
-                        cancelText="No"
-                    >
-                        <Button type="link" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>
-                </Space>
-            ),
-        },
-    ];
-
-    const paginationConfig = useMemo(
-        () => getPaginationConfig(pagination),
-        [pagination],
-    );
 
     return (
         <AuthenticatedLayout>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "16px",
+                }}
+            >
+                <Breadcrumb
+                    items={[
+                        { title: "MIS-IS", href: "/" },
+                        { title: "Software Inventory" },
+                    ]}
+                    style={{ marginBottom: 0 }}
+                />
+                <Button
+                    type="primary"
+                    icon={<PlusCircleOutlined />}
+                    onClick={openCreate}
+                >
+                    Add Software
+                </Button>
+            </div>
+
             <Card
-                title="Software Inventory"
-                style={{ margin: "16px" }}
-                extra={
-                    <Button type="primary" onClick={openCreate}>
-                        <PlusOutlined /> Add Software
-                    </Button>
+                title={
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "16px",
+                        }}
+                    >
+                        <span style={{ fontSize: "18px", fontWeight: 600 }}>
+                            Software Inventory
+                        </span>
+                        <Input
+                            placeholder="Search software name, type, version..."
+                            allowClear
+                            value={searchText}
+                            prefix={<SearchOutlined />}
+                            onChange={handleSearch}
+                            style={{ flex: 1, maxWidth: "400px" }}
+                        />
+                    </div>
                 }
+                variant="outlined"
+                style={{
+                    borderRadius: 8,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                    marginBottom: 24,
+                }}
             >
                 <Table
                     columns={columns}
-                    rowKey="id"
                     dataSource={softwares}
+                    rowKey="id"
                     pagination={paginationConfig}
+                    onChange={handleTableChange}
+                    onRow={() => ({ style: { cursor: "default" } })}
                     bordered
-                    size="middle"
+                    scroll={{ y: "70vh" }}
+                />
+
+                {/* Form Drawer */}
+                <FormDrawer
+                    open={formDrawerOpen}
+                    onClose={closeForm}
+                    title={editingItem ? "Edit Software" : "Add Software"}
+                    mode={editingItem ? "edit" : "create"}
+                    initialValues={editingItem}
+                    fields={fields}
+                    onSubmit={handleFormSave}
+                />
+
+                {/* Activity Logs Modal */}
+                <ActivityLogsModal
+                    visible={logsModalVisible}
+                    onClose={closeLogs}
+                    entityId={entityId}
+                    entityType="Software"
+                    apiRoute="software.logs"
+                    title="Software Changes"
+                    actionColors={{
+                        created: "green",
+                        updated: "blue",
+                        deleted: "red",
+                    }}
+                    perPage={5}
                 />
             </Card>
-
-            <FormDrawer
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-                title={mode === "create" ? "Add Software" : "Edit Software"}
-                mode={mode}
-                initialValues={mode === "create" ? {} : selectedRow} // <-- Fix for create mode
-                fields={fields}
-                onSubmit={handleSubmit}
-            />
         </AuthenticatedLayout>
     );
 };

@@ -31,9 +31,9 @@ const RemovalReasonModal = ({
                     <Radio.Group style={{ width: "100%" }}>
                         <div
                             style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 8,
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr", // 2 columns
+                                gap: "8px 16px", // row gap 8px, column gap 16px
                             }}
                         >
                             <Radio value="defective">Defective</Radio>

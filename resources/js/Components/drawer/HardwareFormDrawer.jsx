@@ -11,11 +11,11 @@ import {
 } from "antd";
 import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import axios from "axios";
+
 import RemovalReasonModal from "../modal/RemovalReasonModal";
-import { useHardwareParts } from "../hooks/useHardwareParts";
-import { useHardwareSoftware } from "../hooks/useHardwareSoftware";
-import { useRemovalModal } from "../hooks/useRemovalModal";
+import { useHardwareParts } from "@/Components/Hooks/useHardwareParts";
+import { useHardwareSoftware } from "@/Components/Hooks/useHardwareSoftware";
+import { useRemovalModal } from "@/Components/Hooks/useRemovalModal";
 import {
     convertDatesToDayjs,
     convertDayjsToStrings,
@@ -207,7 +207,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                         disabled={isDisabled}
                         showSearch
                         optionFilterProp="label"
-                        style={{ minWidth: 250 }}
+                        style={{ width: "100%", minWidth: 0 }}
                         onFocus={async () => {
                             if (parentFieldName === "software") {
                                 const currentValues =
@@ -315,12 +315,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                         disabled={isDisabled}
                         showSearch
                         optionFilterProp="label"
-                        style={{
-                            minWidth:
-                                parentFieldName === "software"
-                                    ? 200
-                                    : undefined,
-                        }}
+                        style={{ width: "100%", minWidth: 0 }}
                         onFocus={async () => {
                             if (parentFieldName === "parts") {
                                 const currentValues =
@@ -471,7 +466,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                 return (
                     <DatePicker
                         format="YYYY-MM-DD"
-                        style={{ width: "100%" }}
+                        style={{ width: "100%", minWidth: 0 }}
                         placeholder={`Select ${field.label}`}
                         disabled={isDisabled}
                     />
@@ -492,6 +487,14 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                 return <Input type="hidden" />;
 
             case "dynamicList":
+                const gridTemplateColumns = field.subFields
+                    .filter((sub) => sub.type !== "hidden")
+                    .map((sub) => {
+                        const flex = sub.flex || 1;
+                        return `${flex}fr`;
+                    })
+                    .join(" ");
+
                 return (
                     <Form.List name={field.dataIndex}>
                         {(fields, { add, remove }) => (
@@ -500,31 +503,43 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                     <div
                                         key={f.key}
                                         style={{
-                                            display: "flex",
+                                            display: "grid",
+                                            gridTemplateColumns: `${gridTemplateColumns} auto`,
                                             gap: 8,
                                             alignItems: "start",
                                             marginBottom: 8,
-                                            flexWrap: "wrap",
+                                            width: "100%",
                                         }}
                                     >
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                gap: 8,
-                                                alignItems: "start",
-                                                flex: 1,
-                                                flexWrap: "wrap",
-                                            }}
-                                        >
-                                            {field.subFields
-                                                .filter(
-                                                    (sub) =>
-                                                        sub.type !== "hidden",
-                                                )
-                                                .map((sub) => (
+                                        {field.subFields
+                                            .filter(
+                                                (sub) => sub.type !== "hidden",
+                                            )
+                                            .map((sub) => (
+                                                <div
+                                                    key={sub.key}
+                                                    style={{
+                                                        display: "flex",
+                                                        flexDirection: "column",
+                                                        width: "100%",
+                                                        minWidth: 0,
+                                                        overflow: "hidden",
+                                                    }}
+                                                >
+                                                    {rowIndex === 0 && (
+                                                        <label
+                                                            style={{
+                                                                fontSize:
+                                                                    "14px",
+                                                                fontWeight: 500,
+                                                                marginBottom: 4,
+                                                            }}
+                                                        >
+                                                            {sub.label}
+                                                        </label>
+                                                    )}
                                                     <Form.Item
                                                         {...f}
-                                                        key={sub.key}
                                                         name={[
                                                             f.name,
                                                             sub.dataIndex,
@@ -535,13 +550,9 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                                         ]}
                                                         rules={sub.rules || []}
                                                         style={{
-                                                            flex: sub.flex || 1,
+                                                            margin: 0,
                                                         }}
-                                                        label={
-                                                            rowIndex === 0
-                                                                ? sub.label
-                                                                : ""
-                                                        }
+                                                        label={null}
                                                     >
                                                         {renderField(
                                                             {
@@ -554,42 +565,41 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                                             f.name,
                                                         )}
                                                     </Form.Item>
-                                                ))}
-                                            {field.subFields
-                                                .filter(
-                                                    (sub) =>
-                                                        sub.type === "hidden",
-                                                )
-                                                .map((sub) => (
-                                                    <Form.Item
-                                                        {...f}
-                                                        key={sub.key}
-                                                        name={[
-                                                            f.name,
-                                                            sub.dataIndex,
-                                                        ]}
-                                                        fieldKey={[
-                                                            f.fieldKey,
-                                                            sub.dataIndex,
-                                                        ]}
-                                                        rules={sub.rules || []}
-                                                        style={{
-                                                            display: "none",
-                                                        }}
-                                                    >
-                                                        {renderField(
-                                                            {
-                                                                ...sub,
-                                                                editable:
-                                                                    sub.editable !==
-                                                                    false,
-                                                            },
-                                                            field.dataIndex,
-                                                            f.name,
-                                                        )}
-                                                    </Form.Item>
-                                                ))}
-                                        </div>
+                                                </div>
+                                            ))}
+                                        {field.subFields
+                                            .filter(
+                                                (sub) => sub.type === "hidden",
+                                            )
+                                            .map((sub) => (
+                                                <Form.Item
+                                                    {...f}
+                                                    key={sub.key}
+                                                    name={[
+                                                        f.name,
+                                                        sub.dataIndex,
+                                                    ]}
+                                                    fieldKey={[
+                                                        f.fieldKey,
+                                                        sub.dataIndex,
+                                                    ]}
+                                                    rules={sub.rules || []}
+                                                    style={{
+                                                        display: "none",
+                                                    }}
+                                                >
+                                                    {renderField(
+                                                        {
+                                                            ...sub,
+                                                            editable:
+                                                                sub.editable !==
+                                                                false,
+                                                        },
+                                                        field.dataIndex,
+                                                        f.name,
+                                                    )}
+                                                </Form.Item>
+                                            ))}
                                         {!isDisabled && (
                                             <MinusCircleOutlined
                                                 onClick={() => {
@@ -636,6 +646,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                         placeholder={`Enter ${field.label}`}
                         maxLength={field.maxLength || 255}
                         disabled={isDisabled}
+                        style={{ width: "100%", minWidth: 0 }}
                     />
                 );
         }

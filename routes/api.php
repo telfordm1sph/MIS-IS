@@ -18,4 +18,8 @@ Route::prefix('hardware')->group(function () {
         ->name('hardware.software.options');
     Route::get('software-licenses/{filters?}', [HardwareDetailController::class, 'softwareLicenses'])
         ->name('hardware.software.licenses');
+
+    // Software inventory options for license management
+    Route::get('api/software-inventory-options', [HardwareDetailController::class, 'softwareInventoryOptions'])
+        ->name('api.software.inventory.options');
 });

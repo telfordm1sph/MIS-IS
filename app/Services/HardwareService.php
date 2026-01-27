@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Constants\Status;
 use App\Repositories\HardwareRepository;
+use App\Models\Hardware;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class HardwareService
 {
@@ -14,21 +17,154 @@ class HardwareService
         $this->hardwareRepository = $hardwareRepository;
     }
 
+    /**
+     * Get hardware table data with filters, pagination, and counts
+     * BUSINESS LOGIC: Orchestrate data retrieval and formatting
+     */
     public function getHardwareTable(array $filters): array
     {
-        // Start query from repository
+        // REPO: Get base queries
         $tableQuery = $this->hardwareRepository->query();
         $countQuery = $this->hardwareRepository->query();
+        $categoryCounts = $this->hardwareRepository->getCategoryCounts();
 
-        // ----- Apply status filter -----
+        // BUSINESS LOGIC: Apply filters
+        $tableQuery = $this->applyFilters($tableQuery, $filters);
+
+        // BUSINESS LOGIC: Apply sorting
+        $sortField = $filters['sortField'] ?? 'created_at';
+        $sortOrder = $filters['sortOrder'] ?? 'desc';
+        $tableQuery->orderBy($sortField, $sortOrder);
+
+        // REPO: Get paginated data
+        $page = $filters['page'] ?? 1;
+        $pageSize = $filters['pageSize'] ?? 10;
+        $paginated = $this->hardwareRepository->paginate($tableQuery, $pageSize, $page);
+
+        // BUSINESS LOGIC: Format data
+        $data = $this->formatHardwareData($paginated->items());
+
+        // REPO: Get status counts
+        $countQuery = $this->applyFilters($countQuery, $filters);
+        $statusCounts = $this->hardwareRepository->getHardwareStatusCounts($countQuery);
+
+        return [
+            'data' => $data,
+            'pagination' => [
+                'current' => $paginated->currentPage(),
+                'currentPage' => $paginated->currentPage(),
+                'lastPage' => $paginated->lastPage(),
+                'total' => $paginated->total(),
+                'perPage' => $paginated->perPage(),
+                'pageSize' => $paginated->perPage(),
+            ],
+            'categoryCounts' => $categoryCounts,
+            'filters' => $filters,
+        ];
+    }
+
+    /**
+     * Get hardware logs with pagination
+     * BUSINESS LOGIC: Orchestrate log retrieval and formatting
+     */
+    public function getHardwareLogs(int $hardwareId, int $page = 1, int $perPage = 10): array
+    {
+        // REPO: Get logs query
+        $logsQuery = $this->hardwareRepository->getLogsQuery($hardwareId);
+
+        // REPO: Get total count
+        $total = $this->hardwareRepository->countQuery($logsQuery);
+
+        // BUSINESS LOGIC: Calculate pagination
+        $offset = ($page - 1) * $perPage;
+        $lastPage = ceil($total / $perPage);
+
+        // REPO: Get paginated logs
+        $logs = $this->hardwareRepository->getPaginatedLogs($logsQuery, $offset, $perPage);
+
+        // REPO: Format logs
+        $formattedLogs = $this->hardwareRepository->formatLogs($logs);
+
+        return [
+            'data' => $formattedLogs,
+            'current_page' => $page,
+            'last_page' => $lastPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'has_more' => $page < $lastPage,
+        ];
+    }
+
+    /**
+     * Delete hardware with inventory management
+     * BUSINESS LOGIC: Orchestrate deletion with inventory returns
+     */
+    public function deleteHardware(int $hardwareId, int $employeeId): void
+    {
+        DB::transaction(function () use ($hardwareId, $employeeId) {
+            // REPO: Find hardware with relationships
+            $hardware = $this->hardwareRepository->findWithRelations($hardwareId);
+
+            if (!$hardware) {
+                throw new \Exception("Hardware not found");
+            }
+
+            // BUSINESS LOGIC: Return parts to inventory
+            foreach ($hardware->parts as $part) {
+                $this->returnPartToInventory($part, 'Working');
+            }
+
+            // BUSINESS LOGIC: Release software licenses
+            foreach ($hardware->software as $software) {
+                $this->releaseSoftwareLicense($software);
+            }
+
+            // REPO: Delete related records and hardware
+            $this->hardwareRepository->deleteHardwareWithRelations($hardware);
+
+            Log::info("Hardware deleted", [
+                'hardware_id' => $hardwareId,
+                'hostname' => $hardware->hostname,
+                'deleted_by' => $employeeId,
+            ]);
+        });
+    }
+
+    /**
+     * Apply filters to query
+     * BUSINESS LOGIC: Filter application logic
+     */
+    protected function applyFilters($query, array $filters)
+    {
+        // Status filter
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
-            $tableQuery->where('status', $filters['status']);
+            $query->where('status', $filters['status']);
         }
 
-        // ----- Apply search filter -----
+        // Category filter
+        if (!empty($filters['category'])) {
+            $category = $filters['category'];
+
+            // Check if it's a status-based filter
+            if (in_array($category, ['New', 'Inactive', 'Defective'])) {
+                $statusValue = Status::getValue($category);
+                if ($statusValue !== null) {
+                    $query->where('status', $statusValue);
+                }
+            } else {
+                $query->where('category', $category);
+            }
+        }
+
+        // SubCategory filter
+        if (!empty($filters['subCategory'])) {
+            $query->where('category', $filters['subCategory']);
+        }
+
+        // Search filter
         if (!empty($filters['search'])) {
             $search = $filters['search'];
-            $tableQuery->where(function ($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('hostname', 'like', "%{$search}%")
                     ->orWhere('brand', 'like', "%{$search}%")
                     ->orWhere('model', 'like', "%{$search}%")
@@ -36,25 +172,23 @@ class HardwareService
             });
         }
 
-        // ----- Sorting -----
-        $sortField = $filters['sortField'] ?? 'created_at';
-        $sortOrder = $filters['sortOrder'] ?? 'desc';
-        $tableQuery->orderBy($sortField, $sortOrder);
+        return $query;
+    }
 
-        // ----- Pagination -----
-        $page     = $filters['page'] ?? 1;
-        $pageSize = $filters['pageSize'] ?? 10;
-        $paginated = $tableQuery->paginate($pageSize, ['*'], 'page', $page);
-
-        // ----- Format table data with status labels -----
-        $data = collect($paginated->items())->map(function ($hardware) {
+    /**
+     * Format hardware data
+     * BUSINESS LOGIC: Data transformation
+     */
+    protected function formatHardwareData($items)
+    {
+        return collect($items)->map(function ($hardware) {
             $hardwareArray = is_array($hardware) ? $hardware : $hardware->toArray();
 
-            // Map parts
-            $hardwareArray['parts'] = collect($hardwareArray['parts'])->map(fn($p) => (array) $p);
+            // Format parts
+            $hardwareArray['parts'] = collect($hardwareArray['parts'] ?? [])->map(fn($p) => (array) $p);
 
-            // Map software with inventory and license details
-            $hardwareArray['software'] = collect($hardwareArray['software'])->map(function ($s) {
+            // Format software with inventory and license details
+            $hardwareArray['software'] = collect($hardwareArray['software'] ?? [])->map(function ($s) {
                 $s = (array) $s;
 
                 $s['inventory'] = isset($s['software_inventory'])
@@ -70,7 +204,6 @@ class HardwareService
                 return $s;
             });
 
-
             return array_merge($hardwareArray, [
                 'status_label' => Status::getLabel($hardwareArray['status']),
                 'status_color' => Status::getColor($hardwareArray['status']),
@@ -78,35 +211,77 @@ class HardwareService
                     $hardwareArray['issued_to'] ?? null,
                     $hardware->issuedToUser ?? null
                 ),
-
                 'installed_by_label' => $this->getUserName(
                     $hardwareArray['installed_by'] ?? null,
                     $hardware->installedByUser ?? null
                 ),
             ]);
         });
-
-
-
-        // ----- Status counts -----
-        $countQuery->getQuery()->orders = []; // remove any previous orders
-        $statusCounts = $this->hardwareRepository->getHardwareStatusCounts($countQuery);
-
-        return [
-            'data' => $data,
-            'pagination' => [
-                'current'     => $paginated->currentPage(),
-                'currentPage' => $paginated->currentPage(),
-                'lastPage'    => $paginated->lastPage(),
-                'total'       => $paginated->total(),
-                'perPage'     => $paginated->perPage(),
-                'pageSize'    => $paginated->perPage(),
-            ],
-            'statusCounts' => $statusCounts,
-            'filters'      => $filters,
-        ];
     }
-    private function getUserName($userId, $userObject): string
+
+    /**
+     * Return part to inventory when hardware is deleted
+     * BUSINESS LOGIC: Inventory management logic
+     */
+    protected function returnPartToInventory($hardwarePart, string $condition = 'Working'): void
+    {
+        // REPO: Find the part
+        $part = $this->hardwareRepository->findPart(
+            $hardwarePart->part_type,
+            $hardwarePart->brand,
+            $hardwarePart->model,
+            $hardwarePart->specifications
+        );
+
+        if (!$part) {
+            Log::warning("Part not found when returning to inventory", [
+                'hardware_part_id' => $hardwarePart->id,
+                'part_type' => $hardwarePart->part_type,
+            ]);
+            return;
+        }
+
+        // REPO: Find or create inventory record
+        $inventory = $this->hardwareRepository->findOrCreatePartInventory($part->id, $condition);
+
+        // REPO: Increment inventory
+        $this->hardwareRepository->incrementInventory($inventory->id, 1);
+
+        Log::info("Returned part to inventory", [
+            'hardware_part_id' => $hardwarePart->id,
+            'inventory_id' => $inventory->id,
+            'new_quantity' => $inventory->quantity + 1,
+        ]);
+    }
+
+    /**
+     * Release software license when hardware is deleted
+     * BUSINESS LOGIC: License management logic
+     */
+    protected function releaseSoftwareLicense($hardwareSoftware): void
+    {
+        if ($hardwareSoftware->software_license_id) {
+            // REPO: Find license
+            $license = $this->hardwareRepository->findSoftwareLicense($hardwareSoftware->software_license_id);
+
+            if ($license && $license->current_activations > 0) {
+                // REPO: Decrement activation
+                $this->hardwareRepository->decrementLicenseActivation($license->id, 1);
+
+                Log::info("Released software license", [
+                    'hardware_software_id' => $hardwareSoftware->id,
+                    'license_id' => $license->id,
+                    'remaining_activations' => $license->current_activations - 1,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Get user name helper
+     * BUSINESS LOGIC: User name formatting
+     */
+    protected function getUserName($userId, $userObject): string
     {
         if (is_numeric($userId) && $userObject) {
             return $userObject->EMPNAME ?? $userId;

@@ -18,6 +18,7 @@ class PartsController extends Controller
     public function getPartsTable(Request $request)
     {
         $filters = $this->decodeFilters($request->input('f', ''));
+        // dd($filters);
         $filters = [
             'page' => (int) ($filters['page'] ?? 1),
             'pageSize' => (int) ($filters['pageSize'] ?? 10),
@@ -110,6 +111,24 @@ class PartsController extends Controller
             'success' => true,
             'message' => 'Part deleted successfully'
         ]);
+    }
+
+    public function getLogs(Request $request, $partsId)
+    {
+        try {
+            $page = (int) $request->input('page', 1);
+            $perPage = (int) $request->input('per_page', 10);
+
+            // Call service to get logs
+            $logs = $this->partsService->getPartsLogs($partsId, $page, $perPage);
+
+            return response()->json($logs);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to fetch logs',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     protected function decodeFilters(string $encoded): array

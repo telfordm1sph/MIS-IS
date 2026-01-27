@@ -38,4 +38,8 @@ class ActivityLog extends Model
     {
         return $this->morphTo('related');
     }
+    public function actionByUser()
+    {
+        return $this->belongsTo(User::class, 'action_by', 'EMPLOYID');
+    }
 }

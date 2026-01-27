@@ -2,12 +2,10 @@ import { usePage } from "@inertiajs/react";
 
 import SidebarLink from "@/Components/sidebar/SidebarLink";
 
-import { Table2Icon, ToolCase } from "lucide-react";
+import { Copyright, Table2Icon, ToolCase } from "lucide-react";
 import { WindowsOutlined } from "@ant-design/icons";
 
 export default function NavLinks({ isSidebarOpen }) {
-    const { emp_data } = usePage().props;
-
     return (
         <nav
             className="flex flex-col flex-grow space-y-1 overflow-y-auto"
@@ -29,6 +27,12 @@ export default function NavLinks({ isSidebarOpen }) {
                 href={route("software.table")}
                 icon={<WindowsOutlined className="w-5 h-5" />}
                 label="Softwares"
+                isSidebarOpen={isSidebarOpen}
+            />
+            <SidebarLink
+                href={route("licenses.table")}
+                icon={<Copyright className="w-5 h-5" />}
+                label="Licenses"
                 isSidebarOpen={isSidebarOpen}
             />
         </nav>

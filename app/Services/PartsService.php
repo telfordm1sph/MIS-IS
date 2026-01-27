@@ -30,7 +30,8 @@ class PartsService
                     $q2->where('part_type', 'like', "%$search%")
                         ->orWhere('brand', 'like', "%$search%")
                         ->orWhere('model', 'like', "%$search%")
-                        ->orWhere('specifications', 'like', "%$search%");
+                        ->orWhere('specifications', 'like', "%$search%")
+                        ->orWhere('condition', 'like', "%$search%");
                 })->orWhere('location', 'like', "%$search%");
             });
         }
@@ -56,7 +57,33 @@ class PartsService
             'filters' => $filters,
         ];
     }
+    public function getPartsLogs(int $partsId, int $page = 1, int $perPage = 10): array
+    {
+        // Get the query from the repository
+        $logsQuery = $this->partsRepository->getLogsQuery($partsId);
 
+        // Total logs
+        $total = $logsQuery->count();
+
+        // Apply pagination
+        $logs = $logsQuery->skip(($page - 1) * $perPage)
+            ->take($perPage)
+            ->get();
+
+        // Format logs
+        $formattedLogs = $this->partsRepository->formatLogs($logs);
+
+        $lastPage = ceil($total / $perPage);
+
+        return [
+            'data' => $formattedLogs,
+            'current_page' => $page,
+            'last_page' => $lastPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'has_more' => $page < $lastPage,
+        ];
+    }
     public function create(array $data)
     {
         return $this->partsRepository->create($data);

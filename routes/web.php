@@ -7,7 +7,7 @@ use Inertia\Inertia;
 $app_name = env('APP_NAME', '');
 
 //Api routes
-require __DIR__ . '/api.php';
+// require __DIR__ . '/api.php';
 // Authentication routes
 require __DIR__ . '/auth.php';
 

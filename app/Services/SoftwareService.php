@@ -28,11 +28,10 @@ class SoftwareService
         if (!empty($filters['search'])) {
             $search = $filters['search'];
             $tableQuery->where(function ($q) use ($search) {
-                $q->where('part_type', 'like', "%$search%")
-                    ->orWhere('brand', 'like', "%$search%")
-                    ->orWhere('model', 'like', "%$search%")
-                    ->orWhere('specifications', 'like', "%$search%")
-                    ->orWhere('location', 'like', "%$search%");
+                $q->where('software_name', 'like', "%$search%")
+                    ->orWhere('software_type', 'like', "%$search%")
+                    ->orWhere('version', 'like', "%$search%")
+                    ->orWhere('publisher', 'like', "%$search%");
             });
         }
 
@@ -67,6 +66,33 @@ class SoftwareService
             ],
             // 'statusCounts' => $statusCounts,
             'filters' => $filters,
+        ];
+    }
+    public function getSoftwareLogs(int $softwareId, int $page = 1, int $perPage = 10): array
+    {
+        // Get the query from the repository
+        $logsQuery = $this->softwareRepository->getLogsQuery($softwareId);
+
+        // Total logs
+        $total = $logsQuery->count();
+
+        // Apply pagination
+        $logs = $logsQuery->skip(($page - 1) * $perPage)
+            ->take($perPage)
+            ->get();
+
+        // Format logs
+        $formattedLogs = $this->softwareRepository->formatLogs($logs);
+
+        $lastPage = ceil($total / $perPage);
+
+        return [
+            'data' => $formattedLogs,
+            'current_page' => $page,
+            'last_page' => $lastPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'has_more' => $page < $lastPage,
         ];
     }
     public function create(array $data)

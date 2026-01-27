@@ -134,6 +134,24 @@ class SoftwareController extends Controller
             ], 500);
         }
     }
+    public function getLogs(Request $request, $softwareId)
+    {
+        try {
+            $page = (int) $request->input('page', 1);
+            $perPage = (int) $request->input('per_page', 10);
+
+            // Call service to get logs
+            $logs = $this->softwareService->getSoftwareLogs($softwareId, $page, $perPage);
+
+            return response()->json($logs);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to fetch logs',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     protected function decodeFilters(string $encoded): array
     {
         $decoded = base64_decode($encoded);

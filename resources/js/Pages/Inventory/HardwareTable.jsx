@@ -1,69 +1,112 @@
-import React, { useMemo, useState } from "react";
-import { Table, Spin, Card, Tag, Button, Dropdown } from "antd";
-import {
-    PlusOutlined,
-    MoreOutlined,
-    EyeOutlined,
-    EditOutlined,
-} from "@ant-design/icons";
+import React, { useCallback, useMemo } from "react";
 import { usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import DetailsDrawer from "@/Components/drawer/DetailsDrawer";
-import axios from "axios";
+import { Breadcrumb, Card, Table, Tag, Button, Dropdown } from "antd";
+import {
+    PlusCircleOutlined,
+    EyeOutlined,
+    EditOutlined,
+    HistoryOutlined,
+} from "@ant-design/icons";
+import { EllipsisVertical } from "lucide-react";
 import dayjs from "dayjs";
-import { getPaginationConfig } from "@/Config/pagination";
+
+import { useInventoryFilters } from "@/Components/Hooks/useInventoryFilters";
+import { useDrawer } from "@/Components/Hooks/useDrawer";
+import { useFormDrawer } from "@/Components/Hooks/useFormDrawer";
+import { useLogsModal } from "@/Components/Hooks/useLogsModal";
+import { useCrudOperations } from "@/Components/Hooks/useCrudOperations";
+import { useTableConfig } from "@/Components/Hooks/useTableConfig";
+import { ITEM_CONFIG } from "@/Config/itemConfig";
+import InventoryHeaderWithFilters from "@/Components/inventory/InventoryHeaderWithFilters";
+import DetailsDrawer from "@/Components/drawer/DetailsDrawer";
 import HardwareFormDrawer from "@/Components/drawer/HardwareFormDrawer";
+import CategoryBadge from "@/Components/inventory/CategoryBadge";
+import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
+import axios from "axios";
 
 const HardwareTable = () => {
-    const { hardware, pagination, pageSizeOptions } = usePage().props;
-    console.log(usePage().props);
+    const { hardware, pagination, categoryCounts, filters } = usePage().props;
 
-    const [drawerVisible, setDrawerVisible] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [formDrawerOpen, setFormDrawerOpen] = useState(false);
-    const [editingItem, setEditingItem] = useState(null);
+    const { drawerOpen, selectedItem, openDrawer, closeDrawer } = useDrawer();
 
+    const {
+        isOpen: formDrawerOpen,
+        editingItem,
+        openCreate,
+        openEdit,
+        close: closeForm,
+    } = useFormDrawer();
+
+    const {
+        isVisible: logsModalVisible,
+        entityId,
+        open: openLogs,
+        close: closeLogs,
+    } = useLogsModal();
+
+    const {
+        searchText,
+        category,
+        subCategory,
+        handleSearch,
+        handleCategoryChange,
+        handleSubCategoryChange,
+        handleResetFilters,
+        handleTableChange,
+    } = useInventoryFilters({
+        filters,
+        pagination,
+        routeName: "hardware.table",
+    });
+
+    const { handleSave } = useCrudOperations({
+        updateRoute: "hardware.update",
+        storeRoute: "hardware.store",
+        updateSuccessMessage: "Hardware updated successfully!",
+        createSuccessMessage: "Hardware created successfully!",
+        reloadProps: ["hardware"],
+    });
+
+    // Helper function to fetch hardware details
     const fetchHardwareDetails = async (hostname) => {
-        setLoading(true);
         try {
             const [partsRes, softwareRes] = await Promise.all([
                 axios.get(route("hardware.parts.list", hostname)),
                 axios.get(route("hardware.software.list", hostname)),
             ]);
-            console.log("Parts", partsRes.data);
-            console.log("Software", softwareRes.data);
 
             return {
                 parts: partsRes.data ?? [],
                 software: softwareRes.data ?? [],
             };
-        } finally {
-            setLoading(false);
+        } catch (error) {
+            console.error("Error fetching hardware details:", error);
+            return { parts: [], software: [] };
         }
     };
 
-    const closeForm = () => {
-        setFormDrawerOpen(false);
-        setEditingItem(null);
+    // ✅ Wrapper for handleSave to close form on success
+    const handleFormSave = async (values, id) => {
+        const result = await handleSave(values, id);
+        if (result?.success) {
+            closeForm();
+        }
     };
 
-    const handleFormSave = async (values, itemId) => {
-        console.log("Form values:", values);
-        // try {
-        //     if (itemId) {
-        //         await axios.put(route("hardware.update", itemId), values);
-        //     } else {
-        //         await axios.post(route("hardware.store"), values);
-        //     }
-        //     closeForm();
-        //     window.location.reload();
-        // } catch (error) {
-        //     console.error("Error saving hardware:", error);
-        // }
+    // ✅ Custom handleView to fetch parts and software
+    const handleView = async (record) => {
+        const partsSoftware = await fetchHardwareDetails(record.hostname);
+        const item = {
+            ...record,
+            parts: partsSoftware.parts,
+            software: partsSoftware.software,
+        };
+        openDrawer(item);
     };
 
-    const handleEdit = async (record) => {
+    // ✅ Custom handleEdit to fetch and flatten parts and software
+    const handleEditClick = async (record) => {
         const partsSoftware = await fetchHardwareDetails(record.hostname);
 
         // Flatten hardware parts
@@ -76,14 +119,13 @@ const HardwareTable = () => {
             serial_number: p.serial_number || "",
         }));
 
-        // Flatten software objects - properly handle both license_key and account_user
+        // Flatten software objects
         const softwareFlattened = partsSoftware.software.map((s) => ({
             ...s,
             id: s.id,
             software_name: s.inventory?.software_name || "",
             software_type: s.inventory?.software_type || s.software_type || "",
             version: s.inventory?.version || s.version || "",
-            // Keep both license_key and account_user from the license object
             license_key: s.license?.license_key || null,
             account_user: s.license?.account_user || null,
             account_password: s.license?.account_password || null,
@@ -95,91 +137,117 @@ const HardwareTable = () => {
             software: softwareFlattened,
         };
 
-        setEditingItem(item);
-        setFormDrawerOpen(true);
-    };
-    const handleView = async (record) => {
-        setLoading(true);
-        try {
-            const partsSoftware = await fetchHardwareDetails(record.hostname);
-            const item = {
-                ...record,
-                parts: partsSoftware.parts,
-                software: partsSoftware.software,
-            };
-            setSelectedItem(item);
-            setDrawerVisible(true);
-        } finally {
-            setLoading(false);
-        }
+        openEdit(item);
     };
 
-    const handleAddNew = () => {
-        setEditingItem(null);
-        setFormDrawerOpen(true);
-    };
+    // ✅ Category renderer
+    const renderCategory = useCallback((value, uppercase = false) => {
+        const config = ITEM_CONFIG[value?.toLowerCase()] || ITEM_CONFIG.default;
 
-    const columns = [
-        { title: "ID", dataIndex: "id", key: "id", width: 80 },
-        { title: "Hostname", dataIndex: "hostname", key: "hostname" },
-        { title: "Brand", dataIndex: "brand", key: "brand" },
-        { title: "Category", dataIndex: "category", key: "category" },
-        { title: "Location", dataIndex: "location", key: "location" },
-        {
-            title: "Issued To",
-            dataIndex: "issued_to_label",
-            key: "issued_to_label",
-        },
-        {
-            title: "Status",
-            key: "status",
-            render: (_, record) => (
-                <Tag color={record.status_color}>{record.status_label}</Tag>
-            ),
-        },
-        {
-            title: "Actions",
-            key: "actions",
-            width: 100,
-            render: (_, record) => {
-                // Create menu items for the dropdown
-                const items = [
-                    {
-                        key: "view",
-                        label: "View Details",
-                        icon: <EyeOutlined />,
-                        onClick: () => handleView(record),
-                    },
-                    {
-                        key: "edit",
-                        label: "Edit",
-                        icon: <EditOutlined />,
-                        onClick: () => handleEdit(record),
-                    },
-                ];
+        return (
+            <CategoryBadge
+                value={value}
+                config={config}
+                uppercase={uppercase}
+            />
+        );
+    }, []);
 
-                return (
-                    <Dropdown
-                        menu={{ items }}
-                        trigger={["click"]}
-                        placement="bottomRight"
-                    >
-                        <Button
-                            type="text"
-                            icon={<MoreOutlined />}
-                            style={{ marginLeft: -8 }}
-                        />
-                    </Dropdown>
-                );
+    // ✅ Column definitions (page-specific)
+    const columnDefinitions = useMemo(
+        () => [
+            {
+                title: "ID",
+                dataIndex: "id",
+                key: "id",
+                width: 80,
             },
-        },
-    ];
+            {
+                title: "Hostname",
+                dataIndex: "hostname",
+                key: "hostname",
+            },
+            {
+                title: "Brand",
+                dataIndex: "brand",
+                key: "brand",
+            },
+            {
+                title: "Category",
+                dataIndex: "category",
+                key: "category",
+                isCategory: true,
+            },
+            {
+                title: "Location",
+                dataIndex: "location",
+                key: "location",
+            },
+            {
+                title: "Issued To",
+                dataIndex: "issued_to_label",
+                key: "issued_to_label",
+            },
+            {
+                title: "Status",
+                key: "status",
+                render: (_, record) => (
+                    <Tag color={record.status_color}>{record.status_label}</Tag>
+                ),
+            },
+            {
+                title: "Actions",
+                key: "actions",
+                width: 100,
+                render: (_, record) => {
+                    const items = [
+                        {
+                            key: "view",
+                            label: "View Details",
+                            onClick: () => handleView(record),
+                            icon: <EyeOutlined />,
+                        },
+                        {
+                            key: "edit",
+                            label: "Edit",
+                            onClick: () => handleEditClick(record),
+                            icon: <EditOutlined />,
+                        },
+                        {
+                            key: "logs",
+                            label: "View Logs",
+                            onClick: () => openLogs(record.id),
+                            icon: <HistoryOutlined />,
+                        },
+                    ];
 
-    const paginationConfig = useMemo(
-        () => getPaginationConfig(pagination),
-        [pagination],
+                    return (
+                        <Dropdown
+                            menu={{ items }}
+                            trigger={["click"]}
+                            placement="bottomRight"
+                        >
+                            <Button
+                                type="text"
+                                icon={<EllipsisVertical className="w-5 h-5" />}
+                            />
+                        </Dropdown>
+                    );
+                },
+            },
+        ],
+        [openLogs],
     );
 
+    // ✅ Table configuration from hook
+    const { columns, paginationConfig } = useTableConfig({
+        filters,
+        pagination,
+        renderCategory,
+        columnDefinitions,
+    });
+
+    // ✅ Generate drawer field groups dynamically
     const getFieldGroups = (item) => {
         if (!item) return [];
 
@@ -262,6 +330,7 @@ const HardwareTable = () => {
         ];
     };
 
+    // ✅ Form field groups (page-specific)
     const formFieldGroups = [
         {
             title: "Hardware Specifications",
@@ -374,7 +443,6 @@ const HardwareTable = () => {
                             dataIndex: "model",
                             type: "input",
                         },
-
                         {
                             key: "specifications",
                             label: "Specifications",
@@ -438,45 +506,101 @@ const HardwareTable = () => {
 
     return (
         <AuthenticatedLayout>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "16px",
+                }}
+            >
+                <Breadcrumb
+                    items={[
+                        { title: "MIS-IS", href: "/" },
+                        { title: "Hardware Inventory" },
+                    ]}
+                    style={{ marginBottom: 0 }}
+                />
+                <Button
+                    type="primary"
+                    icon={<PlusCircleOutlined />}
+                    onClick={openCreate}
+                >
+                    Add Hardware
+                </Button>
+            </div>
+
             <Card
-                title="Hardware List"
-                style={{ margin: "16px" }}
-                extra={
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={handleAddNew}
-                    >
-                        Add Hardware
-                    </Button>
+                title={
+                    <InventoryHeaderWithFilters
+                        title="Hardware Inventory"
+                        categoryCounts={categoryCounts}
+                        categoryConfig={ITEM_CONFIG}
+                        searchText={searchText}
+                        category={category}
+                        subCategory={subCategory}
+                        onSearchChange={handleSearch}
+                        onCategoryChange={handleCategoryChange}
+                        onSubCategoryChange={handleSubCategoryChange}
+                        hasActiveFilters={
+                            !!(category || searchText || subCategory)
+                        }
+                        onResetFilters={handleResetFilters}
+                    />
                 }
+                variant="outlined"
+                style={{
+                    borderRadius: 8,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                    marginBottom: 24,
+                }}
             >
                 <Table
                     columns={columns}
                     dataSource={hardware}
                     rowKey="id"
                     pagination={paginationConfig}
+                    onChange={handleTableChange}
+                    onRow={() => ({ style: { cursor: "default" } })}
                     bordered
                     scroll={{ y: "70vh" }}
                 />
-            </Card>
 
-            <DetailsDrawer
-                visible={drawerVisible}
-                fieldGroups={getFieldGroups(selectedItem)}
-                loading={loading}
-                onClose={() => {
-                    setDrawerVisible(false);
-                    setSelectedItem(null);
-                }}
-            />
-            <HardwareFormDrawer
-                open={formDrawerOpen}
-                onClose={closeForm}
-                item={editingItem}
-                onSave={handleFormSave}
-                fieldGroups={formFieldGroups}
-            />
+                {/* View Drawer */}
+                <DetailsDrawer
+                    visible={drawerOpen}
+                    fieldGroups={getFieldGroups(selectedItem)}
+                    loading={false}
+                    onClose={closeDrawer}
+                />
+
+                {/* Form Drawer */}
+                <HardwareFormDrawer
+                    open={formDrawerOpen}
+                    onClose={closeForm}
+                    item={editingItem}
+                    onSave={handleFormSave}
+                    fieldGroups={formFieldGroups}
+                />
+
+                {/* Activity Logs Modal */}
+                <ActivityLogsModal
+                    visible={logsModalVisible}
+                    onClose={closeLogs}
+                    entityId={entityId}
+                    entityType="Hardware"
+                    apiRoute="hardware.logs"
+                    title="Hardware Changes"
+                    actionColors={{
+                        created: "green",
+                        updated: "blue",
+                        deleted: "red",
+                        software_attached: "cyan",
+                        software_detached: "orange",
+                    }}
+                    perPage={5}
+                />
+            </Card>
         </AuthenticatedLayout>
     );
 };

@@ -13,4 +13,6 @@ Route::prefix($app_name)
         Route::post('parts', [PartsController::class, 'store'])->name('parts.store');
         Route::put('/parts/{id}', [PartsController::class, 'update'])->name('parts.update');
         Route::delete('/parts/{id}', [PartsController::class, 'destroy'])->name('parts.destroy');
+
+        Route::get('/parts/{id}/logs', [PartsController::class, 'getLogs'])->name('parts.logs');
     });
