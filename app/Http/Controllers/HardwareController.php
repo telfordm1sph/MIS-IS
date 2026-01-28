@@ -23,14 +23,44 @@ class HardwareController extends Controller
     }
 
     /**
+     * Get employee ID from either session (web) or request (API)
+     * HELPER: Works for both internal and external requests
+     * 
+     * Priority order:
+     * 1. Session (for web/internal users)
+     * 2. Request body (for API calls)
+     * 3. Request header (alternative API method)
+     */
+    protected function getEmployeeId(Request $request): ?int
+    {
+        // Priority 1: Try to get from session (for web/internal users)
+        $empData = session('emp_data');
+        // dd($request->all());
+        if ($empData && isset($empData['emp_id'])) {
+            return (int) $empData['emp_id'];
+        }
+
+        // Priority 2: Try to get from request body (for API calls)
+        if ($request->has('employee_id')) {
+            return (int) $request->input('employee_id');
+        }
+
+        // Priority 3: Try to get from custom header (alternative API method)
+        if ($request->hasHeader('X-Employee-ID')) {
+            return (int) $request->header('X-Employee-ID');
+        }
+
+        // No employee ID found
+        return null;
+    }
+
+    /**
      * Get hardware table with filters
      * REQUEST: Handle HTTP request, validate filters
+     * WORKS FOR: Both web (Inertia) and API (JSON) requests
      */
     public function getHardwareTable(Request $request)
     {
-        // Get employee data from session
-        $empData = session('emp_data');
-
         // Decode base64 filters
         $filters = $this->decodeFilters($request->input('f', ''));
 
@@ -49,6 +79,18 @@ class HardwareController extends Controller
         // BUSINESS LOGIC: Delegate to service
         $result = $this->hardwareService->getHardwareTable($filters);
 
+        // Check if request wants JSON (API call) or Inertia (web)
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => $result['data'],
+                'pagination' => $result['pagination'],
+                'categoryCounts' => $result['categoryCounts'],
+                'filters' => $result['filters'],
+            ]);
+        }
+
+        // Return Inertia view for web interface
         return Inertia::render('Inventory/HardwareTable', [
             'hardware' => $result['data'],
             'pagination' => $result['pagination'],
@@ -60,6 +102,7 @@ class HardwareController extends Controller
     /**
      * Get hardware logs
      * REQUEST: Handle HTTP request, validate parameters
+     * WORKS FOR: Both web and API requests (already returns JSON)
      */
     public function getLogs(Request $request, $hardwareId)
     {
@@ -82,16 +125,19 @@ class HardwareController extends Controller
     /**
      * Create new hardware
      * REQUEST: Handle HTTP request, validate input
+     * WORKS FOR: Both session-based (web) and API requests
      */
     public function store(Request $request)
     {
         try {
-            // Get employee data from session
-            $empData = session('emp_data');
-            $employeeId = $empData['EMPLOYID'] ?? null;
+            // Get employee ID from either session or request
+            $employeeId = $this->getEmployeeId($request);
 
             if (!$employeeId) {
-                throw new \Exception('Employee session data not found');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee identification required. Please provide employee_id in request body or X-Employee-ID header.',
+                ], 401);
             }
 
             // Validate the request
@@ -127,16 +173,20 @@ class HardwareController extends Controller
     /**
      * Update hardware with parts and software
      * REQUEST: Handle HTTP request, validate input
+     * WORKS FOR: Both session-based (web) and API requests
      */
     public function update(Request $request, int $hardwareId)
     {
+        // dd($request->all());
         try {
-            // Get employee data from session
-            $empData = session('emp_data');
-            $employeeId = $empData['EMPLOYID'] ?? null;
+            // Get employee ID from either session or request
+            $employeeId = $this->getEmployeeId($request);
 
             if (!$employeeId) {
-                throw new \Exception('Employee session data not found');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee identification required. Please provide employee_id in request body or X-Employee-ID header.',
+                ], 401);
             }
 
             // Validate the request
@@ -177,16 +227,19 @@ class HardwareController extends Controller
     /**
      * Delete hardware
      * REQUEST: Handle HTTP request
+     * WORKS FOR: Both session-based (web) and API requests
      */
-    public function destroy($hardwareId)
+    public function destroy(Request $request, $hardwareId)
     {
         try {
-            // Get employee data from session
-            $empData = session('emp_data');
-            $employeeId = $empData['EMPLOYID'] ?? null;
+            // Get employee ID from either session or request
+            $employeeId = $this->getEmployeeId($request);
 
             if (!$employeeId) {
-                throw new \Exception('Employee session data not found');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee identification required. Please provide employee_id in request body or X-Employee-ID header.',
+                ], 401);
             }
 
             // BUSINESS LOGIC: Delegate to service
@@ -212,10 +265,14 @@ class HardwareController extends Controller
     /**
      * Validate hardware creation request
      * REQUEST LAYER: Input validation
+     * NOTE: employee_id is nullable because session users don't need to send it
      */
     protected function validateHardwareCreate(Request $request): array
     {
         return $request->validate([
+            // Employee ID (optional - only for API requests without session)
+            'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
+
             // Hardware fields
             'hostname' => 'required|string|max:255|unique:hardware,hostname',
             'category' => 'required|string|max:100',
@@ -257,10 +314,14 @@ class HardwareController extends Controller
     /**
      * Validate hardware update request
      * REQUEST LAYER: Input validation
+     * NOTE: employee_id is nullable because session users don't need to send it
      */
     protected function validateHardwareUpdate(Request $request): array
     {
         return $request->validate([
+            // Employee ID (optional - only for API requests without session)
+            'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
+
             // Hardware fields
             'hostname' => 'sometimes|string|max:255',
             'category' => 'sometimes|string|max:100',
@@ -290,7 +351,7 @@ class HardwareController extends Controller
             'parts.*.specifications' => 'required_without:parts.*._delete|string',
             'parts.*.serial_number' => 'nullable|string|max:100',
             'parts.*.removal_reason' => 'required_if:parts.*._delete,true|string|max:255',
-            'parts.*.removal_condition' => 'required_if:parts.*._delete,true|string|in:Working,Broken,Defective,Damaged,Obsolete',
+            'parts.*.removal_condition' => 'required_if:parts.*._delete,true|string|in:working,defective,partially_working,unknown',
             'parts.*.removal_remarks' => 'nullable|string|max:500',
 
             // Software array

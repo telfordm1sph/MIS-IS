@@ -26,7 +26,8 @@ import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
 import axios from "axios";
 
 const HardwareTable = () => {
-    const { hardware, pagination, categoryCounts, filters } = usePage().props;
+    const { hardware, pagination, categoryCounts, filters, emp_data } =
+        usePage().props;
 
     const { drawerOpen, selectedItem, openDrawer, closeDrawer } = useDrawer();
 
@@ -68,6 +69,15 @@ const HardwareTable = () => {
         reloadProps: ["hardware"],
     });
 
+    const handleFormSave = (values, id) => {
+        const payload = {
+            ...values,
+            employee_id: emp_data?.emp_id,
+        };
+        handleSave(payload, id);
+        closeForm();
+    };
+
     // Helper function to fetch hardware details
     const fetchHardwareDetails = async (hostname) => {
         try {
@@ -83,14 +93,6 @@ const HardwareTable = () => {
         } catch (error) {
             console.error("Error fetching hardware details:", error);
             return { parts: [], software: [] };
-        }
-    };
-
-    // ✅ Wrapper for handleSave to close form on success
-    const handleFormSave = async (values, id) => {
-        const result = await handleSave(values, id);
-        if (result?.success) {
-            closeForm();
         }
     };
 
@@ -370,7 +372,14 @@ const HardwareTable = () => {
                     key: "category",
                     label: "Category",
                     dataIndex: "category",
-                    type: "input",
+                    type: "select",
+                    options: [
+                        { label: "Desktop", value: "Desktop" },
+                        { label: "Laptop", value: "Laptop" },
+                        { label: "Server", value: "Server" },
+                        { label: "Network Device", value: "Network Device" },
+                        { label: "Other", value: "Other" },
+                    ],
                 },
                 {
                     key: "serial_number",

@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\Api\HardwareApiController;
 use App\Http\Controllers\Api\HardwareDetailController;
+use App\Http\Controllers\HardwareController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('hardware')->group(function () {
-    Route::get('{hardwareId}/parts', [HardwareDetailController::class, 'parts'])->name('hardware.parts.list');
+    Route::get('{hardwareId}/parts', [HardwareDetailController::class, 'parts'])->name('hardware.parts.list')->middleware('api.token');
     Route::get('{hardwareId}/software', [HardwareDetailController::class, 'software'])->name('hardware.software.list');
 
     // Parts cascading options
@@ -20,6 +22,12 @@ Route::prefix('hardware')->group(function () {
         ->name('hardware.software.licenses');
 
     // Software inventory options for license management
-    Route::get('api/software-inventory-options', [HardwareDetailController::class, 'softwareInventoryOptions'])
-        ->name('api.software.inventory.options');
+    Route::get('software-inventory-options', [HardwareDetailController::class, 'softwareInventoryOptions'])
+        ->name('software.inventory.options');
+
+    Route::post('hardware/store', [HardwareController::class, 'store'])->name('hardware.store');
+    Route::put('{hardwareId}/update', [HardwareController::class, 'update'])->name('hardware.update');
+});
+Route::middleware('api.token')->group(function () {
+    Route::get('/hardwareApi', [HardwareApiController::class, 'index']);
 });

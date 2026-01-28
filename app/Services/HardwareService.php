@@ -98,6 +98,7 @@ class HardwareService
     /**
      * Delete hardware with inventory management
      * BUSINESS LOGIC: Orchestrate deletion with inventory returns
+     * ENHANCED: Now passes context to inventory and license operations
      */
     public function deleteHardware(int $hardwareId, int $employeeId): void
     {
@@ -109,14 +110,14 @@ class HardwareService
                 throw new \Exception("Hardware not found");
             }
 
-            // BUSINESS LOGIC: Return parts to inventory
+            // BUSINESS LOGIC: Return parts to inventory WITH CONTEXT
             foreach ($hardware->parts as $part) {
-                $this->returnPartToInventory($part, 'Working');
+                $this->returnPartToInventory($part, 'Working', $hardware, $employeeId);
             }
 
-            // BUSINESS LOGIC: Release software licenses
+            // BUSINESS LOGIC: Release software licenses WITH CONTEXT
             foreach ($hardware->software as $software) {
-                $this->releaseSoftwareLicense($software);
+                $this->releaseSoftwareLicense($software, $hardware, $employeeId);
             }
 
             // REPO: Delete related records and hardware
@@ -222,8 +223,9 @@ class HardwareService
     /**
      * Return part to inventory when hardware is deleted
      * BUSINESS LOGIC: Inventory management logic
+     * ENHANCED: Now passes context to inventory increment
      */
-    protected function returnPartToInventory($hardwarePart, string $condition = 'Working'): void
+    protected function returnPartToInventory($hardwarePart, string $condition, Hardware $hardware, int $employeeId): void
     {
         // REPO: Find the part
         $part = $this->hardwareRepository->findPart(
@@ -244,34 +246,50 @@ class HardwareService
         // REPO: Find or create inventory record
         $inventory = $this->hardwareRepository->findOrCreatePartInventory($part->id, $condition);
 
-        // REPO: Increment inventory
-        $this->hardwareRepository->incrementInventory($inventory->id, 1);
+        // Build context reason
+        $reason = "Returned from deleted hardware: {$hardware->hostname} ({$hardware->category}). Part was in '{$condition}' condition.";
+
+        // REPO: Increment inventory WITH CONTEXT
+        $this->hardwareRepository->incrementInventory($inventory->id, 1, $reason, $employeeId);
 
         Log::info("Returned part to inventory", [
             'hardware_part_id' => $hardwarePart->id,
             'inventory_id' => $inventory->id,
-            'new_quantity' => $inventory->quantity + 1,
+            'hardware' => $hardware->hostname,
+            'condition' => $condition,
         ]);
     }
 
     /**
      * Release software license when hardware is deleted
      * BUSINESS LOGIC: License management logic
+     * ENHANCED: Now passes context to license decrement
      */
-    protected function releaseSoftwareLicense($hardwareSoftware): void
+    protected function releaseSoftwareLicense($hardwareSoftware, Hardware $hardware, int $employeeId): void
     {
         if ($hardwareSoftware->software_license_id) {
             // REPO: Find license
             $license = $this->hardwareRepository->findSoftwareLicense($hardwareSoftware->software_license_id);
 
             if ($license && $license->current_activations > 0) {
-                // REPO: Decrement activation
-                $this->hardwareRepository->decrementLicenseActivation($license->id, 1);
+                // Load software inventory for context
+                $hardwareSoftware->loadMissing('softwareInventory');
+
+                $softwareName = $hardwareSoftware->softwareInventory
+                    ? $hardwareSoftware->softwareInventory->software_name
+                    : 'Unknown Software';
+
+                // Build context reason
+                $reason = "Released from deleted hardware: {$hardware->hostname}. Software: {$softwareName}";
+
+                // REPO: Decrement activation WITH CONTEXT
+                $this->hardwareRepository->decrementLicenseActivation($license->id, 1, $reason, $employeeId);
 
                 Log::info("Released software license", [
                     'hardware_software_id' => $hardwareSoftware->id,
                     'license_id' => $license->id,
-                    'remaining_activations' => $license->current_activations - 1,
+                    'hardware' => $hardware->hostname,
+                    'software' => $softwareName,
                 ]);
             }
         }

@@ -140,7 +140,7 @@ class HardwareUpdateService
         foreach ($parts as $partData) {
             if (isset($partData['_delete']) && $partData['_delete'] === true) {
                 // DELETE scenario
-                $this->deletePart($partData, $employeeId);
+                $this->deletePart($hardware, $partData, $employeeId);
             } elseif (isset($partData['id'])) {
                 // UPDATE scenario
                 $this->updatePart($partData, $employeeId);
@@ -154,6 +154,7 @@ class HardwareUpdateService
     /**
      * Create a new hardware part and update inventory
      * BUSINESS LOGIC: Part creation with inventory management
+     * ENHANCED: Now passes context to inventory decrement
      */
     protected function createPart(Hardware $hardware, array $partData, int $employeeId): void
     {
@@ -180,8 +181,9 @@ class HardwareUpdateService
             );
         }
 
-        // REPO: Decrement inventory
-        $this->hardwareRepository->decrementInventory($inventory->id, 1);
+        // REPO: Decrement inventory WITH CONTEXT
+        $reason = "Installed on hardware: {$hardware->hostname} ({$hardware->category})";
+        $this->hardwareRepository->decrementInventory($inventory->id, 1, $reason, $employeeId);
 
         // REPO: Create hardware part record
         $hardwarePartData = [
@@ -192,7 +194,7 @@ class HardwareUpdateService
             'specifications' => $partData['specifications'],
             'serial_number' => $partData['serial_number'] ?? null,
             'source_inventory_id' => $inventory->id,
-            'status' => 'Active',
+            'status' => 'installed',
             'installed_date' => now(),
             'created_by' => $employeeId,
         ];
@@ -204,7 +206,6 @@ class HardwareUpdateService
             'hardware_id' => $hardware->hostname,
             'part_type' => $partData['part_type'],
             'inventory_id' => $inventory->id,
-            'remaining_quantity' => $inventory->quantity - 1,
             'created_by' => $employeeId,
         ]);
     }
@@ -241,8 +242,9 @@ class HardwareUpdateService
     /**
      * Delete a hardware part and return it to inventory
      * BUSINESS LOGIC: Part deletion with inventory return
+     * ENHANCED: Now passes context to inventory increment
      */
-    protected function deletePart(array $partData, int $employeeId): void
+    protected function deletePart(Hardware $hardware, array $partData, int $employeeId): void
     {
         // REPO: Find hardware part
         $hardwarePart = $this->hardwareRepository->findHardwarePartById($partData['id']);
@@ -271,8 +273,10 @@ class HardwareUpdateService
         // REPO: Find or create inventory record for this condition
         $inventory = $this->hardwareRepository->findOrCreatePartInventory($part->id, $condition);
 
-        // REPO: Increment inventory
-        $this->hardwareRepository->incrementInventory($inventory->id, 1);
+        // REPO: Increment inventory WITH CONTEXT
+        $removalReason = $partData['removal_reason'] ?? 'Removed from hardware';
+        $reason = "Removed from hardware: {$hardware->hostname}. Reason: {$removalReason}. Condition: {$condition}";
+        $this->hardwareRepository->incrementInventory($inventory->id, 1, $reason, $employeeId);
 
         // BUSINESS LOGIC: Build removal remarks
         $remarks = $this->buildRemovalRemarks($partData);
@@ -293,8 +297,7 @@ class HardwareUpdateService
             'part_id' => $part->id,
             'inventory_id' => $inventory->id,
             'condition' => $condition,
-            'new_quantity' => $inventory->quantity + 1,
-            'removal_reason' => $partData['removal_reason'] ?? 'N/A',
+            'removal_reason' => $removalReason,
             'deleted_by' => $employeeId,
         ]);
     }
@@ -308,7 +311,7 @@ class HardwareUpdateService
         foreach ($softwareList as $softwareData) {
             if (isset($softwareData['_delete']) && $softwareData['_delete'] === true) {
                 // DELETE scenario
-                $this->deleteSoftware($softwareData, $employeeId);
+                $this->deleteSoftware($hardware, $softwareData, $employeeId);
             } elseif (isset($softwareData['id'])) {
                 // UPDATE scenario
                 $this->updateSoftware($softwareData, $employeeId);
@@ -322,6 +325,7 @@ class HardwareUpdateService
     /**
      * Create a new software installation
      * BUSINESS LOGIC: Software installation with license management
+     * ENHANCED: Now passes context to license increment
      */
     protected function createSoftware(Hardware $hardware, array $softwareData, int $employeeId): void
     {
@@ -341,7 +345,7 @@ class HardwareUpdateService
         // BUSINESS LOGIC: Handle license if required
         $licenseId = null;
         if ($softwareInventory->requires_key_tracking) {
-            $license = $this->findAndIncrementLicense($softwareData);
+            $license = $this->findAndIncrementLicense($softwareData, $hardware, $employeeId);
             $licenseId = $license->id;
         }
 
@@ -396,8 +400,9 @@ class HardwareUpdateService
     /**
      * Delete software installation and decrement license activation
      * BUSINESS LOGIC: Software uninstallation with license release
+     * ENHANCED: Now passes context to license decrement
      */
-    protected function deleteSoftware(array $softwareData, int $employeeId): void
+    protected function deleteSoftware(Hardware $hardware, array $softwareData, int $employeeId): void
     {
         // REPO: Find hardware software
         $hardwareSoftware = $this->hardwareRepository->findHardwareSoftwareById($softwareData['id']);
@@ -406,18 +411,28 @@ class HardwareUpdateService
             throw new \Exception("Hardware software not found: {$softwareData['id']}");
         }
 
-        // BUSINESS LOGIC: Decrement license activation if applicable
+        // Load relationships
+        $hardwareSoftware->loadMissing('softwareInventory');
+
+        // BUSINESS LOGIC: Decrement license activation if applicable WITH CONTEXT
         if ($hardwareSoftware->software_license_id) {
             $license = $this->hardwareRepository->findSoftwareLicense($hardwareSoftware->software_license_id);
 
             if ($license && $license->current_activations > 0) {
-                // REPO: Decrement activation
-                $this->hardwareRepository->decrementLicenseActivation($license->id, 1);
+                $removalReason = $softwareData['removal_reason'] ?? 'Uninstalled from hardware';
+                $softwareName = $hardwareSoftware->softwareInventory
+                    ? $hardwareSoftware->softwareInventory->software_name
+                    : 'Unknown Software';
+
+                $reason = "Uninstalled {$softwareName} from hardware: {$hardware->hostname}. Reason: {$removalReason}";
+
+                // REPO: Decrement activation WITH CONTEXT
+                $this->hardwareRepository->decrementLicenseActivation($license->id, 1, $reason, $employeeId);
 
                 Log::info("Decremented license activation", [
                     'license_id' => $license->id,
                     'software_license_id' => $hardwareSoftware->software_license_id,
-                    'remaining_activations' => $license->current_activations - 1,
+                    'hardware' => $hardware->hostname,
                 ]);
             }
         }
@@ -445,8 +460,9 @@ class HardwareUpdateService
     /**
      * Find license and increment activation count
      * BUSINESS LOGIC: License activation logic
+     * ENHANCED: Now passes context to license increment
      */
-    protected function findAndIncrementLicense(array $softwareData)
+    protected function findAndIncrementLicense(array $softwareData, Hardware $hardware, int $employeeId)
     {
         // BUSINESS LOGIC: Determine identifier type
         $licenseKey = $softwareData['license_key'] ?? null;
@@ -470,14 +486,17 @@ class HardwareUpdateService
             );
         }
 
-        // REPO: Increment activation count
-        $this->hardwareRepository->incrementLicenseActivation($license->id, 1);
+        // Build context reason
+        $softwareName = $softwareData['software_name'] ?? 'Software';
+        $reason = "Activated license for {$softwareName} on hardware: {$hardware->hostname} ({$hardware->category})";
+
+        // REPO: Increment activation count WITH CONTEXT
+        $this->hardwareRepository->incrementLicenseActivation($license->id, 1, $reason, $employeeId);
 
         Log::info("Incremented license activation", [
             'license_id' => $license->id,
             'license_key' => $license->license_key,
-            'current_activations' => $license->current_activations + 1,
-            'max_activations' => $license->max_activations,
+            'hardware' => $hardware->hostname,
         ]);
 
         return $license;
@@ -490,11 +509,11 @@ class HardwareUpdateService
     protected function mapRemovalConditionToInventoryCondition(string $removalCondition): string
     {
         $mapping = [
-            'Working' => 'Working',
-            'Broken' => 'Defective',
-            'Defective' => 'Defective',
-            'Damaged' => 'Defective',
-            'Obsolete' => 'Obsolete',
+            'working' => 'Working',
+            'partially_working' => 'Defective',
+            'defective' => 'Defective',
+            'unknown' => 'Unknown',
+
         ];
 
         return $mapping[$removalCondition] ?? 'Working';

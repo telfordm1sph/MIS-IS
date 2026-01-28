@@ -28,6 +28,17 @@ const FormDrawer = ({
         <Drawer title={title} size={550} onClose={onClose} open={open}>
             <Form layout="vertical" form={form} onFinish={handleFinish}>
                 {fields.map((field) => {
+                    if (field.hidden) {
+                        return (
+                            <Form.Item
+                                key={field.name}
+                                name={field.name}
+                                hidden
+                            >
+                                <Input />
+                            </Form.Item>
+                        );
+                    }
                     let Component = Input;
 
                     if (field.type === "number") {

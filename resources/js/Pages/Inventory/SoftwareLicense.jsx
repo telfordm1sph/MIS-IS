@@ -79,7 +79,7 @@ const SoftwareLicense = () => {
         setLoadingOptions(true);
         try {
             const response = await axios.get(
-                route("api.software.inventory.options"),
+                route("software.inventory.options"),
             );
             setSoftwareOptions(response.data);
         } catch (error) {

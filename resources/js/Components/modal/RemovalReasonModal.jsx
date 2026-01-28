@@ -62,11 +62,11 @@ const RemovalReasonModal = ({
                         placeholder="Select condition"
                         options={[
                             { label: "Working", value: "working" },
-                            { label: "Not Working", value: "not_working" },
                             {
                                 label: "Partially Working",
                                 value: "partially_working",
                             },
+                            { label: "Defective", value: "defective" },
                             { label: "Unknown", value: "unknown" },
                         ]}
                     />

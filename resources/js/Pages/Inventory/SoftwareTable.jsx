@@ -64,8 +64,10 @@ const SoftwareTable = () => {
     });
 
     // ✅ Wrapper for handleSave to close form on success
-    const handleFormSave = async (values, id) => {
-        const result = await handleSave(values, id);
+    const handleFormSave = async (values) => {
+        const id = values.id || null; // extract id from form values
+
+        const result = await handleSave(values, id); // call your CRUD hook
         if (result?.success) {
             closeForm();
         }
@@ -184,6 +186,7 @@ const SoftwareTable = () => {
 
     /** 🔹 Form Fields */
     const fields = [
+        { name: "id", label: "ID", hidden: true },
         {
             name: "software_name",
             label: "Software Name",

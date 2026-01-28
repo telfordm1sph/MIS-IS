@@ -213,10 +213,14 @@ class HardwareRepository
     /**
      * Update hardware
      * DB OPERATION: Update
+     * FIXED: Use model instance for proper logging
      */
     public function updateHardware(int $hardwareId, array $data): void
     {
-        Hardware::where('id', $hardwareId)->update($data);
+        $hardware = Hardware::find($hardwareId);
+        if ($hardware) {
+            $hardware->update($data);
+        }
     }
 
     /**
@@ -277,21 +281,119 @@ class HardwareRepository
     }
 
     /**
-     * Increment inventory
+     * Increment inventory with context
      * DB OPERATION: Increment
+     * ENHANCED: Now logs the reason for increment
+     * 
+     * @param int $inventoryId
+     * @param int $amount
+     * @param string|null $reason Why the inventory is being incremented
+     * @param int|null $employeeId Who performed the action
      */
-    public function incrementInventory(int $inventoryId, int $amount): void
+    public function incrementInventory(int $inventoryId, int $amount, ?string $reason = null, ?int $employeeId = null): void
     {
-        PartInventory::where('id', $inventoryId)->increment('quantity', $amount);
+        $inventory = PartInventory::find($inventoryId);
+        if ($inventory) {
+            // Store old quantity for logging
+            $oldQuantity = $inventory->quantity;
+
+            // Perform the increment
+            $inventory->increment('quantity', $amount);
+
+            // Create additional context log if reason is provided
+            if ($reason) {
+                // Refresh the inventory to get new quantity
+                $inventory->refresh();
+
+                $this->createInventoryContextLog(
+                    $inventory,
+                    'increment',
+                    $oldQuantity,
+                    $inventory->quantity,
+                    $reason,
+                    $employeeId
+                );
+            }
+        }
     }
 
     /**
-     * Decrement inventory
+     * Decrement inventory with context
      * DB OPERATION: Decrement
+     * ENHANCED: Now logs the reason for decrement
+     * 
+     * @param int $inventoryId
+     * @param int $amount
+     * @param string|null $reason Why the inventory is being decremented
+     * @param int|null $employeeId Who performed the action
      */
-    public function decrementInventory(int $inventoryId, int $amount): void
+    public function decrementInventory(int $inventoryId, int $amount, ?string $reason = null, ?int $employeeId = null): void
     {
-        PartInventory::where('id', $inventoryId)->decrement('quantity', $amount);
+        $inventory = PartInventory::find($inventoryId);
+        if ($inventory) {
+            // Store old quantity for logging
+            $oldQuantity = $inventory->quantity;
+
+            // Perform the decrement
+            $inventory->decrement('quantity', $amount);
+
+            // Create additional context log if reason is provided
+            if ($reason) {
+                // Refresh the inventory to get new quantity
+                $inventory->refresh();
+
+                $this->createInventoryContextLog(
+                    $inventory,
+                    'decrement',
+                    $oldQuantity,
+                    $inventory->quantity,
+                    $reason,
+                    $employeeId
+                );
+            }
+        }
+    }
+
+    /**
+     * Create contextual log for inventory changes
+     * DB OPERATION: Insert log with context
+     * 
+     * This creates a manual log entry that explains WHY the inventory changed,
+     * complementing the automatic Loggable trait logs
+     */
+    protected function createInventoryContextLog(
+        PartInventory $inventory,
+        string $operation,
+        int $oldQuantity,
+        int $newQuantity,
+        string $reason,
+        ?int $employeeId
+    ): void {
+        // Load the part relationship if not loaded
+        $inventory->loadMissing('part');
+
+        $partInfo = $inventory->part
+            ? "{$inventory->part->part_type} - {$inventory->part->brand} {$inventory->part->model}"
+            : "Part ID: {$inventory->part_id}";
+
+        ActivityLog::create([
+            'loggable_type' => PartInventory::class,
+            'loggable_id' => $inventory->id,
+            'action_type' => $operation === 'increment' ? 'inventory_increment' : 'inventory_decrement',
+            'action_by' => $employeeId ?? 'system',
+            'action_at' => now(),
+            'old_values' => [
+                'quantity' => $oldQuantity,
+                'condition' => $inventory->condition,
+                'part_info' => $partInfo,
+            ],
+            'new_values' => [
+                'quantity' => $newQuantity,
+                'condition' => $inventory->condition,
+                'part_info' => $partInfo,
+            ],
+            'remarks' => $reason,
+        ]);
     }
 
     /**
@@ -315,19 +417,27 @@ class HardwareRepository
     /**
      * Update hardware part
      * DB OPERATION: Update
+     * FIXED: Use model instance for proper logging
      */
     public function updateHardwarePart(int $hardwarePartId, array $data): void
     {
-        HardwarePart::where('id', $hardwarePartId)->update($data);
+        $hardwarePart = HardwarePart::find($hardwarePartId);
+        if ($hardwarePart) {
+            $hardwarePart->update($data);
+        }
     }
 
     /**
      * Delete hardware part
      * DB OPERATION: Delete
+     * FIXED: Use model instance for proper logging
      */
     public function deleteHardwarePart(int $hardwarePartId): void
     {
-        HardwarePart::where('id', $hardwarePartId)->delete();
+        $hardwarePart = HardwarePart::find($hardwarePartId);
+        if ($hardwarePart) {
+            $hardwarePart->delete();
+        }
     }
 
     // ==================== SOFTWARE OPERATIONS ====================
@@ -371,21 +481,125 @@ class HardwareRepository
     }
 
     /**
-     * Increment license activation
+     * Increment license activation with context
      * DB OPERATION: Increment
+     * ENHANCED: Now logs the reason for activation
+     * 
+     * @param int $licenseId
+     * @param int $amount
+     * @param string|null $reason Why the license is being activated (e.g., hardware hostname)
+     * @param int|null $employeeId Who performed the action
      */
-    public function incrementLicenseActivation(int $licenseId, int $amount): void
+    public function incrementLicenseActivation(int $licenseId, int $amount, ?string $reason = null, ?int $employeeId = null): void
     {
-        SoftwareLicense::where('id', $licenseId)->increment('current_activations', $amount);
+        $license = SoftwareLicense::find($licenseId);
+        if ($license) {
+            // Store old activations for logging
+            $oldActivations = $license->current_activations;
+
+            // Perform the increment
+            $license->increment('current_activations', $amount);
+
+            // Create additional context log if reason is provided
+            if ($reason) {
+                // Refresh the license to get new activations
+                $license->refresh();
+
+                $this->createLicenseContextLog(
+                    $license,
+                    'activation',
+                    $oldActivations,
+                    $license->current_activations,
+                    $reason,
+                    $employeeId
+                );
+            }
+        }
     }
 
     /**
-     * Decrement license activation
+     * Decrement license activation with context
      * DB OPERATION: Decrement
+     * ENHANCED: Now logs the reason for deactivation
+     * 
+     * @param int $licenseId
+     * @param int $amount
+     * @param string|null $reason Why the license is being deactivated (e.g., hardware hostname)
+     * @param int|null $employeeId Who performed the action
      */
-    public function decrementLicenseActivation(int $licenseId, int $amount): void
+    public function decrementLicenseActivation(int $licenseId, int $amount, ?string $reason = null, ?int $employeeId = null): void
     {
-        SoftwareLicense::where('id', $licenseId)->decrement('current_activations', $amount);
+        $license = SoftwareLicense::find($licenseId);
+        if ($license) {
+            // Store old activations for logging
+            $oldActivations = $license->current_activations;
+
+            // Perform the decrement
+            $license->decrement('current_activations', $amount);
+
+            // Create additional context log if reason is provided
+            if ($reason) {
+                // Refresh the license to get new activations
+                $license->refresh();
+
+                $this->createLicenseContextLog(
+                    $license,
+                    'deactivation',
+                    $oldActivations,
+                    $license->current_activations,
+                    $reason,
+                    $employeeId
+                );
+            }
+        }
+    }
+
+    /**
+     * Create contextual log for license activation changes
+     * DB OPERATION: Insert log with context
+     * 
+     * This creates a manual log entry that explains WHY the license activation changed,
+     * complementing the automatic Loggable trait logs
+     */
+    protected function createLicenseContextLog(
+        SoftwareLicense $license,
+        string $operation,
+        int $oldActivations,
+        int $newActivations,
+        string $reason,
+        ?int $employeeId
+    ): void {
+        // Load the software relationship if not loaded
+        $license->loadMissing('software');
+
+        // Build software info
+        $softwareInfo = "License: {$license->license_key}";
+        if ($license->software) {
+            $softwareInfo = "{$license->software->software_name} ({$license->software->software_type}) v{$license->software->version}";
+        } elseif ($license->account_user) {
+            $softwareInfo .= " (Account: {$license->account_user})";
+        }
+
+        ActivityLog::create([
+            'loggable_type' => SoftwareLicense::class,
+            'loggable_id' => $license->id,
+            'action_type' => $operation === 'activation' ? 'license_activated' : 'license_deactivated',
+            'action_by' => $employeeId ?? 'system',
+            'action_at' => now(),
+            'old_values' => [
+                'current_activations' => $oldActivations,
+                'max_activations' => $license->max_activations,
+                'software_info' => $softwareInfo,
+                'license_key' => $license->license_key,
+            ],
+            'new_values' => [
+                'current_activations' => $newActivations,
+                'max_activations' => $license->max_activations,
+                'software_info' => $softwareInfo,
+                'license_key' => $license->license_key,
+            ],
+            'remarks' => $reason,
+        ]);
     }
 
     /**
@@ -409,19 +623,27 @@ class HardwareRepository
     /**
      * Update hardware software
      * DB OPERATION: Update
+     * FIXED: Use model instance for proper logging
      */
     public function updateHardwareSoftware(int $hardwareSoftwareId, array $data): void
     {
-        HardwareSoftware::where('id', $hardwareSoftwareId)->update($data);
+        $hardwareSoftware = HardwareSoftware::find($hardwareSoftwareId);
+        if ($hardwareSoftware) {
+            $hardwareSoftware->update($data);
+        }
     }
 
     /**
      * Delete hardware software
      * DB OPERATION: Delete
+     * FIXED: Use model instance for proper logging
      */
     public function deleteHardwareSoftware(int $hardwareSoftwareId): void
     {
-        HardwareSoftware::where('id', $hardwareSoftwareId)->delete();
+        $hardwareSoftware = HardwareSoftware::find($hardwareSoftwareId);
+        if ($hardwareSoftware) {
+            $hardwareSoftware->delete();
+        }
     }
 
     // ==================== ADDITIONAL QUERIES ====================
