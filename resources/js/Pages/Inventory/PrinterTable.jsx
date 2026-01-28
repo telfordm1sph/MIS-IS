@@ -10,6 +10,8 @@ import {
     Space,
     Popconfirm,
     Input,
+    Tag,
+    Typography,
 } from "antd";
 import {
     PlusCircleOutlined,
@@ -27,9 +29,10 @@ import { useCrudOperations } from "@/Components/Hooks/useCrudOperations";
 import { useTableConfig } from "@/Components/Hooks/useTableConfig";
 import FormDrawer from "@/Components/Drawer/FormDrawer";
 import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
-
-const PartsTable = () => {
-    const { parts, pagination, filters } = usePage().props;
+const { Text } = Typography;
+const PrinterTable = () => {
+    const { printers, pagination, filters, emp_data } = usePage().props;
+    console.log(usePage().props);
 
     const {
         isOpen: formDrawerOpen,
@@ -50,49 +53,33 @@ const PartsTable = () => {
         useInventoryFilters({
             filters,
             pagination,
-            routeName: "parts.table",
+            routeName: "printers.index",
         });
 
     const { handleSave, handleDelete } = useCrudOperations({
-        updateRoute: "parts.update",
-        storeRoute: "parts.store",
-        deleteRoute: "parts.destroy",
-        updateSuccessMessage: "Part updated successfully!",
-        createSuccessMessage: "Part created successfully!",
-        deleteSuccessMessage: "Part deleted successfully!",
-        reloadProps: ["parts"],
+        updateRoute: "printers.update",
+        storeRoute: "printers.store",
+        deleteRoute: "printers.destroy",
+        updateSuccessMessage: "Printer updated successfully!",
+        createSuccessMessage: "Printer created successfully!",
+        deleteSuccessMessage: "Printer deleted successfully!",
+        reloadProps: ["printers"],
     });
 
     // ✅ Wrapper for handleSave to close form on success
     const handleFormSave = async (values) => {
-        const id = values.id || null; // extract id from form values
+        const id = values.id || null;
 
-        const result = await handleSave(values, id); // call your CRUD hook
+        const payload = {
+            ...values,
+            employee_id: emp_data?.emp_id,
+        };
+
+        const result = await handleSave(payload, id);
         if (result?.success) {
             closeForm();
         }
     };
-
-    // 🔹 Flatten the nested `part` object for the table
-    const flattenedParts = useMemo(
-        () =>
-            parts.map((p) => ({
-                id: p.id,
-                part_type: p.part?.part_type || "",
-                brand: p.part?.brand || "",
-                model: p.part?.model || "",
-                specifications: p.part?.specifications || "",
-                quantity: p.quantity,
-                condition: p.condition,
-                location: p.location,
-                remarks: p.remarks,
-                reorder_level: p.reorder_level,
-                reorder_quantity: p.reorder_quantity,
-                unit_cost: p.unit_cost,
-                supplier: p.supplier,
-            })),
-        [parts],
-    );
 
     // ✅ Column definitions (page-specific)
     const columnDefinitions = useMemo(
@@ -105,40 +92,61 @@ const PartsTable = () => {
                 sorter: true,
             },
             {
-                title: "Part Type",
-                dataIndex: "part_type",
-                key: "part_type",
+                title: "Printer Name",
+                dataIndex: "printer_name",
+                key: "printer_name",
                 sorter: true,
+                render: (text, record) => (
+                    <Space orientation="vertical" size={0}>
+                        <Text strong>{text}</Text>
+                        {record.ip_address && (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                IP: {record.ip_address}
+                            </Text>
+                        )}
+                    </Space>
+                ),
             },
             {
-                title: "Brand",
-                dataIndex: "brand",
-                key: "brand",
-                sorter: true,
-            },
-            {
-                title: "Model",
-                dataIndex: "model",
-                key: "model",
-                sorter: true,
-            },
-            {
-                title: "Specifications",
-                dataIndex: "specifications",
-                key: "specifications",
-            },
-            {
-                title: "Quantity",
-                dataIndex: "quantity",
-                key: "quantity",
-                sorter: true,
-            },
-            {
-                title: "Condition",
-                dataIndex: "condition",
-                key: "condition",
-                sorter: true,
+                title: "Type",
+                dataIndex: "printer_type",
+                key: "printer_type",
                 width: 120,
+                sorter: true,
+            },
+            {
+                title: "Brand & Model",
+                key: "brand_model",
+                render: (_, record) => (
+                    <Space orientation="vertical" size={0}>
+                        <Text strong>{record.brand || "N/A"}</Text>
+                        {record.model && (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                {record.model}
+                            </Text>
+                        )}
+                    </Space>
+                ),
+            },
+            {
+                title: "Serial Number",
+                dataIndex: "serial_number",
+                key: "serial_number",
+                ellipsis: true,
+                sorter: true,
+            },
+            {
+                title: "Location",
+                dataIndex: "location",
+                key: "location",
+                sorter: true,
+            },
+            {
+                title: "Status",
+                key: "status",
+                render: (_, record) => (
+                    <Tag color={record.status_color}>{record.status_label}</Tag>
+                ),
             },
             {
                 title: "Actions",
@@ -166,7 +174,7 @@ const PartsTable = () => {
                             key: "delete",
                             label: (
                                 <Popconfirm
-                                    title="Delete this part?"
+                                    title="Delete this printer?"
                                     description="This action cannot be undone."
                                     onConfirm={() => handleDelete(record.id)}
                                     okText="Yes"
@@ -210,34 +218,77 @@ const PartsTable = () => {
     const fields = [
         { name: "id", label: "ID", hidden: true },
         {
-            name: "part_type",
-            label: "Part Type",
-            rules: [{ required: true, message: "Part type is required" }],
+            name: "printer_name",
+            label: "Printer Name",
+            rules: [{ required: true, message: "Printer name is required" }],
+            placeholder: "Enter printer name",
+        },
+        {
+            name: "ip_address",
+            label: "IP Address",
+            placeholder: "Enter IP address (e.g., 192.168.1.100)",
+        },
+        {
+            name: "printer_type",
+            label: "Printer Type",
+            type: "input",
+            placeholder: "Enter printer type",
+        },
+        {
+            name: "printer_category",
+            label: "Category",
+            type: "input",
+            placeholder: "Enter category",
+        },
+        {
+            name: "location",
+            label: "Location",
+            placeholder: "Enter location",
         },
         {
             name: "brand",
             label: "Brand",
-            rules: [{ required: true, message: "Brand is required" }],
-        },
-        { name: "model", label: "Model" },
-        { name: "specifications", label: "Specifications" },
-        {
-            name: "quantity",
-            label: "Quantity",
-            type: "number",
-            rules: [{ required: true, message: "Quantity is required" }],
+            placeholder: "Enter brand (e.g., HP, Canon, Epson)",
         },
         {
-            name: "condition",
-            label: "Condition",
+            name: "model",
+            label: "Model",
+            placeholder: "Enter model number",
+        },
+        {
+            name: "serial_number",
+            label: "Serial Number",
+            placeholder: "Enter serial number",
+        },
+        {
+            name: "dpi",
+            label: "DPI (Resolution)",
+            placeholder: "Enter DPI (e.g., 1200x1200)",
+        },
+        {
+            name: "category_status",
+            label: "Category Status",
+            placeholder: "Enter category status",
+        },
+        {
+            name: "toner",
+            label: "Toner/Ink Type",
+            placeholder: "Enter toner or ink type",
+        },
+        {
+            name: "supplier",
+            label: "Supplier",
+            placeholder: "Enter supplier name",
+        },
+        {
+            name: "status",
+            label: "Status",
             type: "select",
-            placeholder: "Select condition",
-            rules: [{ required: true, message: "Condition is required" }],
             options: [
-                { label: "New", value: "New" },
-                { label: "Used", value: "Used" },
-                { label: "Defective", value: "Defective" },
+                { value: 1, label: "Active" },
+                { value: 2, label: "Inactive" },
             ],
+            placeholder: "Select status",
         },
     ];
 
@@ -254,7 +305,7 @@ const PartsTable = () => {
                 <Breadcrumb
                     items={[
                         { title: "MIS-IS", href: "/" },
-                        { title: "Parts Inventory" },
+                        { title: "Printers" },
                     ]}
                     style={{ marginBottom: 0 }}
                 />
@@ -263,7 +314,7 @@ const PartsTable = () => {
                     icon={<PlusCircleOutlined />}
                     onClick={openCreate}
                 >
-                    Add Part
+                    Add Printer
                 </Button>
             </div>
 
@@ -277,10 +328,10 @@ const PartsTable = () => {
                         }}
                     >
                         <span style={{ fontSize: "18px", fontWeight: 600 }}>
-                            Parts Inventory
+                            Printers
                         </span>
                         <Input
-                            placeholder="Search part type, brand, model..."
+                            placeholder="Search printer name, brand, model, IP..."
                             allowClear
                             value={searchText}
                             prefix={<SearchOutlined />}
@@ -298,7 +349,7 @@ const PartsTable = () => {
             >
                 <Table
                     columns={columns}
-                    dataSource={flattenedParts}
+                    dataSource={printers}
                     rowKey="id"
                     pagination={paginationConfig}
                     onChange={handleTableChange}
@@ -311,7 +362,7 @@ const PartsTable = () => {
                 <FormDrawer
                     open={formDrawerOpen}
                     onClose={closeForm}
-                    title={editingItem ? "Edit Part" : "Add Part"}
+                    title={editingItem ? "Edit Printer" : "Add Printer"}
                     mode={editingItem ? "edit" : "create"}
                     initialValues={editingItem}
                     fields={fields}
@@ -323,19 +374,19 @@ const PartsTable = () => {
                     visible={logsModalVisible}
                     onClose={closeLogs}
                     entityId={entityId}
-                    entityType="Part"
-                    apiRoute="parts.logs"
-                    title="Part Changes"
+                    entityType="Printer"
+                    apiRoute="printers.logs"
+                    title="Printer Changes"
                     actionColors={{
                         created: "green",
                         updated: "blue",
                         deleted: "red",
                     }}
-                    perPage={5}
+                    perPage={10}
                 />
             </Card>
         </AuthenticatedLayout>
     );
 };
 
-export default PartsTable;
+export default PrinterTable;

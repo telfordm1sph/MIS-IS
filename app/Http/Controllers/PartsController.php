@@ -130,10 +130,4 @@ class PartsController extends Controller
             ], 500);
         }
     }
-
-    protected function decodeFilters(string $encoded): array
-    {
-        $decoded = base64_decode($encoded);
-        return $decoded ? json_decode($decoded, true) : [];
-    }
 }

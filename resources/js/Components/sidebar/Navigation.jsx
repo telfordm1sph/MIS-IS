@@ -2,7 +2,7 @@ import { usePage } from "@inertiajs/react";
 
 import SidebarLink from "@/Components/sidebar/SidebarLink";
 
-import { Copyright, Table2Icon, ToolCase } from "lucide-react";
+import { Copyright, Printer, Table2Icon, ToolCase } from "lucide-react";
 import { WindowsOutlined } from "@ant-design/icons";
 
 export default function NavLinks({ isSidebarOpen }) {
@@ -33,6 +33,12 @@ export default function NavLinks({ isSidebarOpen }) {
                 href={route("licenses.table")}
                 icon={<Copyright className="w-5 h-5" />}
                 label="Licenses"
+                isSidebarOpen={isSidebarOpen}
+            />
+            <SidebarLink
+                href={route("printers.table")}
+                icon={<Printer className="w-5 h-5" />}
+                label="Printer"
                 isSidebarOpen={isSidebarOpen}
             />
         </nav>

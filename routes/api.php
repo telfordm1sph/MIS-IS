@@ -1,33 +1,16 @@
 <?php
 
-use App\Http\Controllers\Api\HardwareApiController;
-use App\Http\Controllers\Api\HardwareDetailController;
-use App\Http\Controllers\HardwareController;
+use App\Http\Controllers\DemoController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
-Route::prefix('hardware')->group(function () {
-    Route::get('{hardwareId}/parts', [HardwareDetailController::class, 'parts'])->name('hardware.parts.list')->middleware('api.token');
-    Route::get('{hardwareId}/software', [HardwareDetailController::class, 'software'])->name('hardware.software.list');
+$app_name = env('APP_NAME', '');
 
-    // Parts cascading options
-    Route::get('parts-options/{filters?}', [HardwareDetailController::class, 'partsOptions'])
-        ->name('hardware.parts.options');
-    Route::get('parts-inventory/{filters?}', [HardwareDetailController::class, 'partsInventory'])
-        ->name('hardware.parts.inventory');
+require __DIR__ . '/api/apiHardware.php';
+require __DIR__ . '/api/apiPrinter.php';
 
-    // Software cascading options
-    Route::get('software-options/{filters?}', [HardwareDetailController::class, 'softwareOptions'])
-        ->name('hardware.software.options');
-    Route::get('software-licenses/{filters?}', [HardwareDetailController::class, 'softwareLicenses'])
-        ->name('hardware.software.licenses');
 
-    // Software inventory options for license management
-    Route::get('software-inventory-options', [HardwareDetailController::class, 'softwareInventoryOptions'])
-        ->name('software.inventory.options');
 
-    Route::post('hardware/store', [HardwareController::class, 'store'])->name('hardware.store');
-    Route::put('{hardwareId}/update', [HardwareController::class, 'update'])->name('hardware.update');
-});
-Route::middleware('api.token')->group(function () {
-    Route::get('/hardwareApi', [HardwareApiController::class, 'index']);
-});
+Route::fallback(function () {
+    return Inertia::render('404');
+})->name('404');

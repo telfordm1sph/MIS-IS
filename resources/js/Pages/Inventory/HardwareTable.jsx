@@ -69,13 +69,18 @@ const HardwareTable = () => {
         reloadProps: ["hardware"],
     });
 
-    const handleFormSave = (values, id) => {
+    const handleFormSave = async (values) => {
+        const id = values.id || null;
+
         const payload = {
             ...values,
             employee_id: emp_data?.emp_id,
         };
-        handleSave(payload, id);
-        closeForm();
+
+        const result = await handleSave(payload, id);
+        if (result?.success) {
+            closeForm();
+        }
     };
 
     // Helper function to fetch hardware details

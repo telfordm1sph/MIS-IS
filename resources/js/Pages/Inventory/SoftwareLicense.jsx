@@ -315,14 +315,10 @@ const SoftwareLicense = () => {
                                     cancelText="No"
                                     okButtonProps={{ danger: true }}
                                 >
-                                    <span style={{ color: "#ff4d4f" }}>
-                                        Delete
-                                    </span>
+                                    <span>Delete</span>
                                 </Popconfirm>
                             ),
-                            icon: (
-                                <DeleteOutlined style={{ color: "#ff4d4f" }} />
-                            ),
+                            icon: <DeleteOutlined />,
                             danger: true,
                         },
                     ];

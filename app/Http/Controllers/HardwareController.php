@@ -22,37 +22,7 @@ class HardwareController extends Controller
         $this->hardwareUpdateService = $hardwareUpdateService;
     }
 
-    /**
-     * Get employee ID from either session (web) or request (API)
-     * HELPER: Works for both internal and external requests
-     * 
-     * Priority order:
-     * 1. Session (for web/internal users)
-     * 2. Request body (for API calls)
-     * 3. Request header (alternative API method)
-     */
-    protected function getEmployeeId(Request $request): ?int
-    {
-        // Priority 1: Try to get from session (for web/internal users)
-        $empData = session('emp_data');
-        // dd($request->all());
-        if ($empData && isset($empData['emp_id'])) {
-            return (int) $empData['emp_id'];
-        }
 
-        // Priority 2: Try to get from request body (for API calls)
-        if ($request->has('employee_id')) {
-            return (int) $request->input('employee_id');
-        }
-
-        // Priority 3: Try to get from custom header (alternative API method)
-        if ($request->hasHeader('X-Employee-ID')) {
-            return (int) $request->header('X-Employee-ID');
-        }
-
-        // No employee ID found
-        return null;
-    }
 
     /**
      * Get hardware table with filters
@@ -368,19 +338,5 @@ class HardwareController extends Controller
             'software.*.removal_condition' => 'required_if:software.*._delete,true|string',
             'software.*.removal_remarks' => 'nullable|string|max:500',
         ]);
-    }
-
-    /**
-     * Decode base64 filters
-     * REQUEST LAYER: Helper method
-     */
-    protected function decodeFilters(string $encoded): array
-    {
-        if (empty($encoded)) {
-            return [];
-        }
-
-        $decoded = base64_decode($encoded);
-        return $decoded ? json_decode($decoded, true) : [];
     }
 }
