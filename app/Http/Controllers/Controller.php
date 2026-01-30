@@ -55,9 +55,10 @@ class Controller extends BaseController
      * Decode base64 filters
      * REQUEST LAYER: Helper method
      */
-    protected function decodeFilters(string $encoded): array
+
+    protected function decodeFilters(?string $encoded): array
     {
-        if (empty($encoded)) {
+        if (!$encoded) {
             return [];
         }
 

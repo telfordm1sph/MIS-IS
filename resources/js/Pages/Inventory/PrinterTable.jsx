@@ -22,11 +22,11 @@ import {
 } from "@ant-design/icons";
 import { EllipsisVertical } from "lucide-react";
 
-import { useInventoryFilters } from "@/Components/Hooks/useInventoryFilters";
-import { useFormDrawer } from "@/Components/Hooks/useFormDrawer";
-import { useLogsModal } from "@/Components/Hooks/useLogsModal";
-import { useCrudOperations } from "@/Components/Hooks/useCrudOperations";
-import { useTableConfig } from "@/Components/Hooks/useTableConfig";
+import { useInventoryFilters } from "@/Hooks/useInventoryFilters";
+import { useFormDrawer } from "@/Hooks/useFormDrawer";
+import { useLogsModal } from "@/Hooks/useLogsModal";
+import { useCrudOperations } from "@/Hooks/useCrudOperations";
+import { useTableConfig } from "@/Hooks/useTableConfig";
 import FormDrawer from "@/Components/Drawer/FormDrawer";
 import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
 const { Text } = Typography;

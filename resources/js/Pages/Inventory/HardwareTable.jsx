@@ -11,12 +11,12 @@ import {
 import { EllipsisVertical } from "lucide-react";
 import dayjs from "dayjs";
 
-import { useInventoryFilters } from "@/Components/Hooks/useInventoryFilters";
-import { useDrawer } from "@/Components/Hooks/useDrawer";
-import { useFormDrawer } from "@/Components/Hooks/useFormDrawer";
-import { useLogsModal } from "@/Components/Hooks/useLogsModal";
-import { useCrudOperations } from "@/Components/Hooks/useCrudOperations";
-import { useTableConfig } from "@/Components/Hooks/useTableConfig";
+import { useInventoryFilters } from "@/Hooks/useInventoryFilters";
+import { useDrawer } from "@/Hooks/useDrawer";
+import { useFormDrawer } from "@/Hooks/useFormDrawer";
+import { useLogsModal } from "@/Hooks/useLogsModal";
+import { useCrudOperations } from "@/Hooks/useCrudOperations";
+import { useTableConfig } from "@/Hooks/useTableConfig";
 import { ITEM_CONFIG } from "@/Config/itemConfig";
 import InventoryHeaderWithFilters from "@/Components/inventory/InventoryHeaderWithFilters";
 import DetailsDrawer from "@/Components/drawer/DetailsDrawer";
@@ -343,6 +343,11 @@ const HardwareTable = () => {
             title: "Hardware Specifications",
             column: 2,
             fields: [
+                {
+                    key: "id",
+                    dataIndex: "id",
+                    type: "hidden",
+                },
                 {
                     key: "status",
                     label: "Status",

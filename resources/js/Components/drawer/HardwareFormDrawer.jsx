@@ -13,9 +13,9 @@ import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 
 import RemovalReasonModal from "../modal/RemovalReasonModal";
-import { useHardwareParts } from "@/Components/Hooks/useHardwareParts";
-import { useHardwareSoftware } from "@/Components/Hooks/useHardwareSoftware";
-import { useRemovalModal } from "@/Components/Hooks/useRemovalModal";
+import { useHardwareParts } from "@/Hooks/useHardwareParts";
+import { useHardwareSoftware } from "@/Hooks/useHardwareSoftware";
+import { useRemovalModal } from "@/Hooks/useRemovalModal";
 import {
     convertDatesToDayjs,
     convertDayjsToStrings,
@@ -191,9 +191,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
 
         switch (field.type) {
             case "license_select":
-                // Special handling for license/account select
                 let licenseOptions = [];
-
                 if (parentFieldName === "software") {
                     licenseOptions =
                         softwareOptions.licenses?.[fieldName] || [];
@@ -231,7 +229,6 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                         }}
                         onChange={(val) => {
                             if (parentFieldName === "software") {
-                                // Get the full license data from the selected option
                                 const selectedOption = licenseOptions.find(
                                     (opt) => opt.value === val,
                                 );
@@ -239,7 +236,6 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                     selectedOption?.license_data;
 
                                 if (licenseData) {
-                                    // Update all hidden fields with the license data
                                     form.setFieldValue(
                                         [
                                             "software",
@@ -248,12 +244,10 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         ],
                                         val,
                                     );
-
                                     form.setFieldValue(
                                         ["software", rowIndex, "account_user"],
                                         licenseData.account_user || null,
                                     );
-
                                     form.setFieldValue(
                                         [
                                             "software",
@@ -262,8 +256,6 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         ],
                                         licenseData.account_password || null,
                                     );
-
-                                    // Set the display value to the identifier
                                     form.setFieldValue(
                                         ["software", rowIndex, "license_key"],
                                         val,
@@ -277,34 +269,28 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             case "select":
                 let options = field.options || [];
 
-                // Handle cascading selects for hardware parts
                 if (parentFieldName === "parts") {
                     const currentValues =
                         form.getFieldValue("parts")?.[rowIndex] || {};
-
-                    if (field.dataIndex === "part_type") {
+                    if (field.dataIndex === "part_type")
                         options = partsOptions.types || [];
-                    } else if (field.dataIndex === "brand") {
+                    if (field.dataIndex === "brand")
                         options = partsOptions.brands[fieldName] || [];
-                    } else if (field.dataIndex === "model") {
+                    if (field.dataIndex === "model")
                         options = partsOptions.models[fieldName] || [];
-                    } else if (field.dataIndex === "specifications") {
+                    if (field.dataIndex === "specifications")
                         options = partsOptions.specifications[fieldName] || [];
-                    }
                 }
 
-                // Handle cascading selects for software
                 if (parentFieldName === "software") {
                     const currentValues =
                         form.getFieldValue("software")?.[rowIndex] || {};
-
-                    if (field.dataIndex === "software_name") {
+                    if (field.dataIndex === "software_name")
                         options = softwareOptions.names || [];
-                    } else if (field.dataIndex === "software_type") {
+                    if (field.dataIndex === "software_type")
                         options = softwareOptions.types[fieldName] || [];
-                    } else if (field.dataIndex === "version") {
+                    if (field.dataIndex === "version")
                         options = softwareOptions.versions[fieldName] || [];
-                    }
                 }
 
                 return (
@@ -321,31 +307,30 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                 const currentValues =
                                     form.getFieldValue("parts")?.[rowIndex] ||
                                     {};
-
                                 if (
                                     field.dataIndex === "brand" &&
                                     currentValues.part_type
-                                ) {
+                                )
                                     await loadBrands(
                                         currentValues.part_type,
                                         fieldName,
                                     );
-                                } else if (
+                                if (
                                     field.dataIndex === "model" &&
                                     currentValues.part_type &&
                                     currentValues.brand
-                                ) {
+                                )
                                     await loadModels(
                                         currentValues.part_type,
                                         currentValues.brand,
                                         fieldName,
                                     );
-                                } else if (
+                                if (
                                     field.dataIndex === "specifications" &&
                                     currentValues.part_type &&
                                     currentValues.brand &&
                                     currentValues.model
-                                ) {
+                                )
                                     await loadSpecifications(
                                         currentValues.part_type,
                                         currentValues.brand,
@@ -353,42 +338,37 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         fieldName,
                                         rowIndex,
                                     );
-                                }
                             }
-
                             if (parentFieldName === "software") {
                                 const currentValues =
                                     form.getFieldValue("software")?.[
                                         rowIndex
                                     ] || {};
-
                                 if (
                                     field.dataIndex === "software_type" &&
                                     currentValues.software_name
-                                ) {
+                                )
                                     await loadSoftwareTypes(
                                         currentValues.software_name,
                                         fieldName,
                                     );
-                                } else if (
+                                if (
                                     field.dataIndex === "version" &&
                                     currentValues.software_name &&
                                     currentValues.software_type
-                                ) {
+                                )
                                     await loadSoftwareVersions(
                                         currentValues.software_name,
                                         currentValues.software_type,
                                         fieldName,
                                     );
-                                }
                             }
                         }}
                         onChange={(val) => {
                             if (parentFieldName === "parts") {
                                 const parts = form.getFieldValue("parts") || [];
                                 const currentPart = parts[rowIndex] || {};
-
-                                if (field.dataIndex === "part_type") {
+                                if (field.dataIndex === "part_type")
                                     parts[rowIndex] = {
                                         ...currentPart,
                                         part_type: val,
@@ -396,32 +376,27 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         model: undefined,
                                         specifications: undefined,
                                     };
-                                    form.setFieldsValue({ parts });
-                                } else if (field.dataIndex === "brand") {
+                                if (field.dataIndex === "brand")
                                     parts[rowIndex] = {
                                         ...currentPart,
                                         brand: val,
                                         model: undefined,
                                         specifications: undefined,
                                     };
-                                    form.setFieldsValue({ parts });
-                                } else if (field.dataIndex === "model") {
+                                if (field.dataIndex === "model")
                                     parts[rowIndex] = {
                                         ...currentPart,
                                         model: val,
                                         specifications: undefined,
                                     };
-                                    form.setFieldsValue({ parts });
-                                }
+                                form.setFieldsValue({ parts });
                             }
-
                             if (parentFieldName === "software") {
                                 const software =
                                     form.getFieldValue("software") || [];
                                 const currentSoftware =
                                     software[rowIndex] || {};
-
-                                if (field.dataIndex === "software_name") {
+                                if (field.dataIndex === "software_name")
                                     software[rowIndex] = {
                                         ...currentSoftware,
                                         software_name: val,
@@ -432,10 +407,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         account_password: undefined,
                                         _license_identifier: undefined,
                                     };
-                                    form.setFieldsValue({ software });
-                                } else if (
-                                    field.dataIndex === "software_type"
-                                ) {
+                                if (field.dataIndex === "software_type")
                                     software[rowIndex] = {
                                         ...currentSoftware,
                                         software_type: val,
@@ -445,8 +417,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         account_password: undefined,
                                         _license_identifier: undefined,
                                     };
-                                    form.setFieldsValue({ software });
-                                } else if (field.dataIndex === "version") {
+                                if (field.dataIndex === "version")
                                     software[rowIndex] = {
                                         ...currentSoftware,
                                         version: val,
@@ -455,8 +426,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         account_password: undefined,
                                         _license_identifier: undefined,
                                     };
-                                    form.setFieldsValue({ software });
-                                }
+                                form.setFieldsValue({ software });
                             }
                         }}
                     />
@@ -466,7 +436,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                 return (
                     <DatePicker
                         format="YYYY-MM-DD"
-                        style={{ width: "100%", minWidth: 0 }}
+                        style={{ width: "100%" }}
                         placeholder={`Select ${field.label}`}
                         disabled={isDisabled}
                     />
@@ -487,12 +457,14 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                 return <Input type="hidden" />;
 
             case "dynamicList":
-                const gridTemplateColumns = field.subFields
-                    .filter((sub) => sub.type !== "hidden")
-                    .map((sub) => {
-                        const flex = sub.flex || 1;
-                        return `${flex}fr`;
-                    })
+                const visibleSubFields = field.subFields.filter(
+                    (sub) => sub.type !== "hidden",
+                );
+                const hiddenSubFields = field.subFields.filter(
+                    (sub) => sub.type === "hidden",
+                );
+                const gridTemplateColumns = visibleSubFields
+                    .map((sub) => `${sub.flex || 1}fr`)
                     .join(" ");
 
                 return (
@@ -511,70 +483,31 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                             width: "100%",
                                         }}
                                     >
-                                        {field.subFields
-                                            .filter(
-                                                (sub) => sub.type !== "hidden",
-                                            )
-                                            .map((sub) => (
-                                                <div
-                                                    key={sub.key}
-                                                    style={{
-                                                        display: "flex",
-                                                        flexDirection: "column",
-                                                        width: "100%",
-                                                        minWidth: 0,
-                                                        overflow: "hidden",
-                                                    }}
-                                                >
-                                                    {rowIndex === 0 && (
-                                                        <label
-                                                            style={{
-                                                                fontSize:
-                                                                    "14px",
-                                                                fontWeight: 500,
-                                                                marginBottom: 4,
-                                                            }}
-                                                        >
-                                                            {sub.label}
-                                                        </label>
-                                                    )}
-                                                    <Form.Item
-                                                        {...f}
-                                                        name={[
-                                                            f.name,
-                                                            sub.dataIndex,
-                                                        ]}
-                                                        fieldKey={[
-                                                            f.fieldKey,
-                                                            sub.dataIndex,
-                                                        ]}
-                                                        rules={sub.rules || []}
+                                        {/* Visible fields */}
+                                        {visibleSubFields.map((sub) => (
+                                            <div
+                                                key={sub.key}
+                                                style={{
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    width: "100%",
+                                                    minWidth: 0,
+                                                    overflow: "hidden",
+                                                }}
+                                            >
+                                                {rowIndex === 0 && (
+                                                    <label
                                                         style={{
-                                                            margin: 0,
+                                                            fontSize: 14,
+                                                            fontWeight: 500,
+                                                            marginBottom: 4,
                                                         }}
-                                                        label={null}
                                                     >
-                                                        {renderField(
-                                                            {
-                                                                ...sub,
-                                                                editable:
-                                                                    sub.editable !==
-                                                                    false,
-                                                            },
-                                                            field.dataIndex,
-                                                            f.name,
-                                                        )}
-                                                    </Form.Item>
-                                                </div>
-                                            ))}
-                                        {field.subFields
-                                            .filter(
-                                                (sub) => sub.type === "hidden",
-                                            )
-                                            .map((sub) => (
+                                                        {sub.label}
+                                                    </label>
+                                                )}
                                                 <Form.Item
-                                                    {...f}
-                                                    key={sub.key}
+                                                    key={f.key}
                                                     name={[
                                                         f.name,
                                                         sub.dataIndex,
@@ -584,9 +517,8 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                                         sub.dataIndex,
                                                     ]}
                                                     rules={sub.rules || []}
-                                                    style={{
-                                                        display: "none",
-                                                    }}
+                                                    style={{ margin: 0 }}
+                                                    label={null}
                                                 >
                                                     {renderField(
                                                         {
@@ -599,7 +531,33 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                                         f.name,
                                                     )}
                                                 </Form.Item>
-                                            ))}
+                                            </div>
+                                        ))}
+
+                                        {/* Hidden fields outside grid */}
+                                        {hiddenSubFields.map((sub) => (
+                                            <Form.Item
+                                                key={sub.key}
+                                                name={[f.name, sub.dataIndex]}
+                                                fieldKey={[
+                                                    f.fieldKey,
+                                                    sub.dataIndex,
+                                                ]}
+                                                style={{ display: "none" }}
+                                            >
+                                                {renderField(
+                                                    {
+                                                        ...sub,
+                                                        editable:
+                                                            sub.editable !==
+                                                            false,
+                                                    },
+                                                    field.dataIndex,
+                                                    f.name,
+                                                )}
+                                            </Form.Item>
+                                        ))}
+
                                         {!isDisabled && (
                                             <MinusCircleOutlined
                                                 onClick={() => {
@@ -617,6 +575,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                                     marginTop:
                                                         rowIndex === 0 ? 30 : 4,
                                                     cursor: "pointer",
+                                                    color: "#ff4d4f",
                                                 }}
                                             />
                                         )}
@@ -772,26 +731,36 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             key: "hardware",
             label: "Hardware",
             children: (
-                <div style={{ marginBottom: 24 }}>
+                <div>
                     <div
                         style={{
                             display: "grid",
                             gridTemplateColumns: "repeat(3, 1fr)",
-                            gap: 16,
+                            gap: 8,
                         }}
                     >
                         {updatedFieldGroups
                             .find((g) => g.title === "Hardware Specifications")
-                            ?.fields.map((field) => (
-                                <Form.Item
-                                    key={field.key}
-                                    name={field.dataIndex}
-                                    label={field.label}
-                                    rules={field.rules || []}
-                                >
-                                    {renderField(field)}
-                                </Form.Item>
-                            ))}
+                            ?.fields.map((field) =>
+                                field.type === "hidden" ? (
+                                    <Form.Item
+                                        key={field.key}
+                                        name={field.dataIndex}
+                                        style={{ display: "none" }}
+                                    >
+                                        {renderField(field)}
+                                    </Form.Item>
+                                ) : (
+                                    <Form.Item
+                                        key={field.key}
+                                        name={field.dataIndex}
+                                        label={field.label}
+                                        rules={field.rules || []}
+                                    >
+                                        {renderField(field)}
+                                    </Form.Item>
+                                ),
+                            )}
                     </div>
                 </div>
             ),
@@ -800,12 +769,12 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             key: "parts",
             label: "Parts",
             children: (
-                <div style={{ marginBottom: 24 }}>
+                <div>
                     <div
                         style={{
                             display: "grid",
                             gridTemplateColumns: "1fr",
-                            gap: 16,
+                            gap: 8,
                         }}
                     >
                         {updatedFieldGroups
@@ -828,12 +797,12 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             key: "software",
             label: "Software",
             children: (
-                <div style={{ marginBottom: 24 }}>
+                <div>
                     <div
                         style={{
                             display: "grid",
                             gridTemplateColumns: "1fr",
-                            gap: 16,
+                            gap: 8,
                         }}
                     >
                         {updatedFieldGroups
