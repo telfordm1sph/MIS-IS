@@ -6,6 +6,8 @@ use App\Http\Controllers\HardwareController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('hardware')->middleware('api.token')->group(function () {
+    Route::get('{hardwareId}/full-details', [HardwareDetailController::class, 'fullDetails'])
+        ->name('hardware.full.details');
     Route::get('{hardwareId}/parts', [HardwareDetailController::class, 'parts'])->name('hardware.parts.list');
     Route::get('{hardwareId}/software', [HardwareDetailController::class, 'software'])->name('hardware.software.list');
 
@@ -28,4 +30,7 @@ Route::prefix('hardware')->middleware('api.token')->group(function () {
     Route::post('hardware/store', [HardwareController::class, 'store'])->name('hardware.store');
     Route::put('{hardwareId}/update', [HardwareController::class, 'update'])->name('hardware.update');
     Route::get('/hardwareApi', [HardwareApiController::class, 'index']);
+
+    Route::post('replace-component', [HardwareController::class, 'replaceComponent'])
+        ->name('hardware.replace.component');
 });

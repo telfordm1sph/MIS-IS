@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
+import debounce from "lodash/debounce";
 import { router } from "@inertiajs/react";
 
 export const useInventoryFilters = ({ filters, pagination, routeName }) => {
@@ -7,95 +8,88 @@ export const useInventoryFilters = ({ filters, pagination, routeName }) => {
     const [subCategory, setSubCategory] = useState(filters?.subCategory || "");
 
     // Helper function to encode filters to base64
-    const encodeFilters = (filterObj) => {
-        const jsonString = JSON.stringify(filterObj);
-        return btoa(jsonString);
-    };
+    const encodeFilters = (filterObj) => btoa(JSON.stringify(filterObj));
 
     // Navigate with filters
     const navigateWithFilters = (filterParams) => {
         router.get(
             route(routeName),
-            {
-                f: encodeFilters(filterParams),
-            },
-            {
-                preserveState: true,
-                preserveScroll: true,
-            }
+            { f: encodeFilters(filterParams) },
+            { preserveState: true, preserveScroll: true },
         );
     };
 
-    // Debounced search with useEffect
+    // Memoized debounced search function
+    const debouncedSearch = useMemo(
+        () =>
+            debounce((value, cat, sub) => {
+                // Only trigger navigation if searchText changed
+                if (value !== filters?.search) {
+                    navigateWithFilters({
+                        search: value,
+                        pageSize: pagination.pageSize,
+                        page: 1,
+                        sortField: filters.sortField,
+                        sortOrder: filters.sortOrder,
+                        category: cat,
+                        subCategory: sub,
+                    });
+                }
+            }, 500),
+        [
+            filters.sortField,
+            filters.sortOrder,
+            filters.search,
+            pagination.pageSize,
+            routeName,
+        ],
+    );
+
+    // Trigger debounced search when searchText, category, or subCategory changes
     useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            if (searchText !== filters?.search) {
-                const filterParams = {
-                    search: searchText,
-                    pageSize: pagination.pageSize,
-                    page: 1,
-                    sortField: filters.sortField,
-                    sortOrder: filters.sortOrder,
-                    category: category,
-                    subCategory: subCategory,
-                };
+        debouncedSearch(searchText, category, subCategory);
+    }, [searchText, category, subCategory, debouncedSearch]);
 
-                navigateWithFilters(filterParams);
-            }
-        }, 500);
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => debouncedSearch.cancel();
+    }, [debouncedSearch]);
 
-        return () => clearTimeout(timeoutId);
-    }, [searchText]);
-
-    const handleSearch = (e) => {
-        setSearchText(e.target.value);
-    };
+    // Handlers
+    const handleSearch = (e) => setSearchText(e.target.value);
 
     const handleCategoryChange = (value) => {
         setCategory(value);
-        // Reset subcategory when main category changes
         setSubCategory("");
-
-        const filterParams = {
+        navigateWithFilters({
             search: searchText,
             pageSize: pagination.pageSize,
             page: 1,
             sortField: filters.sortField,
             sortOrder: filters.sortOrder,
             category: value,
-            subCategory: "", // Reset subcategory
-        };
-
-        navigateWithFilters(filterParams);
+            subCategory: "",
+        });
     };
 
     const handleSubCategoryChange = (value) => {
         setSubCategory(value);
-
-        const filterParams = {
+        navigateWithFilters({
             search: searchText,
             pageSize: pagination.pageSize,
             page: 1,
             sortField: filters.sortField,
             sortOrder: filters.sortOrder,
-            category: category,
+            category,
             subCategory: value,
-        };
-
-        navigateWithFilters(filterParams);
+        });
     };
 
     const handleResetFilters = () => {
         setSearchText("");
         setCategory("");
         setSubCategory("");
-
-        const filterParams = {
-            page: 1,
-            pageSize: pagination.pageSize,
-        };
-
-        navigateWithFilters(filterParams);
+        navigateWithFilters({ page: 1, pageSize: pagination.pageSize });
     };
 
     const handleTableChange = (paginationConfig, tableFilters, sorter) => {
@@ -103,18 +97,16 @@ export const useInventoryFilters = ({ filters, pagination, routeName }) => {
             page: paginationConfig.current,
             pageSize: paginationConfig.pageSize,
             search: searchText,
-            category: category,
-            subCategory: subCategory,
+            category,
+            subCategory,
+            sortField: sorter.field || filters.sortField,
+            sortOrder:
+                sorter.field && sorter.order
+                    ? sorter.order === "ascend"
+                        ? "asc"
+                        : "desc"
+                    : filters.sortOrder,
         };
-
-        if (sorter.field) {
-            filterParams.sortField = sorter.field;
-            filterParams.sortOrder = sorter.order === "ascend" ? "asc" : "desc";
-        } else {
-            filterParams.sortField = filters.sortField;
-            filterParams.sortOrder = filters.sortOrder;
-        }
-
         navigateWithFilters(filterParams);
     };
 

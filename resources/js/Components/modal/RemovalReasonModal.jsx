@@ -64,9 +64,12 @@ const RemovalReasonModal = ({
                             { label: "Working", value: "working" },
                             {
                                 label: "Partially Working",
-                                value: "partially_working",
+                                value: "faulty",
                             },
-                            { label: "Defective", value: "defective" },
+                            {
+                                label: "Defective - Return to Supplier",
+                                value: "defective",
+                            },
                             { label: "Unknown", value: "unknown" },
                         ]}
                     />

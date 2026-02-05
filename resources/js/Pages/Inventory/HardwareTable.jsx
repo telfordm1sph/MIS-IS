@@ -1,5 +1,6 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { usePage } from "@inertiajs/react";
+import { router } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Breadcrumb, Card, Table, Tag, Button, Dropdown } from "antd";
 import {
@@ -7,6 +8,8 @@ import {
     EyeOutlined,
     EditOutlined,
     HistoryOutlined,
+    SwapOutlined,
+    UpCircleOutlined,
 } from "@ant-design/icons";
 import { EllipsisVertical } from "lucide-react";
 import dayjs from "dayjs";
@@ -24,6 +27,7 @@ import HardwareFormDrawer from "@/Components/drawer/HardwareFormDrawer";
 import CategoryBadge from "@/Components/inventory/CategoryBadge";
 import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
 import axios from "axios";
+import ComponentMaintenanceDrawer from "@/Components/drawer/ComponentMaintenanceDrawer";
 
 const HardwareTable = () => {
     const { hardware, pagination, categoryCounts, filters, emp_data } =
@@ -45,7 +49,9 @@ const HardwareTable = () => {
         open: openLogs,
         close: closeLogs,
     } = useLogsModal();
-
+    const [maintenanceDrawerOpen, setMaintenanceDrawerOpen] = useState(false);
+    const [maintenanceMode, setMaintenanceMode] = useState(null);
+    const [selectedHardware, setSelectedHardware] = useState(null);
     const {
         searchText,
         category,
@@ -76,6 +82,7 @@ const HardwareTable = () => {
             ...values,
             employee_id: emp_data?.emp_id,
         };
+        console.log("payload", payload, id);
 
         const result = await handleSave(payload, id);
         if (result?.success) {
@@ -110,41 +117,6 @@ const HardwareTable = () => {
             software: partsSoftware.software,
         };
         openDrawer(item);
-    };
-
-    // ✅ Custom handleEdit to fetch and flatten parts and software
-    const handleEditClick = async (record) => {
-        const partsSoftware = await fetchHardwareDetails(record.hostname);
-
-        // Flatten hardware parts
-        const partsFlattened = partsSoftware.parts.map((p) => ({
-            id: p.id,
-            part_type: p.part_info?.part_type || "",
-            brand: p.part_info?.brand || "",
-            model: p.part_info?.model || "",
-            specifications: p.part_info?.specifications || "",
-            serial_number: p.serial_number || "",
-        }));
-
-        // Flatten software objects
-        const softwareFlattened = partsSoftware.software.map((s) => ({
-            ...s,
-            id: s.id,
-            software_name: s.inventory?.software_name || "",
-            software_type: s.inventory?.software_type || s.software_type || "",
-            version: s.inventory?.version || s.version || "",
-            license_key: s.license?.license_key || null,
-            account_user: s.license?.account_user || null,
-            account_password: s.license?.account_password || null,
-        }));
-
-        const item = {
-            ...record,
-            parts: partsFlattened,
-            software: softwareFlattened,
-        };
-
-        openEdit(item);
     };
 
     // ✅ Category renderer
@@ -212,19 +184,35 @@ const HardwareTable = () => {
                             key: "view",
                             label: "View Details",
                             onClick: () => handleView(record),
-                            icon: <EyeOutlined />,
-                        },
-                        {
-                            key: "edit",
-                            label: "Edit",
-                            onClick: () => handleEditClick(record),
-                            icon: <EditOutlined />,
+                            icon: <EyeOutlined style={{ color: "#1890ff" }} />,
                         },
                         {
                             key: "logs",
                             label: "View Logs",
                             onClick: () => openLogs(record.id),
-                            icon: <HistoryOutlined />,
+                            icon: (
+                                <HistoryOutlined style={{ color: "#faad14" }} />
+                            ), // yellow/orange
+                        },
+                        {
+                            type: "divider",
+                        },
+
+                        {
+                            key: "replace",
+                            label: "Replace Component",
+                            onClick: () => handleReplaceComponent(record),
+                            icon: <SwapOutlined style={{ color: "#ff4d4f" }} />,
+                        },
+                        {
+                            key: "upgrade",
+                            label: "Upgrade Component",
+                            onClick: () => handleUpgradeComponent(record),
+                            icon: (
+                                <UpCircleOutlined
+                                    style={{ color: "#52c41a" }}
+                                />
+                            ), // green
                         },
                     ];
 
@@ -445,6 +433,11 @@ const HardwareTable = () => {
                             type: "hidden",
                         },
                         {
+                            key: "condition",
+                            dataIndex: "condition",
+                            type: "hidden",
+                        },
+                        {
                             key: "part_type",
                             label: "Part Type",
                             dataIndex: "part_type",
@@ -522,7 +515,37 @@ const HardwareTable = () => {
             ],
         },
     ];
+    const handleReplaceComponent = async (record) => {
+        const partsSoftware = await fetchHardwareDetails(record.hostname);
+        setSelectedHardware({
+            ...record,
+            parts: partsSoftware.parts,
+            software: partsSoftware.software,
+        });
+        setMaintenanceMode("replace");
+        setMaintenanceDrawerOpen(true);
+    };
 
+    const handleUpgradeComponent = async (record) => {
+        const partsSoftware = await fetchHardwareDetails(record.hostname);
+        setSelectedHardware({
+            ...record,
+            parts: partsSoftware.parts,
+            software: partsSoftware.software,
+        });
+        setMaintenanceMode("upgrade");
+        setMaintenanceDrawerOpen(true);
+    };
+
+    const handleMaintenanceClose = () => {
+        setMaintenanceDrawerOpen(false);
+        setMaintenanceMode(null);
+        setSelectedHardware(null);
+    };
+
+    const handleMaintenanceSave = (data) => {
+        router.reload({ only: ["hardware"] });
+    };
     return (
         <AuthenticatedLayout>
             <div
@@ -601,7 +624,13 @@ const HardwareTable = () => {
                     onSave={handleFormSave}
                     fieldGroups={formFieldGroups}
                 />
-
+                <ComponentMaintenanceDrawer
+                    open={maintenanceDrawerOpen}
+                    onClose={handleMaintenanceClose}
+                    hardware={selectedHardware}
+                    mode={maintenanceMode}
+                    onSave={handleMaintenanceSave}
+                />
                 {/* Activity Logs Modal */}
                 <ActivityLogsModal
                     visible={logsModalVisible}

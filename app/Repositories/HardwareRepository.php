@@ -248,17 +248,25 @@ class HardwareRepository
             ->where('specifications', $specifications)
             ->first();
     }
-
     /**
      * Find available part inventory
      * DB OPERATION: Find inventory with conditions
+     * UPDATED: Now accepts optional condition parameter
      */
-    public function findAvailablePartInventory(int $partId): ?PartInventory
+    public function findAvailablePartInventory(int $partId, ?string $condition = null): ?PartInventory
     {
-        return PartInventory::where('part_id', $partId)
-            ->whereIn('condition', ['New', 'Working'])
-            ->where('quantity', '>', 0)
-            ->first();
+        $query = PartInventory::where('part_id', $partId)
+            ->where('quantity', '>', 0);
+        // dd($condition);
+        if ($condition !== null) {
+            // Look for specific condition
+            $query->where('condition', $condition);
+        } else {
+            // Look for any available inventory (New or Used)
+            $query->whereIn('condition', ['New', 'Used']);
+        }
+
+        return $query->first();
     }
 
     /**
@@ -283,15 +291,21 @@ class HardwareRepository
     /**
      * Increment inventory with context
      * DB OPERATION: Increment
-     * ENHANCED: Now logs the reason for increment
+     * ENHANCED: Now logs the reason for increment and related hardware
      * 
      * @param int $inventoryId
      * @param int $amount
      * @param string|null $reason Why the inventory is being incremented
      * @param int|null $employeeId Who performed the action
+     * @param Hardware|null $relatedHardware The hardware this part came from
      */
-    public function incrementInventory(int $inventoryId, int $amount, ?string $reason = null, ?int $employeeId = null): void
-    {
+    public function incrementInventory(
+        int $inventoryId,
+        int $amount,
+        ?string $reason = null,
+        ?int $employeeId = null,
+        ?Hardware $relatedHardware = null
+    ): void {
         $inventory = PartInventory::find($inventoryId);
         if ($inventory) {
             // Store old quantity for logging
@@ -311,7 +325,8 @@ class HardwareRepository
                     $oldQuantity,
                     $inventory->quantity,
                     $reason,
-                    $employeeId
+                    $employeeId,
+                    $relatedHardware
                 );
             }
         }
@@ -320,15 +335,21 @@ class HardwareRepository
     /**
      * Decrement inventory with context
      * DB OPERATION: Decrement
-     * ENHANCED: Now logs the reason for decrement
+     * ENHANCED: Now logs the reason for decrement and related hardware
      * 
      * @param int $inventoryId
      * @param int $amount
      * @param string|null $reason Why the inventory is being decremented
      * @param int|null $employeeId Who performed the action
+     * @param Hardware|null $relatedHardware The hardware this part is going to
      */
-    public function decrementInventory(int $inventoryId, int $amount, ?string $reason = null, ?int $employeeId = null): void
-    {
+    public function decrementInventory(
+        int $inventoryId,
+        int $amount,
+        ?string $reason = null,
+        ?int $employeeId = null,
+        ?Hardware $relatedHardware = null
+    ): void {
         $inventory = PartInventory::find($inventoryId);
         if ($inventory) {
             // Store old quantity for logging
@@ -348,7 +369,8 @@ class HardwareRepository
                     $oldQuantity,
                     $inventory->quantity,
                     $reason,
-                    $employeeId
+                    $employeeId,
+                    $relatedHardware
                 );
             }
         }
@@ -367,7 +389,8 @@ class HardwareRepository
         int $oldQuantity,
         int $newQuantity,
         string $reason,
-        ?int $employeeId
+        ?int $employeeId,
+        ?Hardware $relatedHardware = null
     ): void {
         // Load the part relationship if not loaded
         $inventory->loadMissing('part');
@@ -393,6 +416,8 @@ class HardwareRepository
                 'part_info' => $partInfo,
             ],
             'remarks' => $reason,
+            'related_type' => $relatedHardware ? Hardware::class : null,
+            'related_id' => $relatedHardware?->id ?? null,
         ]);
     }
 
@@ -437,6 +462,89 @@ class HardwareRepository
         $hardwarePart = HardwarePart::find($hardwarePartId);
         if ($hardwarePart) {
             $hardwarePart->delete();
+        }
+    }
+
+    /**
+     * Create log entry for hardware when parts are added/removed
+     * DB OPERATION: Insert log
+     * 
+     * @param Hardware $hardware The hardware the part is being added/removed from
+     * @param HardwarePart $hardwarePart The part being added/removed
+     * @param string $actionType 'part_added' or 'part_removed'
+     * @param int|null $employeeId Who performed the action
+     * @param string|null $remarks Additional context
+     */
+    public function logHardwarePartChange(
+        Hardware $hardware,
+        HardwarePart $hardwarePart,
+        string $actionType,
+        ?int $employeeId = null,
+        ?string $remarks = null
+    ): void {
+        // Load the part relationship to get details
+        $hardwarePart->loadMissing('part');
+
+        $part = $hardwarePart->part;
+        $partInfo = $part
+            ? "{$part->part_type} - {$part->brand} {$part->model}"
+            : "Part ID: {$hardwarePart->part_id}";
+
+        $partDetails = [
+            'part_type' => $part->part_type ?? 'Unknown',
+            'brand' => $part->brand ?? 'Unknown',
+            'model' => $part->model ?? 'Unknown',
+            'serial_number' => $hardwarePart->serial_number,
+            'specifications' => $part->specifications ?? null,
+            'quantity' => $hardwarePart->quantity,
+        ];
+
+        // Helper to format dates properly
+        $formatDate = function ($date) {
+            if (!$date) return null;
+            if ($date instanceof \Carbon\Carbon) {
+                return $date->format('Y-m-d');
+            }
+            return $date; // Already a string
+        };
+
+        if ($actionType === 'part_removed') {
+            ActivityLog::create([
+                'loggable_type' => Hardware::class,
+                'loggable_id' => $hardware->id,
+                'action_type' => 'part_removed',
+                'action_by' => $employeeId ?? 'system',
+                'action_at' => now(),
+                'old_values' => [
+                    'hostname' => $hardware->hostname,
+                    'part_info' => $partInfo,
+                    'part_details' => $partDetails,
+                    'installed_date' => $formatDate($hardwarePart->installed_date),
+                    'removed_date' => $formatDate($hardwarePart->removed_date),
+                ],
+                'new_values' => null,
+                'remarks' => $remarks ?? "Removed {$part->part_type} from hardware",
+                'related_type' => HardwarePart::class,
+                'related_id' => $hardwarePart->id,
+            ]);
+        } else { // part_added
+            ActivityLog::create([
+                'loggable_type' => Hardware::class,
+                'loggable_id' => $hardware->id,
+                'action_type' => 'part_added',
+                'action_by' => $employeeId ?? 'system',
+                'action_at' => now(),
+                'old_values' => null,
+                'new_values' => [
+                    'hostname' => $hardware->hostname,
+                    'part_info' => $partInfo,
+                    'part_details' => $partDetails,
+                    'installed_date' => $formatDate($hardwarePart->installed_date),
+                ],
+                'remarks' => $remarks ?? "Added {$part->part_type} to hardware",
+                'related_type' => HardwarePart::class,
+                'related_id' => $hardwarePart->id,
+            ]);
         }
     }
 
@@ -643,6 +751,88 @@ class HardwareRepository
         $hardwareSoftware = HardwareSoftware::find($hardwareSoftwareId);
         if ($hardwareSoftware) {
             $hardwareSoftware->delete();
+        }
+    }
+
+    /**
+     * Create log entry for hardware when software is installed/uninstalled
+     * DB OPERATION: Insert log
+     * 
+     * @param Hardware $hardware The hardware the software is being installed/uninstalled on
+     * @param HardwareSoftware $hardwareSoftware The software being installed/uninstalled
+     * @param string $actionType 'software_installed' or 'software_uninstalled'
+     * @param int|null $employeeId Who performed the action
+     * @param string|null $remarks Additional context
+     */
+    public function logHardwareSoftwareChange(
+        Hardware $hardware,
+        HardwareSoftware $hardwareSoftware,
+        string $actionType,
+        ?int $employeeId = null,
+        ?string $remarks = null
+    ): void {
+        // Load relationships
+        $hardwareSoftware->loadMissing(['softwareInventory', 'softwareLicense']);
+
+        $software = $hardwareSoftware->softwareInventory;
+        $license = $hardwareSoftware->softwareLicense;
+
+        $softwareInfo = $software
+            ? "{$software->software_name} ({$software->software_type}) v{$software->version}"
+            : "Software ID: {$hardwareSoftware->software_inventory_id}";
+
+        // Helper to format dates properly
+        $formatDate = function ($date) {
+            if (!$date) return null;
+            if ($date instanceof \Carbon\Carbon) {
+                return $date->format('Y-m-d');
+            }
+            return $date; // Already a string
+        };
+
+        $softwareDetails = [
+            'software_name' => $software->software_name ?? 'Unknown',
+            'software_type' => $software->software_type ?? 'Unknown',
+            'version' => $software->version ?? 'Unknown',
+            'license_key' => $license->license_key ?? null,
+            'account_user' => $license->account_user ?? null,
+            'installation_date' => $formatDate($hardwareSoftware->installation_date),
+        ];
+
+        if ($actionType === 'software_uninstalled') {
+            ActivityLog::create([
+                'loggable_type' => Hardware::class,
+                'loggable_id' => $hardware->id,
+                'action_type' => 'software_uninstalled',
+                'action_by' => $employeeId ?? 'system',
+                'action_at' => now(),
+                'old_values' => [
+                    'hostname' => $hardware->hostname,
+                    'software_info' => $softwareInfo,
+                    'software_details' => $softwareDetails,
+                ],
+                'new_values' => null,
+                'remarks' => $remarks ?? "Uninstalled {$software->software_name} from hardware",
+                'related_type' => HardwareSoftware::class,
+                'related_id' => $hardwareSoftware->id,
+            ]);
+        } else { // software_installed
+            ActivityLog::create([
+                'loggable_type' => Hardware::class,
+                'loggable_id' => $hardware->id,
+                'action_type' => 'software_installed',
+                'action_by' => $employeeId ?? 'system',
+                'action_at' => now(),
+                'old_values' => null,
+                'new_values' => [
+                    'hostname' => $hardware->hostname,
+                    'software_info' => $softwareInfo,
+                    'software_details' => $softwareDetails,
+                ],
+                'remarks' => $remarks ?? "Installed {$software->software_name} on hardware",
+                'related_type' => HardwareSoftware::class,
+                'related_id' => $hardwareSoftware->id,
+            ]);
         }
     }
 

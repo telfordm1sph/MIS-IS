@@ -12,6 +12,26 @@ class HardwareDetailService
     {
         $this->repository = $repository;
     }
+    /**
+     * Get hardware full info for API
+     */
+    public function getHardwareInfo(string $hardwareId): array
+    {
+        $hardware = $this->repository->getHardwareInfo($hardwareId);
+
+        if (!$hardware) {
+            throw new \Exception("Hardware not found with ID: $hardwareId");
+        }
+
+        // Transform data for frontend if needed
+        $hardwareArray = $hardware->toArray();
+
+        // Optional: flatten nested relationships (parts/software) if needed
+        $hardwareArray['parts'] = $hardwareArray['parts'] ?? [];
+        $hardwareArray['software'] = $hardwareArray['software'] ?? [];
+
+        return $hardwareArray;
+    }
 
     /**
      * Get parts with inventory and calculate total quantities
@@ -23,22 +43,22 @@ class HardwareDetailService
 
         $inventory = [];
         foreach ($parts as $part) {
-            $totalQuantity = $part->inventories->sum('quantity');
-            if ($totalQuantity > 0) {
+            // For each inventory record with its condition
+            foreach ($part->inventories as $inventoryRecord) {
                 $inventory[] = [
                     'part_id' => $part->id,
                     'part_type' => $part->part_type,
                     'brand' => $part->brand,
                     'model' => $part->model,
                     'specifications' => $part->specifications,
-                    'available_quantity' => $totalQuantity,
+                    'condition' => $inventoryRecord->condition,
+                    'quantity' => $inventoryRecord->quantity, // Quantity for this specific condition
                 ];
             }
         }
 
         return $inventory;
     }
-
     /**
      * Get cascading parts options based on filters
      * BUSINESS LOGIC: Return appropriate dropdown options based on current selection

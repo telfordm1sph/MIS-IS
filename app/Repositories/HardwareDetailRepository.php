@@ -2,14 +2,33 @@
 
 namespace App\Repositories;
 
+use App\Models\Hardware;
 use App\Models\HardwarePart;
 use App\Models\HardwareSoftware;
 use App\Models\Part;
 use App\Models\SoftwareInventory;
 use App\Models\SoftwareLicense;
+use Illuminate\Support\Facades\DB;
 
 class HardwareDetailRepository
 {
+    /**
+     * Get full hardware info using Eloquent relationships
+     * Includes parts, software, issuedToUser, installedByUser
+     */
+    public function getHardwareInfo(string $hardwareId)
+    {
+        return Hardware::with([
+            'issuedToUser:EMPLOYID,EMPNAME',
+            'installedByUser:EMPLOYID,EMPNAME',
+            'parts.sourceInventory',        // Include inventory details for each part
+            'software.softwareInventory',   // Include software info
+            'software.softwareLicense',     // Include license info
+        ])
+            ->where('hostname', $hardwareId)
+            ->first();
+    }
+
     /**
      * Get parts with inventory (filtered)
      * DB OPERATION: Query parts with inventory relationships
@@ -18,7 +37,7 @@ class HardwareDetailRepository
     {
         $query = Part::query()
             ->with(['inventories' => function ($q) {
-                $q->where('quantity', '>', 0);
+                $q->usableGrouped();
             }]);
 
         if (!empty($filters['type'])) {
@@ -44,7 +63,8 @@ class HardwareDetailRepository
     {
         return Part::query()
             ->whereHas('inventories', function ($q) {
-                $q->where('quantity', '>', 0);
+                $q->where('quantity', '>', 0)
+                    ->where('condition', '!=', 'Defective');
             })
             ->select('part_type')
             ->distinct()
@@ -60,7 +80,8 @@ class HardwareDetailRepository
     {
         return Part::query()
             ->whereHas('inventories', function ($q) {
-                $q->where('quantity', '>', 0);
+                $q->where('quantity', '>', 0)
+                    ->where('condition', '!=', 'Defective');
             })
             ->where('part_type', $partType)
             ->select('brand')
@@ -77,7 +98,8 @@ class HardwareDetailRepository
     {
         return Part::query()
             ->whereHas('inventories', function ($q) {
-                $q->where('quantity', '>', 0);
+                $q->where('quantity', '>', 0)
+                    ->where('condition', '!=', 'Defective');
             })
             ->where('part_type', $partType)
             ->where('brand', $brand)
@@ -95,7 +117,8 @@ class HardwareDetailRepository
     {
         $query = Part::query()
             ->whereHas('inventories', function ($q) {
-                $q->where('quantity', '>', 0);
+                $q->where('quantity', '>', 0)
+                    ->where('condition', '!=', 'Defective');
             });
 
         if (!empty($filters['type'])) {

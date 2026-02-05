@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\HardwareReplacementService;
 use App\Services\HardwareService;
 use App\Services\HardwareUpdateService;
 use Illuminate\Http\Request;
@@ -13,13 +14,16 @@ class HardwareController extends Controller
 {
     protected HardwareService $hardwareService;
     protected HardwareUpdateService $hardwareUpdateService;
+    protected HardwareReplacementService $replacementService;
 
     public function __construct(
         HardwareService $hardwareService,
-        HardwareUpdateService $hardwareUpdateService
+        HardwareUpdateService $hardwareUpdateService,
+        HardwareReplacementService $replacementService
     ) {
         $this->hardwareService = $hardwareService;
         $this->hardwareUpdateService = $hardwareUpdateService;
+        $this->replacementService = $replacementService;
     }
 
 
@@ -269,6 +273,7 @@ class HardwareController extends Controller
             'parts.*.model' => 'required|string',
             'parts.*.specifications' => 'required|string',
             'parts.*.serial_number' => 'nullable|string|max:100',
+            'parts.*.condition' => 'nullable|string|max:100',
 
             // Software array
             'software' => 'nullable|array',
@@ -292,7 +297,11 @@ class HardwareController extends Controller
             // Employee ID (optional - only for API requests without session)
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
 
-            // Hardware fields
+            /*
+        |--------------------------------------------------------------------------
+        | Hardware fields
+        |--------------------------------------------------------------------------
+        */
             'hostname' => 'sometimes|string|max:255',
             'category' => 'sometimes|string|max:100',
             'brand' => 'sometimes|string|max:100',
@@ -311,32 +320,154 @@ class HardwareController extends Controller
             'remarks' => 'sometimes|nullable|string|max:500',
             'status' => 'sometimes|integer',
 
-            // Parts array
+            /*
+        |--------------------------------------------------------------------------
+        | Parts array
+        |--------------------------------------------------------------------------
+        */
             'parts' => 'sometimes|array',
             'parts.*.id' => 'sometimes|integer|exists:hardware_parts,id',
             'parts.*._delete' => 'sometimes|boolean',
-            'parts.*.part_type' => 'required_without:parts.*._delete|string',
-            'parts.*.brand' => 'required_without:parts.*._delete|string',
-            'parts.*.model' => 'required_without:parts.*._delete|string',
-            'parts.*.specifications' => 'required_without:parts.*._delete|string',
-            'parts.*.serial_number' => 'nullable|string|max:100',
-            'parts.*.removal_reason' => 'required_if:parts.*._delete,true|string|max:255',
-            'parts.*.removal_condition' => 'required_if:parts.*._delete,true|string|in:working,defective,partially_working,unknown',
-            'parts.*.removal_remarks' => 'nullable|string|max:500',
 
-            // Software array
+            'parts.*.part_type' =>
+            'sometimes|required_without:parts.*._delete|string',
+            'parts.*.brand' =>
+            'sometimes|required_without:parts.*._delete|string',
+            'parts.*.model' =>
+            'sometimes|required_without:parts.*._delete|string',
+            'parts.*.specifications' =>
+            'sometimes|required_without:parts.*._delete|string',
+            'parts.*.serial_number' =>
+            'sometimes|nullable|string|max:100',
+
+            'parts.*.condition' =>
+            'sometimes|nullable|string|max:100',
+
+            'parts.*.removal_reason' =>
+            'required_if:parts.*._delete,true|string|max:255',
+            'parts.*.removal_condition' =>
+            'required_if:parts.*._delete,true|string|in:working,defective,faulty,unknown',
+            'parts.*.removal_remarks' =>
+            'nullable|string|max:500',
+
+            /*
+        |--------------------------------------------------------------------------
+        | Software array (FIXED)
+        |--------------------------------------------------------------------------
+        */
             'software' => 'sometimes|array',
             'software.*.id' => 'sometimes|integer|exists:hardware_software,id',
             'software.*._delete' => 'sometimes|boolean',
-            'software.*.software_name' => 'required_without:software.*._delete|string',
-            'software.*.software_type' => 'required_without:software.*._delete|string',
-            'software.*.version' => 'required_without:software.*._delete|string',
-            'software.*.license_key' => 'nullable|string',
-            'software.*.account_user' => 'nullable|string',
-            'software.*.account_password' => 'nullable|string',
-            'software.*.removal_reason' => 'required_if:software.*._delete,true|string|max:255',
-            'software.*.removal_condition' => 'required_if:software.*._delete,true|string',
-            'software.*.removal_remarks' => 'nullable|string|max:500',
+
+            'software.*.software_name' =>
+            'sometimes|required_without:software.*._delete|string',
+            'software.*.software_type' =>
+            'sometimes|required_without:software.*._delete|string',
+            'software.*.version' =>
+            'sometimes|required_without:software.*._delete|string',
+
+            'software.*.license_key' =>
+            'sometimes|nullable|string',
+            'software.*.account_user' =>
+            'sometimes|nullable|string',
+            'software.*.account_password' =>
+            'sometimes|nullable|string',
+
+            'software.*.removal_reason' =>
+            'required_if:software.*._delete,true|string|max:255',
+            'software.*.removal_condition' =>
+            'required_if:software.*._delete,true|string',
+            'software.*.removal_remarks' =>
+            'nullable|string|max:500',
+        ]);
+    }
+    /**
+     * Replace hardware component
+     * REQUEST: Handle component replacement with inventory management
+     * WORKS FOR: Both session-based (web) and API requests
+     */
+    public function replaceComponent(Request $request)
+    {
+        try {
+            // Get employee ID
+            $employeeId = $this->getEmployeeId($request);
+
+            if (!$employeeId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee identification required.',
+                ], 401);
+            }
+
+            // Validate replacement payload
+            $validated = $this->validateReplacementRequest($request);
+
+            // Add employee_id to payload if not present
+            if (!isset($validated['employee_id'])) {
+                $validated['employee_id'] = $employeeId;
+            }
+
+
+            // Execute replacement
+            $hardware = $this->replacementService->replaceComponent($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Component replaced successfully',
+                'data' => $hardware,
+            ], 200);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Component replacement failed', [
+                'payload' => $request->all(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to replace component: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Validate replacement request
+     * REQUEST LAYER: Input validation for replacement
+     */
+    protected function validateReplacementRequest(Request $request): array
+    {
+        return $request->validate([
+            'hardware_id' => 'required|integer|exists:hardware,id',
+            'component_id' => 'required|string',
+            'component_to_replace' => 'nullable|string|max:255',
+            'component_type' => 'required|string|in:part,software',
+            'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
+            'mode' => 'required|string|in:replace,upgrade,repair',
+            'hostname' => 'nullable|string|max:255',
+
+            // Old component details
+            'old_component_condition' => 'required|string|in:Working,Damaged,Defective,Unknown,Good,Bad',
+            'reason' => 'required|string|max:255',
+            'remarks' => 'nullable|string|max:500',
+
+            // New component details
+            'replacement_part_type' => 'required_if:component_type,part|string|max:100',
+            'replacement_brand' => 'required_if:component_type,part|string|max:100',
+            'replacement_model' => 'required_if:component_type,part|string|max:100',
+            'replacement_specifications' => 'nullable|string',
+            'replacement_condition' => 'nullable|string|in:New,Used,Refurbished',
+            'replacement_serial_number' => 'nullable|string|max:100',
+
+            // For software replacement
+            'replacement_software_name' => 'required_if:component_type,software|string',
+            'replacement_software_type' => 'required_if:component_type,software|string',
+            'replacement_version' => 'required_if:component_type,software|string',
         ]);
     }
 }

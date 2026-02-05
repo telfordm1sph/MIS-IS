@@ -101,6 +101,7 @@ export const useHardwareParts = (form) => {
             const filters = btoa(
                 JSON.stringify({ type: partType, brand, model }),
             );
+
             const [optionsRes, inventoryRes] = await Promise.all([
                 axios.get(route("hardware.parts.options", filters)),
                 axios.get(route("hardware.parts.inventory", filters)),
@@ -109,46 +110,82 @@ export const useHardwareParts = (form) => {
             const specs = Array.isArray(optionsRes.data.specifications)
                 ? optionsRes.data.specifications
                 : [];
+
+            // Group inventory by specification and condition
             const inventoryMap = {};
             (inventoryRes.data || []).forEach((inv) => {
-                inventoryMap[inv.specifications] = inv.available_quantity;
+                const spec = inv.specifications;
+                const condition = inv.condition;
+                const quantity = parseInt(inv.quantity) || 0;
+
+                if (!inventoryMap[spec]) {
+                    inventoryMap[spec] = {};
+                }
+
+                // Initialize condition if not exists
+                if (!inventoryMap[spec][condition]) {
+                    inventoryMap[spec][condition] = 0;
+                }
+
+                inventoryMap[spec][condition] += quantity;
             });
 
             // Remove specs already used in other rows
             const currentParts = form.getFieldValue("parts") || [];
-            const usedSpecs = currentParts
-                .map((part, idx) => {
-                    if (
-                        idx !== rowIndex &&
-                        part?.part_type === partType &&
-                        part?.brand === brand &&
-                        part?.model === model
-                    ) {
-                        return part.specifications;
+            const usedSpecsByCondition = {};
+
+            currentParts.forEach((part, idx) => {
+                if (
+                    idx !== rowIndex &&
+                    part?.part_type === partType &&
+                    part?.brand === brand &&
+                    part?.model === model &&
+                    part?.specifications &&
+                    part?.condition
+                ) {
+                    const spec = part.specifications;
+                    const condition = part.condition;
+
+                    if (!usedSpecsByCondition[spec]) {
+                        usedSpecsByCondition[spec] = {};
                     }
-                    return null;
-                })
-                .filter(Boolean);
+                    usedSpecsByCondition[spec][condition] =
+                        (usedSpecsByCondition[spec][condition] || 0) + 1;
+                }
+            });
 
-            const specCounts = {};
-            usedSpecs.forEach(
-                (spec) => (specCounts[spec] = (specCounts[spec] || 0) + 1),
-            );
+            // Create specification options
+            const specificationOptions = [];
 
-            const availableSpecs = specs.filter((spec) => {
-                const available = inventoryMap[spec] || 0;
-                const used = specCounts[spec] || 0;
-                return available > used;
+            specs.forEach((spec) => {
+                const specInventory = inventoryMap[spec] || {};
+                const usedCounts = usedSpecsByCondition[spec] || {};
+
+                // For each condition that has inventory
+                Object.entries(specInventory).forEach(
+                    ([condition, totalQty]) => {
+                        const usedQty = usedCounts[condition] || 0;
+                        const availableQty = totalQty - usedQty;
+
+                        if (availableQty > 0 && condition !== "Defective") {
+                            specificationOptions.push({
+                                label: `${spec} (${availableQty} ${condition})`,
+                                value: JSON.stringify({
+                                    specifications: spec,
+                                    condition: condition,
+                                }),
+                                condition: condition,
+                            });
+                        }
+                    },
+                );
             });
 
             setPartsOptions((prev) => ({
                 ...prev,
                 specifications: {
                     ...prev.specifications,
-                    [fieldName]: availableSpecs.map((s) => ({
-                        label: `${s} (${inventoryMap[s] - (specCounts[s] || 0)} available)`,
-                        value: s,
-                    })),
+                    [fieldName]: specificationOptions,
                 },
             }));
         } catch (error) {
@@ -165,6 +202,26 @@ export const useHardwareParts = (form) => {
             return partsOptions.specifications[fieldName] || [];
         return [];
     };
+    const resetBrands = (fieldName) => {
+        setPartsOptions((prev) => ({
+            ...prev,
+            brands: { ...prev.brands, [fieldName]: [] },
+        }));
+    };
+
+    const resetModels = (fieldName) => {
+        setPartsOptions((prev) => ({
+            ...prev,
+            models: { ...prev.models, [fieldName]: [] },
+        }));
+    };
+
+    const resetSpecifications = (fieldName) => {
+        setPartsOptions((prev) => ({
+            ...prev,
+            specifications: { ...prev.specifications, [fieldName]: [] },
+        }));
+    };
 
     return {
         partsOptions,
@@ -173,5 +230,9 @@ export const useHardwareParts = (form) => {
         loadModels,
         loadSpecifications,
         getPartsOptions,
+
+        resetBrands,
+        resetModels,
+        resetSpecifications,
     };
 };

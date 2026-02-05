@@ -37,7 +37,7 @@ const FormDrawer = ({
     };
 
     return (
-        <Drawer title={title} width={850} onClose={onClose} open={open}>
+        <Drawer title={title} size={850} onClose={onClose} open={open}>
             <Form layout="vertical" form={form} onFinish={handleFinish}>
                 <Row gutter={16}>
                     {fields.map((field) => {

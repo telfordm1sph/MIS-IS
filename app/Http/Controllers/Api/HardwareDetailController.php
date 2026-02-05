@@ -13,6 +13,12 @@ class HardwareDetailController extends Controller
     {
         $this->hardwareDetailService = $hardwareDetailService;
     }
+    public function fullDetails(string $hardwareId)
+    {
+        $hardware = $this->hardwareDetailService->getHardwareInfo($hardwareId);
+
+        return response()->json($hardware);
+    }
 
     /**
      * Get parts inventory with quantities

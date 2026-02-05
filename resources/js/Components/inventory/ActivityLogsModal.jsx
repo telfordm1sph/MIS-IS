@@ -24,19 +24,6 @@ const DEFAULT_ACTION_COLORS = {
     repaired: "lime",
 };
 
-/**
- * Reusable Activity Logs Modal Component
- *
- * @param {boolean} visible - Controls modal visibility
- * @param {function} onClose - Callback when modal closes
- * @param {string|number} entityId - ID of the entity to fetch logs for
- * @param {string} entityType - Type of entity (e.g., 'hardware', 'software', 'employee')
- * @param {string} apiRoute - Laravel route name for fetching logs (e.g., 'hardware.logs')
- * @param {string} title - Modal title (default: 'Activity Logs Timeline')
- * @param {object} actionColors - Custom color mapping for action types
- * @param {number} perPage - Number of logs per page (default: 10)
- * @param {function} renderCustomContent - Optional custom renderer for log cards
- */
 const ActivityLogsModal = ({
     visible,
     onClose,
@@ -86,7 +73,7 @@ const ActivityLogsModal = ({
             const result = response.data;
 
             setLogs((prev) =>
-                reset ? result.data : [...prev, ...result.data]
+                reset ? result.data : [...prev, ...result.data],
             );
             setHasMore(result.has_more);
             setTotalLogs(result.total);
@@ -118,7 +105,7 @@ const ActivityLogsModal = ({
         if (!values) return null;
 
         const filtered = Object.entries(values).filter(
-            ([key]) => !HIDDEN_FIELDS.includes(key)
+            ([key]) => !HIDDEN_FIELDS.includes(key),
         );
 
         if (filtered.length === 0) return null;
@@ -151,7 +138,7 @@ const ActivityLogsModal = ({
 
         // Try to find matching color
         const colorKey = Object.keys(mergedActionColors).find(
-            (key) => key.toLowerCase().replace(/_/g, "") === normalizedAction
+            (key) => key.toLowerCase().replace(/_/g, "") === normalizedAction,
         );
 
         return mergedActionColors[colorKey] || "gray";
