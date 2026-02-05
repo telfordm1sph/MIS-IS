@@ -6,21 +6,47 @@ const CascadingPartFields = ({
     form,
     initialValues = {},
     disabled = {},
-    layout = "vertical", // "vertical" | "horizontal"
+    layout = "vertical", // "vertical" | "horizontal" | "inline"
     showLabels = true,
     onFieldChange,
     partsHooks,
+    isFormList = false, // NEW: true when used inside Form.List
+    rowIndex = null, // NEW: row index in Form.List
 }) => {
     const { partsOptions, loadBrands, loadModels, loadSpecifications } =
         partsHooks;
 
+    // Helper to work with both flat names and Form.List array notation
+    const getFieldValue = (fieldKey) => {
+        if (isFormList) {
+            const allParts = form.getFieldValue("parts") || [];
+            return allParts[rowIndex]?.[fieldKey];
+        }
+        return form.getFieldValue(`${fieldPrefix}_${fieldKey}`);
+    };
+
+    const setFieldValues = (updates) => {
+        if (isFormList) {
+            const allParts = form.getFieldValue("parts") || [];
+            allParts[rowIndex] = { ...allParts[rowIndex], ...updates };
+            form.setFieldsValue({ parts: allParts });
+        } else {
+            const flatUpdates = {};
+            Object.entries(updates).forEach(([key, value]) => {
+                flatUpdates[`${fieldPrefix}_${key}`] = value;
+            });
+            form.setFieldsValue(flatUpdates);
+        }
+    };
+
     const handlePartTypeChange = (val) => {
-        const resetFields = {
-            [`${fieldPrefix}_brand`]: undefined,
-            [`${fieldPrefix}_model`]: undefined,
-            [`${fieldPrefix}_specifications`]: undefined,
-        };
-        form.setFieldsValue(resetFields);
+        setFieldValues({
+            part_type: val,
+            brand: undefined,
+            model: undefined,
+            specifications: undefined,
+            condition: undefined,
+        });
         if (val) {
             loadBrands(val, fieldPrefix);
         }
@@ -28,33 +54,40 @@ const CascadingPartFields = ({
     };
 
     const handleBrandChange = (val) => {
-        const resetFields = {
-            [`${fieldPrefix}_model`]: undefined,
-            [`${fieldPrefix}_specifications`]: undefined,
-        };
-        form.setFieldsValue(resetFields);
+        setFieldValues({
+            brand: val,
+            model: undefined,
+            specifications: undefined,
+        });
         if (val) {
-            const partType = form.getFieldValue(`${fieldPrefix}_part_type`);
+            const partType = getFieldValue("part_type");
             loadModels(partType, val, fieldPrefix);
         }
         if (onFieldChange) onFieldChange("brand", val);
     };
 
     const handleModelChange = (val) => {
-        form.setFieldsValue({
-            [`${fieldPrefix}_specifications`]: undefined,
+        setFieldValues({
+            model: val,
+            specifications: undefined,
         });
         if (val) {
-            const partType = form.getFieldValue(`${fieldPrefix}_part_type`);
-            const brand = form.getFieldValue(`${fieldPrefix}_brand`);
-            loadSpecifications(partType, brand, val, fieldPrefix, 0);
+            const partType = getFieldValue("part_type");
+            const brand = getFieldValue("brand");
+            loadSpecifications(
+                partType,
+                brand,
+                val,
+                fieldPrefix,
+                rowIndex || 0,
+            );
         }
         if (onFieldChange) onFieldChange("model", val);
     };
 
     const fields = [
         {
-            name: `${fieldPrefix}_part_type`,
+            name: "part_type",
             label: "Part Type",
             options: partsOptions.types || [],
             disabled: disabled.part_type || false,
@@ -62,12 +95,12 @@ const CascadingPartFields = ({
             span: layout === "horizontal" ? 8 : 24,
         },
         {
-            name: `${fieldPrefix}_brand`,
+            name: "brand",
             label: "Brand",
             options: partsOptions.brands[fieldPrefix] || [],
             disabled: disabled.brand || false,
             onFocus: async () => {
-                const partType = form.getFieldValue(`${fieldPrefix}_part_type`);
+                const partType = getFieldValue("part_type");
                 if (partType) {
                     await loadBrands(partType, fieldPrefix);
                 }
@@ -76,13 +109,13 @@ const CascadingPartFields = ({
             span: layout === "horizontal" ? 8 : 24,
         },
         {
-            name: `${fieldPrefix}_model`,
+            name: "model",
             label: "Model",
             options: partsOptions.models[fieldPrefix] || [],
             disabled: disabled.model || false,
             onFocus: async () => {
-                const partType = form.getFieldValue(`${fieldPrefix}_part_type`);
-                const brand = form.getFieldValue(`${fieldPrefix}_brand`);
+                const partType = getFieldValue("part_type");
+                const brand = getFieldValue("brand");
                 if (partType && brand) {
                     await loadModels(partType, brand, fieldPrefix);
                 }
@@ -91,28 +124,28 @@ const CascadingPartFields = ({
             span: layout === "horizontal" ? 8 : 24,
         },
         {
-            name: `${fieldPrefix}_specifications`,
+            name: "specifications",
             label: "Specifications",
             options: partsOptions.specifications[fieldPrefix] || [],
             disabled: disabled.specifications || false,
             onFocus: async () => {
-                const partType = form.getFieldValue(`${fieldPrefix}_part_type`);
-                const brand = form.getFieldValue(`${fieldPrefix}_brand`);
-                const model = form.getFieldValue(`${fieldPrefix}_model`);
+                const partType = getFieldValue("part_type");
+                const brand = getFieldValue("brand");
+                const model = getFieldValue("model");
                 if (partType && brand && model) {
                     await loadSpecifications(
                         partType,
                         brand,
                         model,
                         fieldPrefix,
-                        0,
+                        rowIndex || 0,
                     );
                 }
             },
             span: layout === "horizontal" ? 8 : 24,
         },
         {
-            name: `${fieldPrefix}_serial_number`,
+            name: "serial_number",
             label: "Serial Number",
             type: "input",
             disabled: disabled.serial_number || false,
@@ -120,14 +153,60 @@ const CascadingPartFields = ({
         },
     ];
 
-    if (layout === "inline") {
-        // Inline layout for dynamic list (HardwareFormDrawer)
+    if (layout === "inline" && isFormList) {
+        // Inline layout for Form.List (HardwareFormDrawer)
+        return (
+            <>
+                {fields.slice(0, 4).map((field) => (
+                    <Col xs={24} sm={12} md={4} key={field.name}>
+                        <Form.Item
+                            name={[rowIndex, field.name]}
+                            label={rowIndex === 0 ? field.label : ""}
+                            style={{ marginBottom: 0 }}
+                            rules={[
+                                {
+                                    required: !field.disabled,
+                                    message: `Please select ${field.label.toLowerCase()}`,
+                                },
+                            ]}
+                        >
+                            <Select
+                                placeholder={`Select ${field.label}`}
+                                options={field.options}
+                                disabled={field.disabled}
+                                showSearch
+                                optionFilterProp="label"
+                                onFocus={field.onFocus}
+                                onChange={field.onChange}
+                            />
+                        </Form.Item>
+                    </Col>
+                ))}
+                <Col xs={24} sm={12} md={6}>
+                    <Form.Item
+                        name={[rowIndex, "serial_number"]}
+                        label={rowIndex === 0 ? "Serial" : ""}
+                        style={{ marginBottom: 0 }}
+                        rules={[
+                            {
+                                required: true,
+                                message: "Please enter serial number",
+                            },
+                        ]}
+                    >
+                        <Input allowClear placeholder="Enter serial number" />
+                    </Form.Item>
+                </Col>
+            </>
+        );
+    } else if (layout === "inline") {
+        // Inline layout for non-FormList
         return (
             <>
                 {fields.map((field) => (
                     <Form.Item
                         key={field.name}
-                        name={field.name}
+                        name={`${fieldPrefix}_${field.name}`}
                         rules={[
                             {
                                 required: !field.disabled,
@@ -135,11 +214,6 @@ const CascadingPartFields = ({
                             },
                         ]}
                         style={{ margin: 0 }}
-                        initialValue={
-                            initialValues[
-                                field.label.toLowerCase().replace(" ", "_")
-                            ]
-                        }
                     >
                         {field.type === "input" ? (
                             <Input
@@ -172,7 +246,7 @@ const CascadingPartFields = ({
             {fields.map((field) => (
                 <Col span={field.span} key={field.name}>
                     <Form.Item
-                        name={field.name}
+                        name={`${fieldPrefix}_${field.name}`}
                         label={showLabels ? field.label : undefined}
                         rules={[
                             {

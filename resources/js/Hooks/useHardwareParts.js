@@ -1,236 +1,46 @@
-import { useState } from "react";
-import axios from "axios";
+import { usePartsStore } from "@/store/usePartsStore";
 
 export const useHardwareParts = (form) => {
-    const [partsOptions, setPartsOptions] = useState({
-        types: [],
-        brands: {},
-        models: {},
-        specifications: {},
-    });
+    const options = usePartsStore((state) => state.options);
+    const loading = usePartsStore((state) => state.loading);
+    const loadPartTypes = usePartsStore((state) => state.loadPartTypes);
+    const loadBrands = usePartsStore((state) => state.loadBrands);
+    const loadModels = usePartsStore((state) => state.loadModels);
+    const loadSpecifications = usePartsStore(
+        (state) => state.loadSpecifications,
+    );
+    const resetBrands = usePartsStore((state) => state.resetBrands);
+    const resetModels = usePartsStore((state) => state.resetModels);
+    const resetSpecifications = usePartsStore(
+        (state) => state.resetSpecifications,
+    );
 
-    /** Load all part types */
-    const loadPartTypes = async () => {
-        try {
-            const { data } = await axios.get(route("hardware.parts.options"));
-            console.log("loadPartTypes response:", data);
-
-            const types = Array.isArray(data.types) ? data.types : [];
-            setPartsOptions((prev) => ({
-                ...prev,
-                types: types.map((t) => ({ label: t, value: t })),
-            }));
-        } catch (error) {
-            console.error("Error loading part types:", error);
-        }
-    };
-
-    /** Load brands for a selected part type */
-    const loadBrands = async (partType, fieldName) => {
-        if (!partType) return;
-
-        try {
-            const filters = btoa(JSON.stringify({ type: partType }));
-            console.log("filters", partType, fieldName);
-            const { data } = await axios.get(
-                route("hardware.parts.options", filters),
-            );
-            console.log(`loadBrands response for ${partType}:`, data);
-
-            const brands = Array.isArray(data.brands) ? data.brands : [];
-            setPartsOptions((prev) => ({
-                ...prev,
-                brands: {
-                    ...prev.brands,
-                    [fieldName]: brands.map((b) => ({ label: b, value: b })),
-                },
-            }));
-
-            // Reset downstream options (model & specifications) for this row
-            setPartsOptions((prev) => ({
-                ...prev,
-                models: { ...prev.models, [fieldName]: [] },
-                specifications: { ...prev.specifications, [fieldName]: [] },
-            }));
-        } catch (error) {
-            console.error("Error loading brands:", error);
-        }
-    };
-
-    /** Load models for a selected type and brand */
-    const loadModels = async (partType, brand, fieldName) => {
-        if (!partType || !brand) return;
-
-        try {
-            const filters = btoa(JSON.stringify({ type: partType, brand }));
-            const { data } = await axios.get(
-                route("hardware.parts.options", filters),
-            );
-            console.log(`loadModels response for ${partType}, ${brand}:`, data);
-
-            const models = Array.isArray(data.models) ? data.models : [];
-            setPartsOptions((prev) => ({
-                ...prev,
-                models: {
-                    ...prev.models,
-                    [fieldName]: models.map((m) => ({ label: m, value: m })),
-                },
-            }));
-
-            // Reset downstream options (specifications) for this row
-            setPartsOptions((prev) => ({
-                ...prev,
-                specifications: { ...prev.specifications, [fieldName]: [] },
-            }));
-        } catch (error) {
-            console.error("Error loading models:", error);
-        }
-    };
-
-    /** Load specifications for selected type, brand, model */
-    const loadSpecifications = async (
-        partType,
-        brand,
-        model,
-        fieldName,
-        rowIndex,
-    ) => {
-        if (!partType || !brand || !model) return;
-
-        try {
-            const filters = btoa(
-                JSON.stringify({ type: partType, brand, model }),
-            );
-
-            const [optionsRes, inventoryRes] = await Promise.all([
-                axios.get(route("hardware.parts.options", filters)),
-                axios.get(route("hardware.parts.inventory", filters)),
-            ]);
-
-            const specs = Array.isArray(optionsRes.data.specifications)
-                ? optionsRes.data.specifications
-                : [];
-
-            // Group inventory by specification and condition
-            const inventoryMap = {};
-            (inventoryRes.data || []).forEach((inv) => {
-                const spec = inv.specifications;
-                const condition = inv.condition;
-                const quantity = parseInt(inv.quantity) || 0;
-
-                if (!inventoryMap[spec]) {
-                    inventoryMap[spec] = {};
-                }
-
-                // Initialize condition if not exists
-                if (!inventoryMap[spec][condition]) {
-                    inventoryMap[spec][condition] = 0;
-                }
-
-                inventoryMap[spec][condition] += quantity;
-            });
-
-            // Remove specs already used in other rows
-            const currentParts = form.getFieldValue("parts") || [];
-            const usedSpecsByCondition = {};
-
-            currentParts.forEach((part, idx) => {
-                if (
-                    idx !== rowIndex &&
-                    part?.part_type === partType &&
-                    part?.brand === brand &&
-                    part?.model === model &&
-                    part?.specifications &&
-                    part?.condition
-                ) {
-                    const spec = part.specifications;
-                    const condition = part.condition;
-
-                    if (!usedSpecsByCondition[spec]) {
-                        usedSpecsByCondition[spec] = {};
-                    }
-                    usedSpecsByCondition[spec][condition] =
-                        (usedSpecsByCondition[spec][condition] || 0) + 1;
-                }
-            });
-
-            // Create specification options
-            const specificationOptions = [];
-
-            specs.forEach((spec) => {
-                const specInventory = inventoryMap[spec] || {};
-                const usedCounts = usedSpecsByCondition[spec] || {};
-
-                // For each condition that has inventory
-                Object.entries(specInventory).forEach(
-                    ([condition, totalQty]) => {
-                        const usedQty = usedCounts[condition] || 0;
-                        const availableQty = totalQty - usedQty;
-
-                        if (availableQty > 0 && condition !== "Defective") {
-                            specificationOptions.push({
-                                label: `${spec} (${availableQty} ${condition})`,
-                                value: JSON.stringify({
-                                    specifications: spec,
-                                    condition: condition,
-                                }),
-                                condition: condition,
-                            });
-                        }
-                    },
-                );
-            });
-
-            setPartsOptions((prev) => ({
-                ...prev,
-                specifications: {
-                    ...prev.specifications,
-                    [fieldName]: specificationOptions,
-                },
-            }));
-        } catch (error) {
-            console.error("Error loading specifications:", error);
-        }
-    };
-
-    /** Get options for select fields safely */
+    // Helper function (same as before)
     const getPartsOptions = (fieldName, dataIndex) => {
-        if (dataIndex === "part_type") return partsOptions.types || [];
-        if (dataIndex === "brand") return partsOptions.brands[fieldName] || [];
-        if (dataIndex === "model") return partsOptions.models[fieldName] || [];
+        if (dataIndex === "part_type") return options.types || [];
+        if (dataIndex === "brand") return options.brands[fieldName] || [];
+        if (dataIndex === "model") return options.models[fieldName] || [];
         if (dataIndex === "specifications")
-            return partsOptions.specifications[fieldName] || [];
+            return options.specifications[fieldName] || [];
         return [];
-    };
-    const resetBrands = (fieldName) => {
-        setPartsOptions((prev) => ({
-            ...prev,
-            brands: { ...prev.brands, [fieldName]: [] },
-        }));
-    };
-
-    const resetModels = (fieldName) => {
-        setPartsOptions((prev) => ({
-            ...prev,
-            models: { ...prev.models, [fieldName]: [] },
-        }));
-    };
-
-    const resetSpecifications = (fieldName) => {
-        setPartsOptions((prev) => ({
-            ...prev,
-            specifications: { ...prev.specifications, [fieldName]: [] },
-        }));
     };
 
     return {
-        partsOptions,
+        partsOptions: options,
+        loading,
         loadPartTypes,
         loadBrands,
         loadModels,
-        loadSpecifications,
+        loadSpecifications: (partType, brand, model, fieldName, rowIndex) =>
+            loadSpecifications(
+                partType,
+                brand,
+                model,
+                fieldName,
+                rowIndex,
+                form,
+            ),
         getPartsOptions,
-
         resetBrands,
         resetModels,
         resetSpecifications,

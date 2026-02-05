@@ -47,8 +47,8 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
         if (!open) return;
 
         // Load dropdown options
-        loadPartTypes();
-        loadSoftwareNames();
+        partsHooks.loadPartTypes();
+        softwareHooks.loadSoftwareNames();
 
         // Load item data for editing
         if (item) {
@@ -99,7 +99,8 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                 (sw, index) => {
                     const fieldName = `software_${index}`;
                     const licenseOptions =
-                        softwareOptions.licenses?.[fieldName] || [];
+                        softwareHooks.softwareOptions.licenses?.[fieldName] ||
+                        [];
                     const selectedOption = licenseOptions.find(
                         (opt) => opt.value === sw._license_identifier,
                     );
@@ -219,6 +220,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         ) : (
                                             <Input
                                                 placeholder={`Enter ${field.label}`}
+                                                allowClear
                                             />
                                         )}
                                     </Form.Item>
@@ -252,114 +254,51 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         <Input type="hidden" />
                                     </Form.Item>
 
-                                    {/* Part Type */}
-                                    <Col xs={24} sm={12} md={4}>
-                                        <Form.Item
-                                            name={[name, "part_type"]}
-                                            label={
-                                                index === 0 ? "Part Type" : ""
-                                            }
-                                            style={{ marginBottom: 0 }}
-                                            rules={[
-                                                {
-                                                    required: true,
-                                                    message:
-                                                        "Please select part type",
-                                                },
-                                            ]}
-                                        >
-                                            <Select
-                                                placeholder="Select Part Type"
-                                                options={
-                                                    partsOptions.types || []
-                                                }
-                                                allowClear
-                                                showSearch
-                                                optionFilterProp="label"
-                                                onChange={(val) => {
-                                                    const parts =
-                                                        form.getFieldValue(
-                                                            "parts",
-                                                        ) || [];
-                                                    parts[name] = {
-                                                        ...parts[name],
-                                                        part_type: val,
-                                                        brand: undefined,
-                                                        model: undefined,
-                                                        specifications:
-                                                            undefined,
-                                                        condition: undefined,
-                                                    };
-                                                    form.setFieldsValue({
-                                                        parts,
-                                                    });
+                                    {/* Cascading Part Fields */}
+                                    <Col xs={24}>
+                                        <Row gutter={12} align="middle">
+                                            <CascadingPartFields
+                                                fieldPrefix={`parts_${name}`}
+                                                form={form}
+                                                partsHooks={partsHooks}
+                                                layout="inline"
+                                                showLabels={index === 0}
+                                                isFormList={true}
+                                                rowIndex={name}
+                                            />
+                                            {/* Remove Button */}
+                                            <Col
+                                                xs={6}
+                                                sm={6}
+                                                md={1}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    marginTop:
+                                                        index === 0 ? 24 : 0,
                                                 }}
-                                            />
-                                        </Form.Item>
-                                    </Col>
-
-                                    {/* Brand */}
-                                    <Col xs={24} sm={12} md={4}>
-                                        <CascadingPartFields
-                                            fieldPrefix={`parts_${name}`}
-                                            form={form}
-                                            partsHooks={partsHooks} // ✅ ADD THIS
-                                            layout="inline"
-                                            showLabels={index === 0}
-                                        />
-                                    </Col>
-
-                                    {/* Serial Number */}
-                                    <Col xs={24} sm={12} md={4}>
-                                        <Form.Item
-                                            name={[name, "serial_number"]}
-                                            label={index === 0 ? "Serial" : ""}
-                                            style={{ marginBottom: 0 }}
-                                            rules={[
-                                                {
-                                                    required: true,
-                                                    message:
-                                                        "Please enter serial number",
-                                                },
-                                            ]}
-                                        >
-                                            <Input
-                                                allowClear
-                                                placeholder="Enter serial number"
-                                            />
-                                        </Form.Item>
-                                    </Col>
-
-                                    {/* Remove Button */}
-                                    <Col
-                                        xs={24}
-                                        sm={24}
-                                        md={4}
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            marginTop: index === 0 ? 24 : 0,
-                                        }}
-                                    >
-                                        <MinusCircleOutlined
-                                            style={{
-                                                fontSize: 20,
-                                                color: "#ff4d4f",
-                                                cursor: "pointer",
-                                            }}
-                                            onClick={() => {
-                                                const row =
-                                                    form.getFieldValue(
-                                                        "parts",
-                                                    )?.[name];
-                                                handleRemoveWithReason(
-                                                    "parts",
-                                                    name,
-                                                    row,
-                                                );
-                                            }}
-                                        />
+                                            >
+                                                <MinusCircleOutlined
+                                                    style={{
+                                                        fontSize: 20,
+                                                        color: "#ff4d4f",
+                                                        cursor: "pointer",
+                                                    }}
+                                                    onClick={() => {
+                                                        const row =
+                                                            form.getFieldValue(
+                                                                "parts",
+                                                            )?.[name];
+                                                        handleRemoveWithReason(
+                                                            "parts",
+                                                            name,
+                                                            row,
+                                                        );
+                                                    }}
+                                                />
+                                            </Col>
+                                        </Row>
                                     </Col>
                                 </Row>
                             ))}
@@ -405,21 +344,55 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         <Input type="hidden" />
                                     </Form.Item>
 
-                                    <CascadingSoftwareFields
-                                        fieldPrefix={`software_${name}`}
-                                        form={form}
-                                        softwareHooks={softwareHooks}
-                                        layout="inline"
-                                        showLabels={index === 0}
-                                    />
+                                    <Col xs={24}>
+                                        <Row gutter={12} align="middle">
+                                            {/* Cascading Software Fields */}
+                                            <CascadingSoftwareFields
+                                                fieldPrefix={`software_${name}`}
+                                                form={form}
+                                                softwareHooks={softwareHooks}
+                                                layout="inline"
+                                                showLabels={index === 0}
+                                                isFormList={true}
+                                                rowIndex={name}
+                                            />
+
+                                            {/* Remove Button */}
+                                            <Col
+                                                xs={6}
+                                                sm={6}
+                                                md={1}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    marginTop:
+                                                        index === 0 ? 24 : 0,
+                                                }}
+                                            >
+                                                <MinusCircleOutlined
+                                                    style={{
+                                                        fontSize: 20,
+                                                        color: "#ff4d4f",
+                                                        cursor: "pointer",
+                                                    }}
+                                                    onClick={() => {
+                                                        const row =
+                                                            form.getFieldValue(
+                                                                "software",
+                                                            )?.[name];
+                                                        handleRemoveWithReason(
+                                                            "software",
+                                                            name,
+                                                            row,
+                                                        );
+                                                    }}
+                                                />
+                                            </Col>
+                                        </Row>
+                                    </Col>
 
                                     {/* Hidden fields for license data */}
-                                    <Form.Item
-                                        name={[name, "_license_identifier"]}
-                                        hidden
-                                    >
-                                        <Input type="hidden" />
-                                    </Form.Item>
                                     <Form.Item
                                         name={[name, "account_user"]}
                                         hidden
@@ -432,38 +405,6 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                     >
                                         <Input type="hidden" />
                                     </Form.Item>
-
-                                    {/* Remove Button */}
-                                    <Col
-                                        xs={24}
-                                        sm={24}
-                                        md={2}
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            marginTop: index === 0 ? 24 : 0,
-                                        }}
-                                    >
-                                        <MinusCircleOutlined
-                                            style={{
-                                                fontSize: 20,
-                                                color: "#ff4d4f",
-                                                cursor: "pointer",
-                                            }}
-                                            onClick={() => {
-                                                const row =
-                                                    form.getFieldValue(
-                                                        "software",
-                                                    )?.[name];
-                                                handleRemoveWithReason(
-                                                    "software",
-                                                    name,
-                                                    row,
-                                                );
-                                            }}
-                                        />
-                                    </Col>
                                 </Row>
                             ))}
 
