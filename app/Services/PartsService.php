@@ -15,7 +15,8 @@ class PartsService
 
     public function getPartsTable(array $filters): array
     {
-        $query = $this->partsRepository->query();
+        $query = $this->partsRepository->query()
+            ->with('part'); // eager load the related part
 
         // Status filter
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
@@ -30,16 +31,25 @@ class PartsService
                     $q2->where('part_type', 'like', "%$search%")
                         ->orWhere('brand', 'like', "%$search%")
                         ->orWhere('model', 'like', "%$search%")
-                        ->orWhere('specifications', 'like', "%$search%")
-                        ->orWhere('condition', 'like', "%$search%");
-                })->orWhere('location', 'like', "%$search%");
+                        ->orWhere('specifications', 'like', "%$search%");
+                })->orWhere('condition', 'like', "%$search%")
+                    ->orWhere('location', 'like', "%$search%");
             });
         }
 
         // Sorting
         $sortField = $filters['sortField'] ?? 'created_at';
         $sortOrder = $filters['sortOrder'] ?? 'desc';
-        $query->orderBy($sortField, $sortOrder);
+
+        // Handle sorting by related Part fields
+        $relatedFields = ['part_type', 'brand', 'model', 'specifications'];
+        if (in_array($sortField, $relatedFields)) {
+            $query->join('parts', 'parts.id', '=', 'part_inventory.part_id')
+                ->orderBy("parts.$sortField", $sortOrder)
+                ->select('part_inventory.*'); // prevent selecting extra joined columns
+        } else {
+            $query->orderBy($sortField, $sortOrder);
+        }
 
         // Pagination
         $page = $filters['page'] ?? 1;
@@ -57,6 +67,7 @@ class PartsService
             'filters' => $filters,
         ];
     }
+
     public function getPartsLogs(int $partsId, int $page = 1, int $perPage = 10): array
     {
         // Get the query from the repository

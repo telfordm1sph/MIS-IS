@@ -22,7 +22,7 @@ class HardwareSoftware extends Model
 
     public function hardware()
     {
-        return $this->belongsTo(Hardware::class, 'hardware_id', 'hostname');
+        return $this->belongsTo(Hardware::class, 'hardware_id', 'id');
     }
 
     public function softwareInventory()

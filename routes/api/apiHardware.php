@@ -33,4 +33,8 @@ Route::prefix('hardware')->middleware('api.token')->group(function () {
 
     Route::post('replace-component', [HardwareController::class, 'replaceComponent'])
         ->name('hardware.replace.component');
+    Route::post('add-component', [HardwareController::class, 'addComponent'])
+        ->name('hardware.component.add');
+    Route::post('remove-component', [HardwareController::class, 'removeComponent'])
+        ->name('hardware.component.remove');
 });

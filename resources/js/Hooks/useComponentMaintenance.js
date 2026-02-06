@@ -10,7 +10,7 @@ export const useComponentMaintenance = (
     form,
     open,
     hardware,
-    mode,
+    action,
     onSave,
     onClose,
 ) => {
@@ -27,6 +27,46 @@ export const useComponentMaintenance = (
         handleComponentSelect,
         resetSelection,
     } = useComponentSelection();
+
+    // Helper function to extract condition and specifications
+    const extractConditionAndSpecs = (specs) => {
+        if (!specs) return { condition: null, specifications: specs };
+
+        if (typeof specs === "string") {
+            try {
+                const parsed = JSON.parse(specs);
+                return {
+                    condition: parsed.condition || null,
+                    specifications: parsed.specifications || specs,
+                };
+            } catch (e) {
+                return { condition: null, specifications: specs.trim() };
+            }
+        }
+
+        if (typeof specs === "object" && specs !== null) {
+            return {
+                condition: specs.condition || null,
+                specifications: specs.specifications || specs,
+            };
+        }
+
+        return { condition: null, specifications: specs };
+    };
+
+    // Helper function to extract specifications only (for backward compatibility)
+    const extractSpecifications = (specs) => {
+        if (!specs) return specs;
+        if (typeof specs === "string") {
+            try {
+                const parsed = JSON.parse(specs);
+                return parsed.specifications || specs;
+            } catch (e) {
+                return specs.trim();
+            }
+        }
+        return specs;
+    };
 
     useEffect(() => {
         if (open && hardware) {
@@ -89,6 +129,7 @@ export const useComponentMaintenance = (
             replacement_brand: undefined,
             replacement_model: undefined,
             replacement_specifications: undefined,
+            replacement_condition: undefined, // Reset condition
             replacement_sw_software_name: undefined,
             replacement_sw_software_type: undefined,
             replacement_sw_version: undefined,
@@ -104,13 +145,14 @@ export const useComponentMaintenance = (
             reason: undefined,
             remarks: undefined,
             old_component_condition: undefined,
+            new_condition: undefined, // Reset condition for add
         });
 
         // Handle PARTS
         if (componentType === "part" && componentData) {
             const partData = componentData.part_info;
 
-            if (mode === "replace") {
+            if (action === "replace") {
                 form.setFieldsValue({
                     replacement_part_type: partData?.part_type,
                 });
@@ -122,7 +164,7 @@ export const useComponentMaintenance = (
                         );
                     }
                 }, 0);
-            } else if (mode === "upgrade" && upgradeAction === "replace") {
+            } else if (action === "upgrade" && upgradeAction === "replace") {
                 form.setFieldsValue({ upgrade_part_type: partData?.part_type });
                 setTimeout(() => {
                     if (partData?.part_type) {
@@ -136,7 +178,7 @@ export const useComponentMaintenance = (
         if (componentType === "software" && componentData) {
             const softwareData = componentData.inventory;
 
-            if (mode === "replace") {
+            if (action === "replace") {
                 form.setFieldsValue({
                     replacement_sw_software_name: softwareData?.software_name,
                     replacement_sw_software_type: softwareData?.software_type,
@@ -160,7 +202,7 @@ export const useComponentMaintenance = (
                         );
                     }
                 }, 0);
-            } else if (mode === "upgrade" && upgradeAction === "replace") {
+            } else if (action === "upgrade" && upgradeAction === "replace") {
                 form.setFieldsValue({
                     upgrade_sw_software_name: softwareData?.software_name,
                     upgrade_sw_software_type: softwareData?.software_type,
@@ -196,87 +238,78 @@ export const useComponentMaintenance = (
         form.setFieldsValue({ upgrade_action: newValue });
     };
 
-    const handleFinish = async (values) => {
-        try {
-            setLoading(true);
+    /**
+     * CRITICAL FIX: Parse specifications and extract condition
+     * This extracts condition from the specs object and adds it as a separate field
+     */
+    const parseSpecsAndCondition = (payload) => {
+        // Process replacement_specifications
+        if (payload.replacement_specifications) {
+            const { condition, specifications } = extractConditionAndSpecs(
+                payload.replacement_specifications,
+            );
+            payload.replacement_specifications = specifications;
+            if (condition && !payload.replacement_condition) {
+                payload.replacement_condition = condition;
+            }
+        }
 
-            const payload = {
+        // Process new_specifications (for add action)
+        if (payload.new_specifications) {
+            const { condition, specifications } = extractConditionAndSpecs(
+                payload.new_specifications,
+            );
+            payload.new_specifications = specifications;
+            if (condition && !payload.new_condition) {
+                payload.new_condition = condition;
+            }
+        }
+
+        return payload;
+    };
+
+    const endpoints = (hardwareId) => ({
+        edit: ["put", route("hardware.update", hardwareId)],
+        replace: ["post", route("hardware.replace.component")],
+        add: ["post", route("hardware.component.add")],
+        remove: ["post", route("hardware.component.remove")],
+    });
+
+    const handleFinish = async (values) => {
+        setLoading(true);
+        try {
+            // First, build the base payload
+            let payload = {
                 hardware_id: hardware.id,
                 hostname: hardware.hostname,
-                mode: mode,
-                upgrade_action: upgradeAction,
+                action,
                 component_type: selectedComponentType,
                 employee_id: emp_data?.emp_id,
+                ...(selectedComponent && {
+                    component_id: selectedComponent.split("_")[1],
+                }),
                 ...values,
             };
 
-            if (selectedComponent) {
-                const componentId = selectedComponent.split("_")[1];
-                payload.component_id = componentId;
-            }
+            // CRITICAL: Extract condition from specs FIRST, then parse specs
+            payload = parseSpecsAndCondition(payload);
 
-            if (mode === "upgrade") {
-                payload.upgrade_action = upgradeAction;
-            }
+            console.log("🔍 FINAL PAYLOAD:", JSON.stringify(payload, null, 2));
 
-            // Parse replacement_specifications if it's a JSON string
-            if (payload.replacement_specifications) {
-                try {
-                    const specObj = JSON.parse(
-                        payload.replacement_specifications,
-                    );
-                    payload.replacement_specifications = specObj.specifications;
-                } catch (e) {
-                    // If not JSON, keep as is
-                }
-            }
+            const [method, url] = endpoints(hardware.id)[action];
+            const { data } = await axios[method](url, payload);
 
-            // Parse upgrade_specifications if it's a JSON string
-            if (payload.upgrade_specifications) {
-                try {
-                    const specObj = JSON.parse(payload.upgrade_specifications);
-                    payload.upgrade_specifications = specObj.specifications;
-                } catch (e) {
-                    // If not JSON, keep as is
-                }
-            }
+            if (!data?.success)
+                return message.error(data?.message || `Failed to ${action}`);
 
-            // Parse new_specifications if it's a JSON string
-            if (payload.new_specifications) {
-                try {
-                    const specObj = JSON.parse(payload.new_specifications);
-                    payload.new_specifications = specObj.specifications;
-                } catch (e) {
-                    // If not JSON, keep as is
-                }
-            }
-
-            console.log("Payload", payload);
-
-            const endpoint =
-                mode === "replace" ||
-                (mode === "upgrade" && upgrade_action === "replace")
-                    ? route("hardware.replace.component")
-                    : route("hardware.component.upgrade");
-
-            const response = await axios.post(endpoint, payload);
-
-            if (response.data?.success) {
-                message.success(
-                    response.data.message || `Component ${mode}d successfully`,
-                );
-                if (onSave) onSave(response.data);
-                handleClose();
-            } else {
-                message.error(
-                    response.data?.message || `Failed to ${mode} component`,
-                );
-            }
-        } catch (error) {
-            console.error(`Error ${mode}ing component:`, error);
+            message.success(data.message || `Hardware ${action}d successfully`);
+            onSave?.(data);
+            handleClose();
+        } catch (err) {
+            console.error("Error details:", err.response?.data);
             message.error(
-                error.response?.data?.message ||
-                    `An error occurred while ${mode}ing component`,
+                err.response?.data?.message ||
+                    `An error occurred while ${action}ing`,
             );
         } finally {
             setLoading(false);

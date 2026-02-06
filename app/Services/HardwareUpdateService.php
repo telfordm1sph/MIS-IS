@@ -212,7 +212,7 @@ class HardwareUpdateService
 
         // REPO: Create hardware part record FIRST
         $hardwarePartData = [
-            'hardware_id' => $hardware->hostname,
+            'hardware_id' => $hardware->id,
             'part_type' => $partData['part_type'],
             'brand' => $partData['brand'],
             'model' => $partData['model'],
@@ -292,6 +292,7 @@ class HardwareUpdateService
      */
     public function deletePart(Hardware $hardware, array $partData, int $employeeId): void
     {
+
         // REPO: Find hardware part
         $hardwarePart = $this->hardwareRepository->findHardwarePartById($partData['id']);
 
@@ -416,7 +417,7 @@ class HardwareUpdateService
 
         // REPO: Create hardware software record
         $hardwareSoftwareData = [
-            'hardware_id' => $hardware->hostname,
+            'hardware_id' => $hardware->id,
             'software_inventory_id' => $softwareInventory->id,
             'software_license_id' => $licenseId,
             'installation_date' => now(),
@@ -624,5 +625,137 @@ class HardwareUpdateService
         }
 
         return implode(' | ', $parts);
+    }
+  
+
+// Add these methods to your HardwareUpdateService class (App\Services\HardwareUpdateService)
+
+    /**
+     * Add component to hardware
+     * BUSINESS LOGIC: Add new part or software to existing hardware
+     */
+    public function addComponent(array $data): Hardware
+    {
+        return DB::transaction(function () use ($data) {
+            $hardwareId = $data['hardware_id'];
+            $componentType = $data['component_type'];
+            $employeeId = $data['employee_id'];
+
+            // REPO: Find hardware
+            $hardware = $this->hardwareRepository->findById($hardwareId);
+
+            if (!$hardware) {
+                throw new \Exception("Hardware not found");
+            }
+
+            if ($componentType === 'part') {
+                // Add new part
+                $partData = [
+                    'part_type' => $data['new_part_type'],
+                    'brand' => $data['new_brand'],
+                    'model' => $data['new_model'],
+                    'specifications' => $data['new_specifications'],
+                    'condition' => $data['new_condition'] ?? 'New',
+                    'serial_number' => $data['new_serial_number'] ?? null,
+                ];
+
+                $this->createPart($hardware, $partData, $employeeId);
+
+                Log::info("Added part to hardware", [
+                    'hardware_id' => $hardware->id,
+                    'hostname' => $hardware->hostname,
+                    'part_type' => $partData['part_type'],
+                    'added_by' => $employeeId,
+                ]);
+            } else {
+                // Add new software
+                $softwareData = [
+                    'software_name' => $data['new_software_name'],
+                    'software_type' => $data['new_software_type'],
+                    'version' => $data['new_version'],
+                    'license_key' => $data['new_license_key'] ?? null,
+                    'account_user' => $data['new_account_user'] ?? null,
+                    'account_password' => $data['new_account_password'] ?? null,
+                ];
+
+                $this->createSoftware($hardware, $softwareData, $employeeId);
+
+                Log::info("Added software to hardware", [
+                    'hardware_id' => $hardware->id,
+                    'hostname' => $hardware->hostname,
+                    'software_name' => $softwareData['software_name'],
+                    'added_by' => $employeeId,
+                ]);
+            }
+
+            // REPO: Reload with relationships
+            return $this->hardwareRepository->findWithRelations($hardware->id);
+        });
+    }
+
+    /**
+     * Remove component from hardware
+     * BUSINESS LOGIC: Remove part or software from hardware and return to inventory
+     */
+    public function removeComponent(array $data): Hardware
+    {
+        // dd($data);
+        return DB::transaction(function () use ($data) {
+            $hardwareId = $data['hardware_id'];
+            $componentId = $data['component_id'];
+            $componentType = $data['component_type'];
+            $employeeId = $data['employee_id'];
+
+            // REPO: Find hardware
+            $hardware = $this->hardwareRepository->findById($hardwareId);
+
+            if (!$hardware) {
+                throw new \Exception("Hardware not found");
+            }
+
+            // // Parse component ID (format: "part_123" or "software_456")
+            // $actualComponentId = (int) explode('_', $componentId)[1];
+
+            if ($componentType === 'part') {
+                // Remove part
+                $partData = [
+                    'id' => $componentId,
+                    'removal_reason' => $data['removal_reason'],
+                    'removal_condition' => $data['removal_condition'],
+                    'removal_remarks' => $data['removal_remarks'] ?? null,
+                ];
+
+                $this->deletePart($hardware, $partData, $employeeId);
+
+                Log::info("Removed part from hardware", [
+                    'hardware_id' => $hardware->id,
+                    'hostname' => $hardware->hostname,
+                    'hardware_part_id' => $componentId,
+                    'removal_reason' => $data['removal_reason'],
+                    'removed_by' => $employeeId,
+                ]);
+            } else {
+                // Remove software
+                $softwareData = [
+                    'id' => $componentId,
+                    'removal_reason' => $data['removal_reason'],
+                    'removal_condition' => $data['removal_condition'],
+                    'removal_remarks' => $data['removal_remarks'] ?? null,
+                ];
+
+                $this->deleteSoftware($hardware, $softwareData, $employeeId);
+
+                Log::info("Removed software from hardware", [
+                    'hardware_id' => $hardware->id,
+                    'hostname' => $hardware->hostname,
+                    'hardware_software_id' => $componentId,
+                    'removal_reason' => $data['removal_reason'],
+                    'removed_by' => $employeeId,
+                ]);
+            }
+
+            // REPO: Reload with relationships
+            return $this->hardwareRepository->findWithRelations($hardware->id);
+        });
     }
 }

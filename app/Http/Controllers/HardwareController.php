@@ -448,11 +448,10 @@ class HardwareController extends Controller
             'component_to_replace' => 'nullable|string|max:255',
             'component_type' => 'required|string|in:part,software',
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
-            'mode' => 'required|string|in:replace,upgrade,repair',
             'hostname' => 'nullable|string|max:255',
 
             // Old component details
-            'old_component_condition' => 'required|string|in:Working,Damaged,Defective,Unknown,Good,Bad',
+            'old_component_condition' => 'required|string|in:working,faulty,defective',
             'reason' => 'required|string|max:255',
             'remarks' => 'nullable|string|max:500',
 
@@ -468,6 +467,152 @@ class HardwareController extends Controller
             'replacement_software_name' => 'required_if:component_type,software|string',
             'replacement_software_type' => 'required_if:component_type,software|string',
             'replacement_version' => 'required_if:component_type,software|string',
+        ]);
+    }
+
+    /**
+     * Add component to hardware
+     * REQUEST: Handle component addition
+     */
+    public function addComponent(Request $request)
+    {
+        try {
+            $employeeId = $this->getEmployeeId($request);
+
+            if (!$employeeId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee identification required.',
+                ], 401);
+            }
+
+            $validated = $this->validateAddComponentRequest($request);
+
+            if (!isset($validated['employee_id'])) {
+                $validated['employee_id'] = $employeeId;
+            }
+
+            // Delegate to service (you'll need to create this)
+            $hardware = $this->hardwareUpdateService->addComponent($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Component added successfully',
+                'data' => $hardware,
+            ], 200);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Component addition failed', [
+                'payload' => $request->all(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to add component: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove component from hardware
+     * REQUEST: Handle component removal
+     */
+    public function removeComponent(Request $request)
+    {
+        try {
+            $employeeId = $this->getEmployeeId($request);
+
+            if (!$employeeId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee identification required.',
+                ], 401);
+            }
+
+            $validated = $this->validateRemoveComponentRequest($request);
+
+            if (!isset($validated['employee_id'])) {
+                $validated['employee_id'] = $employeeId;
+            }
+
+            // Delegate to service (you'll need to create this)
+            $hardware = $this->hardwareUpdateService->removeComponent($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Component removed successfully',
+                'data' => $hardware,
+            ], 200);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Component removal failed', [
+                'payload' => $request->all(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove component: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Validate add component request
+     */
+    protected function validateAddComponentRequest(Request $request): array
+    {
+        return $request->validate([
+            'hardware_id' => 'required|integer|exists:hardware,id',
+            'component_type' => 'required|string|in:part,software',
+            'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
+            'hostname' => 'nullable|string|max:255',
+            'remarks' => 'nullable|string|max:500',
+
+            // For adding parts
+            'new_part_type' => 'required_if:component_type,part|string|max:100',
+            'new_brand' => 'required_if:component_type,part|string|max:100',
+            'new_model' => 'required_if:component_type,part|string|max:100',
+            'new_specifications' => 'required_if:component_type,part|string',
+            'new_condition' => 'nullable|string|in:New,Used,Refurbished',
+            'new_serial_number' => 'nullable|string|max:100',
+
+            // For adding software
+            'new_software_name' => 'required_if:component_type,software|string',
+            'new_software_type' => 'required_if:component_type,software|string',
+            'new_version' => 'required_if:component_type,software|string',
+            'new_license_key' => 'nullable|string',
+            'new_account_user' => 'nullable|string',
+            'new_account_password' => 'nullable|string',
+        ]);
+    }
+
+    /**
+     * Validate remove component request
+     */
+    protected function validateRemoveComponentRequest(Request $request): array
+    {
+        return $request->validate([
+            'hardware_id' => 'required|integer|exists:hardware,id',
+            'component_id' => 'required|string',
+            'component_type' => 'required|string|in:part,software',
+            'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
+            'hostname' => 'nullable|string|max:255',
+
+            'removal_condition' => 'required|string|in:working,faulty,defective',
+            'removal_reason' => 'required|string|max:255',
+            'removal_remarks' => 'nullable|string|max:500',
         ]);
     }
 }

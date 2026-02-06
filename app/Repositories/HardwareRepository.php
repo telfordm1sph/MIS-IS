@@ -242,12 +242,13 @@ class HardwareRepository
      */
     public function findPart(string $partType, string $brand, string $model, string $specifications): ?Part
     {
-        return Part::where('part_type', $partType)
-            ->where('brand', $brand)
-            ->where('model', $model)
-            ->where('specifications', $specifications)
+        return Part::whereRaw('LOWER(part_type) = ?', [strtolower($partType)])
+            ->whereRaw('LOWER(brand) = ?', [strtolower($brand)])
+            ->whereRaw('LOWER(model) = ?', [strtolower($model)])
+            ->whereRaw('LOWER(specifications) = ?', [strtolower($specifications)])
             ->first();
     }
+
     /**
      * Find available part inventory
      * DB OPERATION: Find inventory with conditions
@@ -482,20 +483,16 @@ class HardwareRepository
         ?int $employeeId = null,
         ?string $remarks = null
     ): void {
-        // Load the part relationship to get details
-        $hardwarePart->loadMissing('part');
-
-        $part = $hardwarePart->part;
-        $partInfo = $part
-            ? "{$part->part_type} - {$part->brand} {$part->model}"
-            : "Part ID: {$hardwarePart->part_id}";
+        // Use HardwarePart fields directly as primary source
+        // These are always populated when a part is added to hardware
+        $partInfo = "{$hardwarePart->part_type} - {$hardwarePart->brand} {$hardwarePart->model}";
 
         $partDetails = [
-            'part_type' => $part->part_type ?? 'Unknown',
-            'brand' => $part->brand ?? 'Unknown',
-            'model' => $part->model ?? 'Unknown',
+            'part_type' => $hardwarePart->part_type ?? 'Unknown',
+            'brand' => $hardwarePart->brand ?? 'Unknown',
+            'model' => $hardwarePart->model ?? 'Unknown',
             'serial_number' => $hardwarePart->serial_number,
-            'specifications' => $part->specifications ?? null,
+            'specifications' => $hardwarePart->specifications ?? '-',
             'quantity' => $hardwarePart->quantity,
         ];
 
@@ -523,7 +520,7 @@ class HardwareRepository
                     'removed_date' => $formatDate($hardwarePart->removed_date),
                 ],
                 'new_values' => null,
-                'remarks' => $remarks ?? "Removed {$part->part_type} from hardware",
+                'remarks' => $remarks ?? "Removed {$hardwarePart->part_type} from hardware",
                 'related_type' => HardwarePart::class,
                 'related_id' => $hardwarePart->id,
             ]);
@@ -541,7 +538,7 @@ class HardwareRepository
                     'part_details' => $partDetails,
                     'installed_date' => $formatDate($hardwarePart->installed_date),
                 ],
-                'remarks' => $remarks ?? "Added {$part->part_type} to hardware",
+                'remarks' => $remarks ?? "Added {$hardwarePart->part_type} to hardware",
                 'related_type' => HardwarePart::class,
                 'related_id' => $hardwarePart->id,
             ]);

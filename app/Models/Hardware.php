@@ -59,11 +59,11 @@ class Hardware extends Model
     }
     public function parts()
     {
-        return $this->hasMany(HardwarePart::class, 'hardware_id', 'hostname');
+        return $this->hasMany(HardwarePart::class, 'hardware_id', 'id');
     }
 
     public function software()
     {
-        return $this->hasMany(HardwareSoftware::class, 'hardware_id', 'hostname');
+        return $this->hasMany(HardwareSoftware::class, 'hardware_id', 'id');
     }
 }

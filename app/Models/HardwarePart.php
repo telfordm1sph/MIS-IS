@@ -30,7 +30,7 @@ class HardwarePart extends Model
     // Relationships
     public function hardware()
     {
-        return $this->belongsTo(Hardware::class, 'hardware_id', 'hostname');
+        return $this->belongsTo(Hardware::class, 'hardware_id', 'id');
     }
 
     public function sourceInventory()
@@ -40,6 +40,6 @@ class HardwarePart extends Model
 
     public function part()
     {
-        return $this->belongsTo(Part::class, 'part_id');
+        return $this->belongsTo(Part::class, 'part_id', 'id');
     }
 }

@@ -50,7 +50,6 @@ const HardwareTable = () => {
         close: closeLogs,
     } = useLogsModal();
     const [maintenanceDrawerOpen, setMaintenanceDrawerOpen] = useState(false);
-    const [maintenanceMode, setMaintenanceMode] = useState(null);
     const [selectedHardware, setSelectedHardware] = useState(null);
     const {
         searchText,
@@ -91,11 +90,11 @@ const HardwareTable = () => {
     };
 
     // Helper function to fetch hardware details
-    const fetchHardwareDetails = async (hostname) => {
+    const fetchHardwareDetails = async (id) => {
         try {
             const [partsRes, softwareRes] = await Promise.all([
-                axios.get(route("hardware.parts.list", hostname)),
-                axios.get(route("hardware.software.list", hostname)),
+                axios.get(route("hardware.parts.list", id)),
+                axios.get(route("hardware.software.list", id)),
             ]);
 
             return {
@@ -110,13 +109,24 @@ const HardwareTable = () => {
 
     // ✅ Custom handleView to fetch parts and software
     const handleView = async (record) => {
-        const partsSoftware = await fetchHardwareDetails(record.hostname);
+        const partsSoftware = await fetchHardwareDetails(record.id);
         const item = {
             ...record,
             parts: partsSoftware.parts,
             software: partsSoftware.software,
         };
         openDrawer(item);
+    };
+
+    // ✅ Open maintenance drawer to choose action
+    const handleOpenMaintenance = async (record) => {
+        const partsSoftware = await fetchHardwareDetails(record.id);
+        setSelectedHardware({
+            ...record,
+            parts: partsSoftware.parts,
+            software: partsSoftware.software,
+        });
+        setMaintenanceDrawerOpen(true);
     };
 
     // ✅ Category renderer
@@ -197,22 +207,11 @@ const HardwareTable = () => {
                         {
                             type: "divider",
                         },
-
                         {
-                            key: "replace",
-                            label: "Replace Component",
-                            onClick: () => handleReplaceComponent(record),
-                            icon: <SwapOutlined style={{ color: "#ff4d4f" }} />,
-                        },
-                        {
-                            key: "upgrade",
-                            label: "Upgrade Component",
-                            onClick: () => handleUpgradeComponent(record),
-                            icon: (
-                                <UpCircleOutlined
-                                    style={{ color: "#52c41a" }}
-                                />
-                            ), // green
+                            key: "maintenance",
+                            label: "Maintenance",
+                            onClick: () => handleOpenMaintenance(record),
+                            icon: <EditOutlined style={{ color: "#1890ff" }} />,
                         },
                     ];
 
@@ -515,31 +514,8 @@ const HardwareTable = () => {
             ],
         },
     ];
-    const handleReplaceComponent = async (record) => {
-        const partsSoftware = await fetchHardwareDetails(record.hostname);
-        setSelectedHardware({
-            ...record,
-            parts: partsSoftware.parts,
-            software: partsSoftware.software,
-        });
-        setMaintenanceMode("replace");
-        setMaintenanceDrawerOpen(true);
-    };
-
-    const handleUpgradeComponent = async (record) => {
-        const partsSoftware = await fetchHardwareDetails(record.hostname);
-        setSelectedHardware({
-            ...record,
-            parts: partsSoftware.parts,
-            software: partsSoftware.software,
-        });
-        setMaintenanceMode("upgrade");
-        setMaintenanceDrawerOpen(true);
-    };
-
     const handleMaintenanceClose = () => {
         setMaintenanceDrawerOpen(false);
-        setMaintenanceMode(null);
         setSelectedHardware(null);
     };
 
@@ -628,7 +604,6 @@ const HardwareTable = () => {
                     open={maintenanceDrawerOpen}
                     onClose={handleMaintenanceClose}
                     hardware={selectedHardware}
-                    mode={maintenanceMode}
                     onSave={handleMaintenanceSave}
                 />
                 {/* Activity Logs Modal */}

@@ -5,7 +5,7 @@ import CascadingSoftwareFields from "@/Components/forms/CascadingSoftwareFields"
 
 const { TextArea } = Input;
 
-const ReplaceMode = ({
+const ReplaceComponent = ({
     form,
     selectedComponent,
     selectedComponentType,
@@ -89,13 +89,13 @@ const ReplaceMode = ({
                                     }}
                                 >
                                     <Select.Option value="working">
-                                        Working
+                                        Working - Return to Inventory
                                     </Select.Option>
                                     <Select.Option value="faulty">
                                         Faulty - For Repair
                                     </Select.Option>
-                                    <Select.Option value="Defective">
-                                        Defective - Return to Supplier
+                                    <Select.Option value="defective">
+                                        Defective - Dispose
                                     </Select.Option>
                                 </Select>
                             </Form.Item>
@@ -166,8 +166,8 @@ const ReplaceMode = ({
                                     <Select.Option value="Not Working">
                                         Not Working
                                     </Select.Option>
-                                    <Select.Option value="Need Different License">
-                                        Need Different License
+                                    <Select.Option value="Upgrade Version">
+                                        Upgrade to Better Version
                                     </Select.Option>
                                 </Select>
                             </Form.Item>
@@ -189,4 +189,4 @@ const ReplaceMode = ({
     );
 };
 
-export default ReplaceMode;
+export default ReplaceComponent;
