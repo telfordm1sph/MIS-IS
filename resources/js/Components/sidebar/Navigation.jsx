@@ -2,7 +2,13 @@ import { usePage } from "@inertiajs/react";
 
 import SidebarLink from "@/Components/sidebar/SidebarLink";
 
-import { Copyright, Printer, Table2Icon, ToolCase } from "lucide-react";
+import {
+    CctvIcon,
+    Copyright,
+    PackageSearch,
+    Printer,
+    ToolCase,
+} from "lucide-react";
 import { WindowsOutlined } from "@ant-design/icons";
 
 export default function NavLinks({ isSidebarOpen }) {
@@ -13,7 +19,7 @@ export default function NavLinks({ isSidebarOpen }) {
         >
             <SidebarLink
                 href={route("hardware.table")}
-                icon={<Table2Icon className="w-5 h-5" />}
+                icon={<PackageSearch className="w-5 h-5" />}
                 label="Inventory"
                 isSidebarOpen={isSidebarOpen}
             />
@@ -38,7 +44,13 @@ export default function NavLinks({ isSidebarOpen }) {
             <SidebarLink
                 href={route("printers.table")}
                 icon={<Printer className="w-5 h-5" />}
-                label="Printer"
+                label="Printers"
+                isSidebarOpen={isSidebarOpen}
+            />
+            <SidebarLink
+                href={route("cctv.table")}
+                icon={<CctvIcon className="w-5 h-5" />}
+                label="CCTVs"
                 isSidebarOpen={isSidebarOpen}
             />
         </nav>

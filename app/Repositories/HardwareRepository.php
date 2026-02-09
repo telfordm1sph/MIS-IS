@@ -51,11 +51,11 @@ class HardwareRepository
      */
     public function getCategoryCounts(): array
     {
-        $counts = Hardware::active()
-            ->groupBy('category')
+        $counts = Hardware::groupBy('category')
             ->selectRaw('category, count(*) as count')
             ->pluck('count', 'category')
             ->toArray();
+
 
         $statusCounts = [
             'New' => Hardware::where('status', Status::NEW)->count(),

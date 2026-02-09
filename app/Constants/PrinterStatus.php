@@ -19,7 +19,7 @@ class PrinterStatus
     // Colors mapping
     public const COLORS = [
         self::ACTIVE => 'green',
-        self::INACTIVE => 'gray',
+        self::INACTIVE => 'red',
     ];
 
     /**

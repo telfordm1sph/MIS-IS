@@ -25,6 +25,9 @@ require __DIR__ . '/software.php';
 
 // Printer
 require __DIR__ . '/printer.php';
+
+// CCTV
+require __DIR__ . '/cctv.php';
 Route::get("/demo", [DemoController::class, 'index'])->name('demo');
 
 Route::fallback(function () {

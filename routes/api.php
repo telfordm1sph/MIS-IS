@@ -8,6 +8,7 @@ $app_name = env('APP_NAME', '');
 
 require __DIR__ . '/api/apiHardware.php';
 require __DIR__ . '/api/apiPrinter.php';
+require __DIR__ . '/api/apicctv.php';
 
 
 
