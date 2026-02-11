@@ -12,6 +12,7 @@ use App\Models\PartInventory;
 use App\Models\SoftwareInventory;
 use App\Models\SoftwareLicense;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 
 class HardwareRepository
 {
@@ -562,16 +563,36 @@ class HardwareRepository
     /**
      * Find software license by identifier
      * DB OPERATION: Find license
+     * NOTE: Uses regex trim to handle hidden carriage returns and special chars in DB
      */
-    public function findSoftwareLicenseByIdentifier(?string $licenseKey, ?string $accountUser): ?SoftwareLicense
-    {
+    public function findSoftwareLicenseByIdentifier(
+        ?string $licenseKey,
+        ?string $accountUser
+    ): ?SoftwareLicense {
+        // Trim whitespace including carriage returns and special characters
+        if (is_string($licenseKey)) {
+            $licenseKey = preg_replace('/[\s\r\n\0\x0B]+/', '', $licenseKey) ?: null;
+        }
+        if (is_string($accountUser)) {
+            $accountUser = preg_replace('/[\s\r\n\0\x0B]+/', '', $accountUser) ?: null;
+        }
+
         $query = SoftwareLicense::query();
 
-        if ($licenseKey) {
+        if ($licenseKey !== null && $licenseKey !== '') {
             $query->where('license_key', $licenseKey);
-        } elseif ($accountUser) {
-            $query->where('account_user', $accountUser);
         }
+
+        if ($accountUser !== null && $accountUser !== '') {
+            $query->orWhere('account_user', 'like', "%{$accountUser}%");
+        }
+
+        Log::info('License lookup', [
+            'license_key' => $licenseKey,
+            'account_user' => $accountUser,
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+        ]);
 
         return $query->first();
     }

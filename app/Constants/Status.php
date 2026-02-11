@@ -22,7 +22,7 @@ class Status
     public const COLORS = [
         self::ACTIVE => 'green',
         self::NEW => 'blue',
-        self::INACTIVE => 'gray',
+        self::INACTIVE => 'volcano',
         self::DEFECTIVE => 'red',
     ];
 

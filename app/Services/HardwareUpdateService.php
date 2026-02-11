@@ -11,8 +11,10 @@ class HardwareUpdateService
 {
     public HardwareRepository $hardwareRepository;
 
-    public function __construct(HardwareRepository $hardwareRepository)
-    {
+
+    public function __construct(
+        HardwareRepository $hardwareRepository
+    ) {
         $this->hardwareRepository = $hardwareRepository;
     }
 
@@ -158,7 +160,15 @@ class HardwareUpdateService
      */
     public function createPart(Hardware $hardware, array $partData, int $employeeId): void
     {
-        // dd($partData);
+        $this->createPartAndReturn($hardware, $partData, $employeeId);
+    }
+
+    /**
+     * Create a new hardware part and return the created record
+     * Used when we need the created part ID for issuance tracking
+     */
+    private function createPartAndReturn(Hardware $hardware, array $partData, int $employeeId)
+    {
         // Get specifications and condition
         $specifications = $partData['specifications'] ?? '';
         $condition = $partData['condition'] ?? 'Working'; // Default to 'Working' if not specified
@@ -179,7 +189,7 @@ class HardwareUpdateService
             $partData['model'],
             $specifications
         );
-        // dd($part);
+
         if (!$part) {
             throw new \Exception(
                 "Part not found: {$partData['part_type']} - {$partData['brand']} {$partData['model']}"
@@ -254,6 +264,8 @@ class HardwareUpdateService
             'inventory_id' => $inventory->id,
             'created_by' => $employeeId,
         ]);
+
+        return $hardwarePart;
     }
 
     /**
@@ -395,6 +407,15 @@ class HardwareUpdateService
      */
     public function createSoftware(Hardware $hardware, array $softwareData, int $employeeId): void
     {
+        $this->createSoftwareAndReturn($hardware, $softwareData, $employeeId);
+    }
+
+    /**
+     * Create a new software installation and return the created record
+     * Used when we need the created software ID for issuance tracking
+     */
+    private function createSoftwareAndReturn(Hardware $hardware, array $softwareData, int $employeeId)
+    {
         // REPO: Find software inventory
         $softwareInventory = $this->hardwareRepository->findSoftwareInventory(
             $softwareData['software_name'],
@@ -443,6 +464,8 @@ class HardwareUpdateService
             'license_id' => $licenseId,
             'installed_by' => $employeeId,
         ]);
+
+        return $hardwareSoftware;
     }
 
     /**
@@ -562,7 +585,10 @@ class HardwareUpdateService
         $license = $this->hardwareRepository->findSoftwareLicenseByIdentifier($licenseKey, $accountUser);
 
         if (!$license) {
-            throw new \Exception("License not found");
+            throw new \Exception(
+                "License not found using " .
+                    ($licenseKey ? "license key" : "account user")
+            );
         }
 
         // BUSINESS LOGIC: Check activation limit
@@ -626,13 +652,11 @@ class HardwareUpdateService
 
         return implode(' | ', $parts);
     }
-  
-
-// Add these methods to your HardwareUpdateService class (App\Services\HardwareUpdateService)
 
     /**
      * Add component to hardware
      * BUSINESS LOGIC: Add new part or software to existing hardware
+     * ENHANCED: Now creates issuance item record for tracking
      */
     public function addComponent(array $data): Hardware
     {
@@ -648,6 +672,9 @@ class HardwareUpdateService
                 throw new \Exception("Hardware not found");
             }
 
+            $newComponentId = null;
+            $componentName = '';
+
             if ($componentType === 'part') {
                 // Add new part
                 $partData = [
@@ -659,11 +686,30 @@ class HardwareUpdateService
                     'serial_number' => $data['new_serial_number'] ?? null,
                 ];
 
-                $this->createPart($hardware, $partData, $employeeId);
+                // Store the part and get the created record
+                $createdPart = $this->createPartAndReturn($hardware, $partData, $employeeId);
+                $newComponentId = $createdPart->id;
+                $componentName = "{$partData['part_type']} - {$partData['brand']} {$partData['model']}";
 
-                Log::info("Added part to hardware", [
+                // Create issuance item for the added part
+                $issuanceData = [
+                    'component_type' => 'part',
+                    'hardware_id' => $hardwareId,
+                    'issued_to' => $hardware->issued_to ?? $employeeId,
+                    'component_id' => $newComponentId,
+                    'item_name' => $componentName,
+                    'description' => "Part added to {$hardware->hostname}",
+                    'quantity' => 1,
+                    'serial_number' => $partData['serial_number'],
+                    'remarks' => $data['reason'] ?? "Component addition",
+                ];
+
+                app(IssuanceService::class)->createComponentIssuanceItem($issuanceData, $employeeId);
+
+                Log::info("Added part to hardware with issuance item", [
                     'hardware_id' => $hardware->id,
                     'hostname' => $hardware->hostname,
+                    'hardware_part_id' => $newComponentId,
                     'part_type' => $partData['part_type'],
                     'added_by' => $employeeId,
                 ]);
@@ -678,11 +724,30 @@ class HardwareUpdateService
                     'account_password' => $data['new_account_password'] ?? null,
                 ];
 
-                $this->createSoftware($hardware, $softwareData, $employeeId);
+                // Store the software and get the created record
+                $createdSoftware = $this->createSoftwareAndReturn($hardware, $softwareData, $employeeId);
+                $newComponentId = $createdSoftware->id;
+                $componentName = "{$softwareData['software_name']} ({$softwareData['software_type']})";
 
-                Log::info("Added software to hardware", [
+                // Create issuance item for the added software
+                $issuanceData = [
+                    'component_type' => 'software',
+                    'hardware_id' => $hardwareId,
+                    'issued_to' => $hardware->issued_to ?? $employeeId,
+                    'component_id' => $newComponentId,
+                    'item_name' => $componentName,
+                    'description' => "Software added to {$hardware->hostname}",
+                    'quantity' => 1,
+                    'serial_number' => $softwareData['license_key'] ?? null,
+                    'remarks' => $data['reason'] ?? "Component addition",
+                ];
+
+                app(IssuanceService::class)->createComponentIssuanceItem($issuanceData, $employeeId);
+
+                Log::info("Added software to hardware with issuance item", [
                     'hardware_id' => $hardware->id,
                     'hostname' => $hardware->hostname,
+                    'hardware_software_id' => $newComponentId,
                     'software_name' => $softwareData['software_name'],
                     'added_by' => $employeeId,
                 ]);
@@ -699,7 +764,6 @@ class HardwareUpdateService
      */
     public function removeComponent(array $data): Hardware
     {
-        // dd($data);
         return DB::transaction(function () use ($data) {
             $hardwareId = $data['hardware_id'];
             $componentId = $data['component_id'];
@@ -712,9 +776,6 @@ class HardwareUpdateService
             if (!$hardware) {
                 throw new \Exception("Hardware not found");
             }
-
-            // // Parse component ID (format: "part_123" or "software_456")
-            // $actualComponentId = (int) explode('_', $componentId)[1];
 
             if ($componentType === 'part') {
                 // Remove part
@@ -751,6 +812,152 @@ class HardwareUpdateService
                     'hardware_software_id' => $componentId,
                     'removal_reason' => $data['removal_reason'],
                     'removed_by' => $employeeId,
+                ]);
+            }
+
+            // REPO: Reload with relationships
+            return $this->hardwareRepository->findWithRelations($hardware->id);
+        });
+    }
+
+    /**
+     * Replace component on hardware
+     * BUSINESS LOGIC: Replace existing part or software with new one
+     * ENHANCED: Now creates issuance item record for the replacement
+     */
+    public function replaceComponent(array $data): Hardware
+    {
+        return DB::transaction(function () use ($data) {
+            $hardwareId = $data['hardware_id'];
+            $componentId = $data['component_id'];
+            $componentType = $data['component_type'];
+            $employeeId = $data['employee_id'];
+
+            // REPO: Find hardware
+            $hardware = $this->hardwareRepository->findById($hardwareId);
+
+            if (!$hardware) {
+                throw new \Exception("Hardware not found");
+            }
+
+            $newComponentId = null;
+            $oldItemName = '';
+            $newItemName = '';
+
+            if ($componentType === 'part') {
+                // Get old part details before removal
+                $oldPart = $this->hardwareRepository->findHardwarePartById($componentId);
+                $oldItemName = $oldPart
+                    ? "{$oldPart->part_type} - {$oldPart->brand} {$oldPart->model}"
+                    : "Unknown Part";
+
+                // Remove old part
+                $removalData = [
+                    'id' => $componentId,
+                    'removal_reason' => $data['reason'] ?? 'Component replacement',
+                    'removal_condition' => $data['old_component_condition'] ?? 'working',
+                    'removal_remarks' => $data['remarks'] ?? null,
+                ];
+
+                $this->deletePart($hardware, $removalData, $employeeId);
+
+                // Add new part
+                $newPartData = [
+                    'part_type' => $data['replacement_part_type'],
+                    'brand' => $data['replacement_brand'],
+                    'model' => $data['replacement_model'],
+                    'specifications' => $data['replacement_specifications'] ?? '',
+                    'condition' => $data['replacement_condition'] ?? 'New',
+                    'serial_number' => $data['replacement_serial_number'] ?? null,
+                ];
+
+                $createdPart = $this->createPartAndReturn($hardware, $newPartData, $employeeId);
+                $newComponentId = $createdPart->id;
+                $newItemName = "{$newPartData['part_type']} - {$newPartData['brand']} {$newPartData['model']}";
+
+                // Create issuance item for the replacement
+                $issuanceData = [
+                    'component_type' => 'part',
+                    'hardware_id' => $hardwareId,
+                    'issued_to' => $hardware->issued_to ?? $employeeId,
+                    'old_item_name' => $oldItemName,
+                    'new_component_id' => $newComponentId,
+                    'new_item_name' => $newItemName,
+                    'description' => "Part replacement on {$hardware->hostname}",
+                    'quantity' => 1,
+                    'serial_number' => $newPartData['serial_number'],
+                    'remarks' => $data['remarks'] ?? "Part replacement",
+                ];
+                app(IssuanceService::class)->createComponentReplacementIssuanceItem($issuanceData, $employeeId);
+
+
+                Log::info("Replaced part on hardware with issuance item", [
+                    'hardware_id' => $hardware->id,
+                    'hostname' => $hardware->hostname,
+                    'old_part' => $oldItemName,
+                    'new_part' => $newItemName,
+                    'new_hardware_part_id' => $newComponentId,
+                    'replaced_by' => $employeeId,
+                ]);
+            } else {
+                // Get old software details before removal
+                $oldSoftware = $this->hardwareRepository->findHardwareSoftwareById($componentId);
+                $oldItemName = 'Unknown Software';
+
+                if ($oldSoftware) {
+                    $oldSoftware->loadMissing('softwareInventory');
+                    if ($oldSoftware->softwareInventory) {
+                        $oldItemName = "{$oldSoftware->softwareInventory->software_name} ({$oldSoftware->softwareInventory->software_type})";
+                    }
+                }
+
+                // Remove old software
+                $removalData = [
+                    'id' => $componentId,
+                    'removal_reason' => $data['reason'] ?? 'Software replacement',
+                    'removal_condition' => 'N/A',
+                    'removal_remarks' => $data['remarks'] ?? null,
+                ];
+
+                $this->deleteSoftware($hardware, $removalData, $employeeId);
+
+                // Add new software
+                $newSoftwareData = [
+                    'software_name' => $data['replacement_sw_software_name'],
+                    'software_type' => $data['replacement_sw_software_type'],
+                    'version' => $data['replacement_sw_version'],
+                    'license_key' => $data['replacement_sw_license_key'] ?? null,
+                    'account_user' => $data['replacement_sw_account_user'] ?? null,
+                    'account_password' => $data['replacement_sw_account_password'] ?? null,
+                ];
+
+                $createdSoftware = $this->createSoftwareAndReturn($hardware, $newSoftwareData, $employeeId);
+                $newComponentId = $createdSoftware->id;
+                $newItemName = "{$newSoftwareData['software_name']} ({$newSoftwareData['software_type']})";
+
+                // Create issuance item for the replacement
+                $issuanceData = [
+                    'component_type' => 'software',
+                    'hardware_id' => $hardwareId,
+                    'issued_to' => $hardware->issued_to ?? $employeeId,
+                    'old_item_name' => $oldItemName,
+                    'new_component_id' => $newComponentId,
+                    'new_item_name' => $newItemName,
+                    'description' => "Software replacement on {$hardware->hostname}",
+                    'quantity' => 1,
+                    'serial_number' => $newSoftwareData['license_key'] ?? null,
+                    'remarks' => $data['remarks'] ?? "Software replacement",
+                ];
+
+                app(IssuanceService::class)->createComponentReplacementIssuanceItem($issuanceData, $employeeId);
+
+                Log::info("Replaced software on hardware with issuance item", [
+                    'hardware_id' => $hardware->id,
+                    'hostname' => $hardware->hostname,
+                    'old_software' => $oldItemName,
+                    'new_software' => $newItemName,
+                    'new_hardware_software_id' => $newComponentId,
+                    'replaced_by' => $employeeId,
                 ]);
             }
 

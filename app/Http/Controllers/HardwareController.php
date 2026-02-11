@@ -248,7 +248,7 @@ class HardwareController extends Controller
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
 
             // Hardware fields
-            'hostname' => 'required|string|max:255|unique:hardware,hostname',
+            'hostname' => 'nullable|string|max:255',
             'category' => 'required|string|max:100',
             'brand' => 'required|string|max:100',
             'model' => 'required|string|max:100',
@@ -476,6 +476,7 @@ class HardwareController extends Controller
      */
     public function addComponent(Request $request)
     {
+        // dd("REach controller", $request->all());
         try {
             $employeeId = $this->getEmployeeId($request);
 
@@ -576,15 +577,15 @@ class HardwareController extends Controller
         return $request->validate([
             'hardware_id' => 'required|integer|exists:hardware,id',
             'component_type' => 'required|string|in:part,software',
-            'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
+
             'hostname' => 'nullable|string|max:255',
-            'remarks' => 'nullable|string|max:500',
+            'reason' => 'nullable|string|max:500',
 
             // For adding parts
             'new_part_type' => 'required_if:component_type,part|string|max:100',
             'new_brand' => 'required_if:component_type,part|string|max:100',
             'new_model' => 'required_if:component_type,part|string|max:100',
-            'new_specifications' => 'required_if:component_type,part|string',
+            'new_specifications' => 'nullable|string',
             'new_condition' => 'nullable|string|in:New,Used,Refurbished',
             'new_serial_number' => 'nullable|string|max:100',
 

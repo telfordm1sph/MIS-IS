@@ -14,6 +14,8 @@ class Masterlist extends Model
     protected $fillable = [
         'EMPID',
         'EMPLOYID',
+        'EMPNAME',
+
 
     ];
 }

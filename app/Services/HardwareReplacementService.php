@@ -23,8 +23,8 @@ class HardwareReplacementService
 
     /**
      * Replace a hardware component
-     * BUSINESS LOGIC: Handle replacement by returning old part to inventory and installing new part
-     * All logging is handled automatically by existing systems
+     * BUSINESS LOGIC: Handle replacement by delegating to HardwareUpdateService
+     * This ensures issuance tracking happens automatically
      */
     public function replaceComponent(array $payload): Hardware
     {
@@ -40,29 +40,18 @@ class HardwareReplacementService
                 'employee_id' => $employeeId,
             ]);
 
-            // Step 1: Find the hardware
+            // Find the hardware
             $hardware = $this->hardwareRepository->findById($hardwareId);
 
             if (!$hardware) {
                 throw new \Exception("Hardware not found: {$hardwareId}");
             }
 
-            // Step 2: Find the existing part to be replaced
-            $existingPart = $this->findExistingComponent($hardware, $componentId, $componentType);
+            // Transform payload to match HardwareUpdateService::replaceComponent format
+            $transformedPayload = $this->transformPayloadForUpdateService($payload, $hardware, $componentType);
 
-            if (!$existingPart) {
-                throw new \Exception("Component not found on hardware: {$componentId}");
-            }
-
-            // Step 3: Remove old part using existing deletePart
-            // Automatically logs via: createInventoryContextLog(), Loggable trait, logHardwarePartChange()
-            $removalData = $this->prepareRemovalData($payload, $existingPart);
-            $this->hardwareUpdateService->deletePart($hardware, $removalData, $employeeId);
-
-            // Step 4: Install new replacement part using existing createPart
-            // Automatically logs via: createInventoryContextLog(), Loggable trait, logHardwarePartChange()
-            $newPartData = $this->prepareNewPartData($payload);
-            $this->hardwareUpdateService->createPart($hardware, $newPartData, $employeeId);
+            // Delegate to HardwareUpdateService which handles issuance tracking
+            $result = $this->hardwareUpdateService->replaceComponent($transformedPayload);
 
             Log::info('Component replacement completed successfully', [
                 'hardware_id' => $hardware->id,
@@ -70,50 +59,43 @@ class HardwareReplacementService
                 'employee_id' => $employeeId,
             ]);
 
-            // Step 5: Reload hardware with relationships
-            return $this->hardwareRepository->findWithRelations($hardware->id);
+            return $result;
         });
     }
 
     /**
-     * Find existing component on hardware
+     * Transform the replacement payload to match HardwareUpdateService format
      */
-    protected function findExistingComponent(Hardware $hardware, string $componentId, string $componentType)
+    protected function transformPayloadForUpdateService(array $payload, Hardware $hardware, string $componentType): array
     {
+        $transformed = [
+            'hardware_id' => $payload['hardware_id'],
+            'employee_id' => $payload['employee_id'],
+            'component_id' => $payload['component_id'],
+            'component_type' => $componentType,
+            'old_component_condition' => $this->mapConditionToSystemFormat($payload['old_component_condition'] ?? 'working'),
+            'reason' => $payload['reason'] ?? 'Component replacement',
+            'remarks' => $payload['remarks'] ?? null,
+        ];
+
         if ($componentType === 'part') {
-            return $this->hardwareRepository->findHardwarePartById((int) $componentId);
+            $transformed['replacement_part_type'] = $payload['replacement_part_type'];
+            $transformed['replacement_brand'] = $payload['replacement_brand'];
+            $transformed['replacement_model'] = $payload['replacement_model'];
+            $transformed['replacement_specifications'] = $payload['replacement_specifications'] ?? '';
+            $transformed['replacement_condition'] = $payload['replacement_condition'] ?? 'New';
+            $transformed['replacement_serial_number'] = $payload['replacement_serial_number'] ?? null;
+        } else {
+            // Software replacement
+            $transformed['replacement_sw_software_name'] = $payload['replacement_software_name'];
+            $transformed['replacement_sw_software_type'] = $payload['replacement_software_type'];
+            $transformed['replacement_sw_version'] = $payload['replacement_version'];
+            $transformed['replacement_sw_license_key'] = $payload['replacement_license_key'] ?? null;
+            $transformed['replacement_sw_account_user'] = $payload['replacement_account_user'] ?? null;
+            $transformed['replacement_sw_account_password'] = $payload['replacement_account_password'] ?? null;
         }
 
-        throw new \Exception("Unsupported component type: {$componentType}");
-    }
-
-    /**
-     * Prepare removal data for old part
-     */
-    protected function prepareRemovalData(array $payload, $existingPart): array
-    {
-        return [
-            'id' => $existingPart->id,
-            '_delete' => true,
-            'removal_reason' => $payload['reason'] ?? 'Replaced',
-            'removal_condition' => $this->mapConditionToSystemFormat($payload['old_component_condition'] ?? 'Damaged'),
-            'removal_remarks' => $payload['remarks'] ?? 'Replaced with new component',
-        ];
-    }
-
-    /**
-     * Prepare new part data from replacement payload
-     */
-    protected function prepareNewPartData(array $payload): array
-    {
-        return [
-            'part_type' => $payload['replacement_part_type'],
-            'brand' => $payload['replacement_brand'],
-            'model' => $payload['replacement_model'],
-            'specifications' => $payload['replacement_specifications'] ?? '',
-            'serial_number' => $payload['replacement_serial_number'] ?? null,
-            'condition' => $payload['replacement_condition'] ?? 'Working',
-        ];
+        return $transformed;
     }
 
     /**
