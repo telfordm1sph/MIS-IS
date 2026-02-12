@@ -20,6 +20,15 @@ class IssuanceController extends Controller
      */
     public function getWholeUnitIssuanceTable(Request $request)
     {
+        $employeeId = $this->getEmployeeId($request);
+
+        if (!$employeeId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee identification required.',
+            ], 401);
+        }
+
         $filters = $this->decodeFilters($request->input('f', ''));
 
         $filters = [
@@ -31,13 +40,10 @@ class IssuanceController extends Controller
             'status' => $filters['status'] ?? '',
             'dateFrom' => $filters['dateFrom'] ?? '',
             'dateTo' => $filters['dateTo'] ?? '',
+            'employee_id' => $employeeId,
         ];
 
         $result = $this->issuanceService->getWholeUnitIssuanceTable($filters);
-
-        if ($request->wantsJson()) {
-            return response()->json($result);
-        }
 
         return response()->json($result);
     }
@@ -146,34 +152,34 @@ class IssuanceController extends Controller
     /**
      * Create individual part/software issuance
      */
-    public function createItemIssuance(Request $request)
-    {
-        $employeeId = $this->getEmployeeId($request);
+    // public function createItemIssuance(Request $request)
+    // {
+    //     $employeeId = $this->getEmployeeId($request);
 
-        if (!$employeeId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Employee identification required.',
-            ], 401);
-        }
+    //     if (!$employeeId) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Employee identification required.',
+    //         ], 401);
+    //     }
 
-        $request->validate([
-            'hostname' => 'required|string',
-            'issued_to' => 'required|string',
-            'items' => 'required|array',
-            'items.*.item_type' => 'required|in:1,2',
-            'items.*.item_id' => 'required|integer',
-            'items.*.item_name' => 'required|string',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.serial_number' => 'nullable|string',
-            'items.*.remarks' => 'nullable|string',
-        ]);
+    //     $request->validate([
+    //         'hostname' => 'required|string',
+    //         'issued_to' => 'required|string',
+    //         'items' => 'required|array',
+    //         'items.*.item_type' => 'required|in:1,2',
+    //         'items.*.item_id' => 'required|integer',
+    //         'items.*.item_name' => 'required|string',
+    //         'items.*.quantity' => 'required|integer|min:1',
+    //         'items.*.serial_number' => 'nullable|string',
+    //         'items.*.remarks' => 'nullable|string',
+    //     ]);
 
-        $result = $this->issuanceService->createIndividualItemIssuance(
-            $request->all(),
-            $employeeId
-        );
+    //     $result = $this->issuanceService->createIndividualItemIssuance(
+    //         $request->all(),
+    //         $employeeId
+    //     );
 
-        return response()->json($result, $result['success'] ? 200 : 500);
-    }
+    //     return response()->json($result, $result['success'] ? 200 : 500);
+    // }
 }

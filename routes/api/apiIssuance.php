@@ -8,10 +8,10 @@ Route::prefix('issuance')->middleware('api.token')->group(function () {
     Route::post('/create', [IssuanceController::class, 'createIssuance']);
 
     // Individual item 
-    Route::post('/items/create', [IssuanceController::class, 'createItemIssuance']);
+    // Route::post('/items/create', [IssuanceController::class, 'createItemIssuance']);
 
     // Tables
-    Route::get('/whole-unit/table', [IssuanceController::class, 'getWholeUnitIssuanceTable']);
+    Route::post('/whole-unit/table', [IssuanceController::class, 'getWholeUnitIssuanceTable']);
     Route::get('/individual-items/table', [IssuanceController::class, 'getIndividualItemIssuanceTable']);
 
     // Acknowledgement Actions

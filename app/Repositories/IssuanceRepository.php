@@ -6,6 +6,7 @@ use App\Models\Issuance;
 use App\Models\IssuanceItem;
 use App\Models\Acknowledgement;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class IssuanceRepository
 {
@@ -25,14 +26,14 @@ class IssuanceRepository
     /**
      * Base query for IssuanceItem with relationships
      */
-    public function itemQuery()
-    {
-        return IssuanceItem::with([
-            'acknowledgement.acknowledgedByEmployee:EMPNAME,EMPLOYID',
-            'hardware:id,hostname,serial_number,location',
-            'creator:EMPLOYID,EMPNAME'
-        ]);
-    }
+    // public function itemQuery()
+    // {
+    //     return IssuanceItem::with([
+    //         'acknowledgement.acknowledgedByEmployee:EMPNAME,EMPLOYID',
+    //         'hardware:id,hostname,serial_number,location',
+    //         'creator:EMPLOYID,EMPNAME'
+    //     ]);
+    // }
 
     /**
      * Base query for Acknowledgement with relationships
@@ -49,12 +50,44 @@ class IssuanceRepository
      */
     public function getWholeUnitIssuancesTable(array $filters)
     {
-        $query = $this->query()
-            ->with(['acknowledgement' => function ($q) {
-                $q->select('id', 'reference_type', 'reference_id', 'acknowledged_by', 'status', 'acknowledged_at', 'remarks', 'created_at');
-            }]);
+        Log::info('Filters: ' . json_encode($filters));
 
-        // Apply search
+        // Base query with eager loading for all related models
+        $query = Issuance::with([
+            'acknowledgement' => function ($q) {
+                $q->select(
+                    'id',
+                    'reference_type',
+                    'reference_id',
+                    'acknowledged_by',
+                    'status',
+                    'acknowledged_at',
+                    'remarks',
+                    'created_at'
+                )->with('acknowledgedByEmployee:EMPLOYID,EMPNAME');
+            },
+            'recipient:EMPLOYID,EMPNAME',
+            'creator:EMPLOYID,EMPNAME',
+            'hardware:id,hostname,serial_number,location',
+        ]);
+
+        // -----------------------------
+        // FILTER: employee_id (optional)
+        // -----------------------------
+        if (!empty($filters['employee_id'])) {
+            $employeeId = $filters['employee_id'];
+            $query->where(function ($q) use ($employeeId) {
+                $q->where('issued_to', $employeeId)
+                    ->orWhere('created_by', $employeeId)
+                    ->orWhereHas('acknowledgement', function ($ackQuery) use ($employeeId) {
+                        $ackQuery->where('acknowledged_by', $employeeId);
+                    });
+            });
+        }
+
+        // -----------------------------
+        // FILTER: search (optional)
+        // -----------------------------
         if (!empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
@@ -63,19 +96,23 @@ class IssuanceRepository
                     ->orWhere('location', 'like', "%{$search}%")
                     ->orWhere('remarks', 'like', "%{$search}%")
                     ->orWhereHas('recipient', function ($subQuery) use ($search) {
-                        $subQuery->whereRaw("CONCAT(fname, ' ', COALESCE(mname, ''), ' ', lname) LIKE ?", ["%{$search}%"]);
+                        $subQuery->where('EMPNAME', 'like', "%{$search}%");
                     });
             });
         }
 
-        // Apply status filter via acknowledgement
-        if ($filters['status'] !== '') {
+        // -----------------------------
+        // FILTER: status (optional)
+        // -----------------------------
+        if (isset($filters['status']) && $filters['status'] !== '') {
             $query->whereHas('acknowledgement', function ($q) use ($filters) {
                 $q->where('status', $filters['status']);
             });
         }
 
-        // Apply date range filter
+        // -----------------------------
+        // FILTER: date range (optional)
+        // -----------------------------
         if (!empty($filters['dateFrom']) && !empty($filters['dateTo'])) {
             $query->whereBetween('created_at', [
                 $filters['dateFrom'] . ' 00:00:00',
@@ -83,108 +120,112 @@ class IssuanceRepository
             ]);
         }
 
-        // Get total count
-        $totalRecords = $query->count();
-
-        // Apply sorting
-        $sortField = $this->mapIssuanceSortField($filters['sortField']);
-        $sortOrder = in_array(strtolower($filters['sortOrder']), ['asc', 'desc'])
-            ? $filters['sortOrder']
+        // -----------------------------
+        // SORTING
+        // -----------------------------
+        $sortField = $this->mapIssuanceSortField($filters['sortField'] ?? 'created_at');
+        $sortOrder = in_array(strtolower($filters['sortOrder'] ?? 'desc'), ['asc', 'desc'])
+            ? strtolower($filters['sortOrder'])
             : 'desc';
-
         $query->orderBy($sortField, $sortOrder);
 
-        // Apply pagination
-        $page = max(1, $filters['page']);
-        $pageSize = max(1, min(100, $filters['pageSize']));
+        // -----------------------------
+        // PAGINATION
+        // -----------------------------
+        $page = max(1, (int)($filters['page'] ?? 1));
+        $pageSize = max(1, min(100, (int)($filters['pageSize'] ?? 10)));
         $offset = ($page - 1) * $pageSize;
 
+        $totalRecords = $query->count();
         $data = $query->skip($offset)->take($pageSize)->get();
 
         return [
+            'success' => true,
             'data' => $data,
+            'filters' => $filters,
             'pagination' => [
                 'current_page' => $page,
-                'total_pages' => ceil($totalRecords / $pageSize),
+                'total_pages' => $totalRecords > 0 ? ceil($totalRecords / $pageSize) : 1,
                 'total_records' => $totalRecords,
                 'page_size' => $pageSize,
             ],
         ];
     }
+
 
     /**
      * Get individual item issuances table
      */
-    public function getIndividualItemIssuancesTable(array $filters)
-    {
-        $query = $this->itemQuery()
-            ->whereNull('issuance_id')
-            ->with(['acknowledgement' => function ($q) {
-                $q->select('id', 'reference_type', 'reference_id', 'acknowledged_by', 'status', 'acknowledged_at', 'remarks', 'created_at');
-            }]);
+    // public function getIndividualItemIssuancesTable(array $filters)
+    // {
+    //     $query = $this->itemQuery()
+    //         ->whereNull('issuance_id')
+    //         ->with(['acknowledgement' => function ($q) {
+    //             $q->select('id', 'reference_type', 'reference_id', 'acknowledged_by', 'status', 'acknowledged_at', 'remarks', 'created_at');
+    //         }]);
 
-        // Apply search
-        if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('item_name', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhere('serial_number', 'like', "%{$search}%")
-                    ->orWhere('remarks', 'like', "%{$search}%")
-                    ->orWhereHas('hardware', function ($subQuery) use ($search) {
-                        $subQuery->where('hostname', 'like', "%{$search}%");
-                    });
-            });
-        }
+    //     // Apply search
+    //     if (!empty($filters['search'])) {
+    //         $search = $filters['search'];
+    //         $query->where(function ($q) use ($search) {
+    //             $q->where('item_name', 'like', "%{$search}%")
+    //                 ->orWhere('description', 'like', "%{$search}%")
+    //                 ->orWhere('serial_number', 'like', "%{$search}%")
+    //                 ->orWhere('remarks', 'like', "%{$search}%")
+    //                 ->orWhereHas('hardware', function ($subQuery) use ($search) {
+    //                     $subQuery->where('hostname', 'like', "%{$search}%");
+    //                 });
+    //         });
+    //     }
 
-        // Apply status filter via acknowledgement
-        if ($filters['status'] !== '') {
-            $query->whereHas('acknowledgement', function ($q) use ($filters) {
-                $q->where('status', $filters['status']);
-            });
-        }
+    //     // Apply status filter via acknowledgement
+    //     if ($filters['status'] !== '') {
+    //         $query->whereHas('acknowledgement', function ($q) use ($filters) {
+    //             $q->where('status', $filters['status']);
+    //         });
+    //     }
 
-        // Apply item type filter
-        if (!empty($filters['itemType'])) {
-            $query->where('item_type', $filters['itemType']);
-        }
+    //     // Apply item type filter
+    //     if (!empty($filters['itemType'])) {
+    //         $query->where('item_type', $filters['itemType']);
+    //     }
 
-        // Apply date range filter
-        if (!empty($filters['dateFrom']) && !empty($filters['dateTo'])) {
-            $query->whereBetween('created_at', [
-                $filters['dateFrom'] . ' 00:00:00',
-                $filters['dateTo'] . ' 23:59:59'
-            ]);
-        }
+    //     // Apply date range filter
+    //     if (!empty($filters['dateFrom']) && !empty($filters['dateTo'])) {
+    //         $query->whereBetween('created_at', [
+    //             $filters['dateFrom'] . ' 00:00:00',
+    //             $filters['dateTo'] . ' 23:59:59'
+    //         ]);
+    //     }
 
-        // Get total count
-        $totalRecords = $query->count();
+    //     // Get total count
+    //     $totalRecords = $query->count();
 
-        // Apply sorting
-        $sortField = $this->mapIssuanceItemSortField($filters['sortField']);
-        $sortOrder = in_array(strtolower($filters['sortOrder']), ['asc', 'desc'])
-            ? $filters['sortOrder']
-            : 'desc';
+    //     // Apply sorting
+    //     $sortField = $this->mapIssuanceItemSortField($filters['sortField']);
+    //     $sortOrder = in_array(strtolower($filters['sortOrder']), ['asc', 'desc'])
+    //         ? $filters['sortOrder']
+    //         : 'desc';
 
-        $query->orderBy($sortField, $sortOrder);
+    //     $query->orderBy($sortField, $sortOrder);
 
-        // Apply pagination
-        $page = max(1, $filters['page']);
-        $pageSize = max(1, min(100, $filters['pageSize']));
-        $offset = ($page - 1) * $pageSize;
+    //     // Apply pagination
+    //     $page = max(1, $filters['page']);
+    //     $pageSize = max(1, min(100, $filters['pageSize']));
+    //     $offset = ($page - 1) * $pageSize;
 
-        $data = $query->skip($offset)->take($pageSize)->get();
+    //     $data = $query->skip($offset)->take($pageSize)->get();
 
-        return [
-            'data' => $data,
-            'pagination' => [
-                'current_page' => $page,
-                'total_pages' => ceil($totalRecords / $pageSize),
-                'total_records' => $totalRecords,
-                'page_size' => $pageSize,
-            ],
-        ];
-    }
+    //     return [
+    //         'data' => $data,
+    //         'pagination' => [
+    //             'current_page' => $page,
+    //             'total_pages' => ceil($totalRecords / $pageSize),
+    //             'total_records' => $totalRecords,
+    //             'page_size' => $pageSize,
+    //         ],
+    //     ];
+    // }
 
     /**
      * Map sort field for issuances
@@ -268,10 +309,10 @@ class IssuanceRepository
     /**
      * Create issuance item
      */
-    public function createIssuanceItem(array $data)
-    {
-        return IssuanceItem::create($data);
-    }
+    // public function createIssuanceItem(array $data)
+    // {
+    //     return IssuanceItem::create($data);
+    // }
 
     /**
      * Create acknowledgement
