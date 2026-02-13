@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
     Modal,
     Descriptions,
@@ -12,6 +12,8 @@ import {
     Row,
     Col,
     Statistic,
+    Select,
+    message,
 } from "antd";
 import {
     CheckCircleOutlined,
@@ -22,10 +24,11 @@ import {
     WarningOutlined,
     UserOutlined,
     DesktopOutlined,
-    BarcodeOutlined,
 } from "@ant-design/icons";
+import axios from "axios";
 
 const { Title, Text } = Typography;
+const { Option } = Select;
 
 const IssuanceConfirmationModal = ({
     visible,
@@ -37,19 +40,66 @@ const IssuanceConfirmationModal = ({
     employeeData,
     loading = false,
 }) => {
-    // Generate issuance number preview
-    const generateIssuanceNumber = () => {
-        const date = new Date();
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        const random = Math.floor(Math.random() * 9999)
-            .toString()
-            .padStart(4, "0");
-        return `ISS-${year}${month}${day}-${random}`;
+    const [selectedEmployee, setSelectedEmployee] = useState(null);
+    const [employees, setEmployees] = useState([]);
+    const [loadingEmployees, setLoadingEmployees] = useState(false);
+
+    // Fetch employees when modal opens
+    useEffect(() => {
+        if (visible) {
+            fetchEmployees();
+        }
+    }, [visible]);
+
+    // Set default employee if emp_data is provided
+    useEffect(() => {
+        if (employeeData?.emp_id) {
+            setSelectedEmployee(employeeData.emp_id);
+        }
+    }, [employeeData]);
+
+    const fetchEmployees = async () => {
+        setLoadingEmployees(true);
+        try {
+            // Try to fetch from API first
+            const response = await axios.get(route("employees.list"));
+            setEmployees(response.data);
+        } catch (error) {
+            console.error("Failed to fetch employees:", error);
+            // Use dummy employee data as fallback
+            const dummyEmployees = [
+                { emp_id: "1705", emp_name: "John Doe", department: "IT" },
+                { emp_id: "EMP002", emp_name: "Jane Smith", department: "HR" },
+                {
+                    emp_id: "EMP003",
+                    emp_name: "Mike Johnson",
+                    department: "Finance",
+                },
+                {
+                    emp_id: "EMP004",
+                    emp_name: "Sarah Williams",
+                    department: "Operations",
+                },
+            ];
+
+            // Include current employee data if available, otherwise use all dummy data
+            if (employeeData) {
+                setEmployees([employeeData, ...dummyEmployees]);
+            } else {
+                setEmployees(dummyEmployees);
+            }
+        } finally {
+            setLoadingEmployees(false);
+        }
     };
 
-    const issuanceNumber = generateIssuanceNumber();
+    const handleConfirm = () => {
+        if (!selectedEmployee) {
+            message.error("Please select an employee to issue to");
+            return;
+        }
+        onConfirm(selectedEmployee);
+    };
 
     // Component type tag colors
     const componentTypeColors = {
@@ -111,7 +161,7 @@ const IssuanceConfirmationModal = ({
             title: "Old Component",
             key: "oldComponent",
             render: (_, record) => {
-                if (record.operation === "add")
+                if (record.operation === "add" || record.operation === "add")
                     return <Text type="secondary">-</Text>;
 
                 let componentName = "";
@@ -126,7 +176,7 @@ const IssuanceConfirmationModal = ({
                 }
 
                 return (
-                    <Space direction="vertical" size={0}>
+                    <Space orientation="vertical" size={0}>
                         <Text strong>{record.oldComponentId || "-"}</Text>
                         <Text type="secondary" style={{ fontSize: 12 }}>
                             {componentName || "N/A"}
@@ -155,19 +205,45 @@ const IssuanceConfirmationModal = ({
                     return <Text type="secondary">-</Text>;
 
                 let componentName = "";
+
+                // Handle add mode payload
+                if (record.operation === "add") {
+                    if (record.component_type === "part") {
+                        componentName = `${record.new_brand || ""} ${record.new_model || ""} - ${record.new_specifications || ""}`;
+                    } else {
+                        componentName = `${record.new_software_name || record.new_sw_software_name || ""} ${record.new_version || record.new_sw_version || ""}`;
+                    }
+
+                    return (
+                        <Space orientation="vertical" size={0}>
+                            <Text strong>
+                                {record.new_serial_number || "New"}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                {componentName || "N/A"}
+                            </Text>
+                            {record.new_condition && (
+                                <Tag color="green" size="small">
+                                    {record.new_condition}
+                                </Tag>
+                            )}
+                        </Space>
+                    );
+                }
+
+                // Handle replace mode payload
                 let componentDetails =
                     record.newComponentData || record.component_data;
-
                 if (componentDetails) {
                     if (record.componentType === "part") {
-                        componentName = `${componentDetails.new_brand || ""} ${componentDetails.new_model || ""} - ${componentDetails.new_specifications || ""}`;
+                        componentName = `${componentDetails.new_brand || componentDetails.brand || ""} ${componentDetails.new_model || componentDetails.model || ""} - ${componentDetails.new_specifications || componentDetails.specifications || ""}`;
                     } else {
-                        componentName = `${componentDetails.new_sw_software_name || ""} ${componentDetails.new_sw_version || ""}`;
+                        componentName = `${componentDetails.new_sw_software_name || componentDetails.software_name || ""} ${componentDetails.new_sw_version || componentDetails.version || ""}`;
                     }
                 }
 
                 return (
-                    <Space direction="vertical" size={0}>
+                    <Space orientation="vertical" size={0}>
                         <Text strong>{record.newComponentId || "New"}</Text>
                         <Text type="secondary" style={{ fontSize: 12 }}>
                             {componentName || "N/A"}
@@ -186,7 +262,7 @@ const IssuanceConfirmationModal = ({
             key: "remarks",
             width: 200,
             render: (_, record) => (
-                <Space direction="vertical" size={0}>
+                <Space orientation="vertical" size={0}>
                     {record.reason && (
                         <Text type="secondary" style={{ fontSize: 12 }}>
                             <Text strong>Reason:</Text> {record.reason}
@@ -203,26 +279,74 @@ const IssuanceConfirmationModal = ({
     ];
 
     // Transform operations to table data
-    const tableData = operations.map((op, index) => ({
-        key: index,
-        operation: op.operation,
-        componentType: op.component_type || op.old_component_type,
-        oldComponentId: op.old_component_id,
-        oldComponentData: op.old_component_data,
-        oldCondition: op.condition || op.old_condition,
-        newComponentId: op.new_component_id,
-        newComponentData: op.new_component || op.component_data,
-        newCondition: op.new_condition,
-        reason: op.reason,
-        remarks: op.remarks,
-    }));
+    const tableData = operations.map((op, index) => {
+        // For add mode
+        if (action === "add") {
+            return {
+                key: index,
+                operation: "add",
+                componentType: op.component_type,
+                component_type: op.component_type,
+                new_brand: op.new_brand,
+                new_model: op.new_model,
+                new_specifications: op.new_specifications,
+                new_serial_number: op.new_serial_number,
+                new_condition: op.new_condition,
+                new_software_name: op.new_software_name,
+                new_version: op.new_version,
+                reason: op.reason,
+                remarks: op.remarks,
+            };
+        }
+
+        // For replace mode
+        else if (action === "replace") {
+            return {
+                key: index,
+                operation: "replace",
+                componentType: op.component_type,
+                component_type: op.component_type,
+                oldComponentId: op.component_to_replace,
+                oldComponentData: op.old_component_data,
+                oldCondition: op.old_component_condition,
+                newComponentData: op,
+                newComponentId: op.replacement_serial_number,
+                newCondition: op.replacement_condition,
+                reason: op.reason,
+                remarks: op.remarks,
+            };
+        }
+
+        // For remove mode
+        else if (action === "remove") {
+            return {
+                key: index,
+                operation: "remove",
+                componentType: op.component_type,
+                component_type: op.component_type,
+                oldComponentId: op.component_id,
+                oldComponentData: op.component_data,
+                oldCondition: op.condition,
+                reason: op.reason,
+                remarks: op.remarks,
+            };
+        }
+
+        return op;
+    });
 
     // Calculate statistics
     const stats = {
         total: operations.length,
-        adds: operations.filter((op) => op.operation === "add").length,
-        removes: operations.filter((op) => op.operation === "remove").length,
-        replaces: operations.filter((op) => op.operation === "replace").length,
+        adds: operations.filter(
+            (op) => action === "add" || op.operation === "add",
+        ).length,
+        removes: operations.filter(
+            (op) => action === "remove" || op.operation === "remove",
+        ).length,
+        replaces: operations.filter(
+            (op) => action === "replace" || op.operation === "replace",
+        ).length,
     };
 
     return (
@@ -235,31 +359,18 @@ const IssuanceConfirmationModal = ({
             }
             open={visible}
             onCancel={onCancel}
-            onOk={onConfirm}
+            onOk={handleConfirm}
             confirmLoading={loading}
             okText="Confirm & Create Issuance"
             cancelText="Review Changes"
             width={1000}
             style={{ top: 20 }}
         >
-            <Space direction="vertical" size="large" style={{ width: "100%" }}>
-                {/* Issuance Header Alert */}
-                <Alert
-                    message={
-                        <Space>
-                            <BarcodeOutlined />
-                            <Text strong>Issuance #{issuanceNumber}</Text>
-                            <Text type="secondary">•</Text>
-                            <Text type="secondary">
-                                {new Date().toLocaleString()}
-                            </Text>
-                        </Space>
-                    }
-                    description="This issuance will record all component changes. The user must acknowledge receipt of these items."
-                    type="info"
-                    showIcon
-                />
-
+            <Space
+                orientation="vertical"
+                size="large"
+                style={{ width: "100%" }}
+            >
                 {/* Hardware Information */}
                 <Card
                     size="small"
@@ -276,21 +387,18 @@ const IssuanceConfirmationModal = ({
                                 title="Hostname"
                                 value={hardware?.hostname || "N/A"}
                                 prefix={<DesktopOutlined />}
-                                valueStyle={{ fontSize: 16 }}
                             />
                         </Col>
                         <Col span={8}>
                             <Statistic
                                 title="Location"
                                 value={hardware?.location || "N/A"}
-                                valueStyle={{ fontSize: 16 }}
                             />
                         </Col>
                         <Col span={8}>
                             <Statistic
                                 title="Department"
                                 value={hardware?.department || "N/A"}
-                                valueStyle={{ fontSize: 16 }}
                             />
                         </Col>
                     </Row>
@@ -299,14 +407,12 @@ const IssuanceConfirmationModal = ({
                             <Statistic
                                 title="Brand/Model"
                                 value={`${hardware?.brand || ""} ${hardware?.model || ""}`}
-                                valueStyle={{ fontSize: 14 }}
                             />
                         </Col>
                         <Col span={12}>
                             <Statistic
                                 title="Serial Number"
                                 value={hardware?.serial_number || "N/A"}
-                                valueStyle={{ fontSize: 14 }}
                             />
                         </Col>
                     </Row>
@@ -322,17 +428,30 @@ const IssuanceConfirmationModal = ({
                         </Space>
                     }
                 >
-                    <Descriptions column={2} size="small">
-                        <Descriptions.Item label="Issued To">
-                            <Space>
-                                <UserOutlined />
-                                {employeeData?.emp_name ||
-                                    employeeData?.emp_id ||
-                                    "N/A"}
-                            </Space>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Employee ID">
-                            {employeeData?.emp_id || "N/A"}
+                    <Descriptions column={2} size="small" layout="vertical">
+                        <Descriptions.Item label="Issued To" span={2}>
+                            <Select
+                                placeholder="Select employee"
+                                style={{ width: "100%" }}
+                                value={selectedEmployee}
+                                onChange={setSelectedEmployee}
+                                loading={loadingEmployees}
+                                showSearch
+                                optionFilterProp="children"
+                                filterOption={(input, option) =>
+                                    option.children
+                                        .toLowerCase()
+                                        .indexOf(input.toLowerCase()) >= 0
+                                }
+                            >
+                                {employees.map((emp) => (
+                                    <Option key={emp.emp_id} value={emp.emp_id}>
+                                        {emp.emp_name} ({emp.emp_id})
+                                        {emp.department &&
+                                            ` - ${emp.department}`}
+                                    </Option>
+                                ))}
+                            </Select>
                         </Descriptions.Item>
                         <Descriptions.Item label="Issuance Date">
                             {new Date().toLocaleDateString()}
@@ -390,19 +509,21 @@ const IssuanceConfirmationModal = ({
                 <Divider style={{ margin: "8px 0" }} />
 
                 {/* Components Table */}
-                <div>
-                    <Title level={5} style={{ marginBottom: 16 }}>
-                        Component Changes
-                    </Title>
-                    <Table
-                        columns={columns}
-                        dataSource={tableData}
-                        pagination={false}
-                        size="small"
-                        bordered
-                        scroll={{ x: 800 }}
-                    />
-                </div>
+                {operations.length > 0 && (
+                    <div>
+                        <Title level={5} style={{ marginBottom: 16 }}>
+                            Component Changes
+                        </Title>
+                        <Table
+                            columns={columns}
+                            dataSource={tableData}
+                            pagination={false}
+                            size="small"
+                            bordered
+                            scroll={{ x: 800 }}
+                        />
+                    </div>
+                )}
 
                 {/* Warning for removals */}
                 {stats.removes > 0 && (

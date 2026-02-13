@@ -3,10 +3,8 @@
 namespace App\Services;
 
 use App\Constants\IssuanceStatus;
-use App\Repositories\HardwareDetailRepository;
 use App\Repositories\IssuanceRepository;
-
-use Illuminate\Support\Facades\DB;
+use App\Repositories\HardwareDetailRepository;
 use Illuminate\Support\Facades\Log;
 
 class IssuanceService
@@ -24,19 +22,521 @@ class IssuanceService
         $this->hardwareDetailRepository = $hardwareDetailRepository;
         $this->hardwareUpdateService = $hardwareUpdateService;
     }
+
+    public function generateIssuanceNumber(): string
+    {
+        // REPOSITORY: Get the last issuance number
+        $lastIssuance = $this->issuanceRepository->getLastIssuanceNumber();
+        $lastIssuanceNumber = $lastIssuance ? $lastIssuance->issuance_number : null;
+
+        $year = date('Y');
+        $month = date('m');
+        $prefix = "ISS-{$year}{$month}-";
+
+        if ($lastIssuanceNumber) {
+            $parts = explode('-', $lastIssuanceNumber);
+            $lastNumber = intval(end($parts));
+            $newNumber = str_pad($lastNumber + 1, 4, '0', STR_PAD_LEFT);
+        } else {
+            $newNumber = '0001';
+        }
+
+        return $prefix . $newNumber;
+    }
+
     /**
-     * Acknowledge an issuance - simplified method
-     * Automatically sets status to ACKNOWLEDGED (1) when user clicks acknowledge
-     * 
-     * @param int $issuanceId - The ID from the issuance table
-     * @param int $employeeId - The employee attempting to acknowledge
+     * BUSINESS LOGIC: Process component maintenance operations (ADD, REPLACE, REMOVE)
+     */
+    public function processComponentMaintenance(array $operations, int $createdBy): array
+    {
+        try {
+            // Validate operations
+            $this->validateOperations($operations);
+
+            // Get hardware info from first operation
+            $firstOp = $operations[0];
+            $hardware = $this->hardwareDetailRepository->getHardwareInfoById($firstOp['hardware_id']);
+
+            if (!$hardware) {
+                throw new \Exception("Hardware not found: {$firstOp['hardware_id']}");
+            }
+
+            // Process each operation using HardwareUpdateService (inventory management)
+            $processedOperations = [];
+            foreach ($operations as $operation) {
+                $operation['employee_id'] = $createdBy;
+                $processedOperation = $this->processSingleOperation($operation, $hardware, $createdBy);
+                $processedOperations[] = $processedOperation;
+            }
+
+            // Generate issuance number
+            $issuanceNumber = $this->generateIssuanceNumber();
+
+            // Prepare issuance data
+            $issuanceData = $this->prepareIssuanceData(
+                $issuanceNumber,
+                $processedOperations,
+                $hardware,
+                $createdBy
+            );
+
+            // Prepare component details for each operation
+            $componentDetailsData = [];
+            foreach ($processedOperations as $operation) {
+                $componentDetailsData[] = $this->prepareComponentDetailData(
+                    $operation,
+                    $hardware
+                );
+            }
+
+            // Prepare acknowledgement data
+            $acknowledgementData = $this->prepareAcknowledgementData(
+                $processedOperations[0]['issued_to'] ?? $createdBy,
+                $hardware
+            );
+
+            // Delegate to repository for saving
+            $result = $this->issuanceRepository->createComponentMaintenanceIssuance(
+                $issuanceData,
+                $componentDetailsData,
+                $acknowledgementData
+            );
+
+            Log::info("Component maintenance processed successfully", [
+                'issuance_id' => $result['issuance']->id,
+                'issuance_number' => $issuanceNumber,
+                'operation_count' => count($processedOperations),
+                'hardware_id' => $hardware->id,
+                'created_by' => $createdBy,
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'Component maintenance completed successfully',
+                'data' => [
+                    'issuance_id' => $result['issuance']->id,
+                    'issuance_number' => $issuanceNumber,
+                    'hardware_id' => $hardware->id,
+                    'hostname' => $hardware->hostname ?? $hardware->serial,
+                    'operation_count' => count($processedOperations),
+                    'acknowledgement_id' => $result['acknowledgement']->id,
+                    'acknowledgement_status' => $result['acknowledgement']->status,
+                ],
+            ];
+        } catch (\Exception $e) {
+            Log::error('Component maintenance processing failed: ' . $e->getMessage(), [
+                'operations' => $operations,
+                'created_by' => $createdBy,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Failed to process component maintenance: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * BUSINESS LOGIC: Create whole unit issuance
+     */
+    public function createWholeUnitIssuance(array $data, int $createdBy): array
+    {
+        try {
+            $results = [];
+
+            foreach ($data['hostnames'] as $hostnameData) {
+                // Get hardware info
+                $hardware = $this->hardwareDetailRepository->getHardwareInfo($hostnameData['hostname']);
+
+                if (!$hardware) {
+                    throw new \Exception("Hardware not found: {$hostnameData['hostname']}");
+                }
+
+                // Generate issuance number
+                $issuanceNumber = $this->generateIssuanceNumber();
+
+                // Prepare issuance data
+                $issuanceData = [
+                    'issuance_number' => $issuanceNumber,
+                    'issuance_type' => 1, // Whole Unit
+                    'request_number' => $data['request_number'],
+                    'issued_to' => $hostnameData['issued_to'],
+                    'hostname' => $hardware->hostname ?? $hardware->serial,
+                    'hardware_id' => $hardware->id,
+                    'location' => $hostnameData['location'] ?? $hardware->location,
+                    'remarks' => $hostnameData['remarks'] ?? null,
+                    'created_by' => $createdBy,
+                ];
+
+                // Prepare acknowledgement data
+                $acknowledgementData = [
+                    'reference_type' => 1,
+                    'acknowledged_by' => $hostnameData['issued_to'],
+                    'status' => 0,
+                    'remarks' => null,
+                ];
+
+                // Delegate to repository
+                $result = $this->issuanceRepository->createWholeUnitIssuance(
+                    $issuanceData,
+                    $acknowledgementData
+                );
+
+                // Update hardware location and issued_to using HardwareUpdateService
+                $this->hardwareUpdateService->updateHardware($hardware->id, [
+                    'issued_to' => $hostnameData['issued_to'],
+                    'location' => $hostnameData['location'] ?? $hardware->location,
+                    'date_issued' => now(),
+                    'updated_by' => $createdBy,
+                ], $createdBy);
+
+                Log::info("Hardware updated during issuance", [
+                    'hardware_id' => $hardware->id,
+                    'hostname' => $hardware->hostname ?? $hardware->serial,
+                    'issued_to' => $hostnameData['issued_to'],
+                    'location' => $hostnameData['location'],
+                    'updated_by' => $createdBy,
+                ]);
+
+                $results[] = [
+                    'issuance_id' => $result['issuance']->id,
+                    'issuance_number' => $issuanceNumber,
+                    'hostname' => $hardware->hostname ?? $hardware->serial,
+                    'hardware_id' => $hardware->id,
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Items issued successfully',
+                'data' => $results,
+            ];
+        } catch (\Exception $e) {
+            Log::error('Issuance creation failed: ' . $e->getMessage());
+
+            return [
+                'success' => false,
+                'message' => 'Failed to create issuance: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * BUSINESS LOGIC: Validate operations
+     */
+    protected function validateOperations(array $operations): void
+    {
+        if (empty($operations)) {
+            throw new \Exception('No operations provided');
+        }
+
+        $hardwareId = $operations[0]['hardware_id'] ?? null;
+        if (!$hardwareId) {
+            throw new \Exception('Hardware ID is required');
+        }
+
+        foreach ($operations as $index => $operation) {
+            if (!isset($operation['operation'])) {
+                throw new \Exception("Operation type missing at index {$index}");
+            }
+
+            if (!in_array($operation['operation'], ['add', 'replace', 'remove'])) {
+                throw new \Exception("Invalid operation type '{$operation['operation']}' at index {$index}");
+            }
+
+            if (!isset($operation['component_type'])) {
+                throw new \Exception("Component type missing at index {$index}");
+            }
+
+            if (!in_array($operation['component_type'], ['part', 'software'])) {
+                throw new \Exception("Invalid component type '{$operation['component_type']}' at index {$index}");
+            }
+
+            if ($operation['hardware_id'] != $hardwareId) {
+                throw new \Exception("All operations must be for the same hardware");
+            }
+        }
+    }
+
+    /**
+     * BUSINESS LOGIC: Process single operation using HardwareUpdateService
+     */
+    protected function processSingleOperation(array $operation, $hardware, int $employeeId): array
+    {
+        $result = [
+            'operation' => $operation['operation'],
+            'component_type' => $operation['component_type'],
+            'hardware_id' => $hardware->id,
+            'hostname' => $hardware->hostname ?? $hardware->serial,
+            'issued_to' => $operation['employee_id'] ?? $hardware->issued_to ?? $employeeId,
+            'reason' => $operation['reason'] ?? null,
+            'remarks' => $operation['remarks'] ?? null,
+        ];
+
+        switch ($operation['operation']) {
+            case 'add':
+                return $this->processAddOperation($operation, $hardware, $employeeId, $result);
+
+            case 'replace':
+                return $this->processReplaceOperation($operation, $hardware, $employeeId, $result);
+
+            case 'remove':
+                return $this->processRemoveOperation($operation, $hardware, $employeeId, $result);
+
+            default:
+                throw new \Exception("Unknown operation: {$operation['operation']}");
+        }
+    }
+
+    /**
+     * BUSINESS LOGIC: Process ADD operation using HardwareUpdateService
+     */
+    protected function processAddOperation(array $operation, $hardware, int $employeeId, array $result): array
+    {
+        // Delegate to HardwareUpdateService for inventory management and component creation
+        $componentData = $this->hardwareUpdateService->addComponent([
+            'hardware_id' => $hardware->id,
+            'component_type' => $operation['component_type'],
+            'employee_id' => $employeeId,
+            'new_part_type' => $operation['new_part_type'] ?? null,
+            'new_brand' => $operation['new_brand'] ?? null,
+            'new_model' => $operation['new_model'] ?? null,
+            'new_specifications' => $operation['new_specifications'] ?? null,
+            'new_condition' => $operation['new_condition'] ?? 'New',
+            'new_serial_number' => $operation['new_serial_number'] ?? null,
+            'new_software_name' => $operation['new_software_name'] ?? null,
+            'new_software_type' => $operation['new_software_type'] ?? null,
+            'new_version' => $operation['new_version'] ?? null,
+            'new_license_key' => $operation['new_license_key'] ?? null,
+            'new_account_user' => $operation['new_account_user'] ?? null,
+            'new_account_password' => $operation['new_account_password'] ?? null,
+            'reason' => $operation['reason'] ?? null,
+        ]);
+
+        return array_merge($result, [
+            'new_component_id' => $componentData->id,
+            'new_component_data' => $this->extractComponentData($operation, $componentData),
+            'new_condition' => $operation['new_condition'] ?? 'New',
+            'new_serial_number' => $operation['new_serial_number'] ?? null,
+        ]);
+    }
+
+    /**
+     * BUSINESS LOGIC: Process REPLACE operation using HardwareUpdateService
+     */
+    protected function processReplaceOperation(array $operation, $hardware, int $employeeId, array $result): array
+    {
+        // Get old component data before replacement
+        $oldComponentData = $this->getOldComponentData(
+            $operation['component_id'],
+            $operation['component_type']
+        );
+
+        // Delegate to HardwareUpdateService for inventory management and component replacement
+        $componentData = $this->hardwareUpdateService->replaceComponent([
+            'hardware_id' => $hardware->id,
+            'component_id' => $operation['component_id'],
+            'component_type' => $operation['component_type'],
+            'employee_id' => $employeeId,
+            'old_component_condition' => $operation['old_component_condition'] ?? 'working',
+            'reason' => $operation['reason'] ?? 'Component replacement',
+            'remarks' => $operation['remarks'] ?? null,
+            'replacement_part_type' => $operation['replacement_part_type'] ?? null,
+            'replacement_brand' => $operation['replacement_brand'] ?? null,
+            'replacement_model' => $operation['replacement_model'] ?? null,
+            'replacement_specifications' => $operation['replacement_specifications'] ?? null,
+            'replacement_condition' => $operation['replacement_condition'] ?? 'New',
+            'replacement_serial_number' => $operation['replacement_serial_number'] ?? null,
+            'replacement_software_name' => $operation['replacement_software_name'] ?? $operation['replacement_sw_software_name'] ?? null,
+            'replacement_software_type' => $operation['replacement_software_type'] ?? $operation['replacement_sw_software_type'] ?? null,
+            'replacement_version' => $operation['replacement_version'] ?? $operation['replacement_sw_version'] ?? null,
+            'replacement_license_key' => $operation['replacement_license_key'] ?? $operation['replacement_sw_license_key'] ?? null,
+            'replacement_account_user' => $operation['replacement_account_user'] ?? $operation['replacement_sw_account_user'] ?? null,
+            'replacement_account_password' => $operation['replacement_account_password'] ?? $operation['replacement_sw_account_password'] ?? null,
+        ]);
+
+        return array_merge($result, [
+            'old_component_id' => $operation['component_id'],
+            'old_component_condition' => $operation['old_component_condition'] ?? 'working',
+            'old_component_data' => $oldComponentData,
+            'new_component_id' => $componentData->id,
+            'new_component_data' => $this->extractComponentData($operation, $componentData),
+            'new_condition' => $operation['replacement_condition'] ?? 'New',
+            'new_serial_number' => $operation['replacement_serial_number'] ?? null,
+        ]);
+    }
+
+    /**
+     * BUSINESS LOGIC: Process REMOVE operation using HardwareUpdateService
+     */
+    protected function processRemoveOperation(array $operation, $hardware, int $employeeId, array $result): array
+    {
+        // Get old component data before removal
+        $oldComponentData = $this->getOldComponentData(
+            $operation['component_id'],
+            $operation['component_type']
+        );
+
+        // Delegate to HardwareUpdateService for inventory management and component removal
+        $this->hardwareUpdateService->removeComponent([
+            'hardware_id' => $hardware->id,
+            'component_id' => $operation['component_id'],
+            'component_type' => $operation['component_type'],
+            'employee_id' => $employeeId,
+            'removal_reason' => $operation['reason'] ?? 'Component removal',
+            'removal_condition' => $operation['condition'] ?? 'working',
+            'removal_remarks' => $operation['remarks'] ?? null,
+        ]);
+
+        return array_merge($result, [
+            'old_component_id' => $operation['component_id'],
+            'old_component_condition' => $operation['condition'] ?? 'working',
+            'old_component_data' => $oldComponentData,
+        ]);
+    }
+
+    /**
+     * BUSINESS LOGIC: Get old component data for tracking
+     */
+    protected function getOldComponentData(int $componentId, string $componentType): ?array
+    {
+        if ($componentType === 'part') {
+            $component = $this->hardwareDetailRepository->getHardwarePartById($componentId);
+            if ($component) {
+                return [
+                    'id' => $component->id,
+                    'part_type' => $component->part_type,
+                    'brand' => $component->brand,
+                    'model' => $component->model,
+                    'specifications' => $component->specifications,
+                    'serial_number' => $component->serial_number,
+                    'condition' => $component->condition,
+                    'installed_date' => $component->installed_date,
+                ];
+            }
+        } else {
+            $component = $this->hardwareDetailRepository->getHardwareSoftwareById($componentId);
+            if ($component) {
+                $component->loadMissing(['softwareInventory', 'softwareLicense']);
+                return [
+                    'id' => $component->id,
+                    'software_name' => $component->softwareInventory->software_name ?? null,
+                    'software_type' => $component->softwareInventory->software_type ?? null,
+                    'version' => $component->softwareInventory->version ?? null,
+                    'license_key' => $component->softwareLicense->license_key ?? null,
+                    'account_user' => $component->softwareLicense->account_user ?? null,
+                    'installation_date' => $component->installation_date,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * BUSINESS LOGIC: Extract component data for tracking
+     */
+    protected function extractComponentData(array $operation, $component): array
+    {
+        if ($operation['component_type'] === 'part') {
+            return [
+                'part_type' => $operation['new_part_type'] ?? $operation['replacement_part_type'] ?? $component->part_type,
+                'brand' => $operation['new_brand'] ?? $operation['replacement_brand'] ?? $component->brand,
+                'model' => $operation['new_model'] ?? $operation['replacement_model'] ?? $component->model,
+                'specifications' => $operation['new_specifications'] ?? $operation['replacement_specifications'] ?? $component->specifications,
+                'serial_number' => $operation['new_serial_number'] ?? $operation['replacement_serial_number'] ?? $component->serial_number,
+                'condition' => $operation['new_condition'] ?? $operation['replacement_condition'] ?? $component->condition,
+            ];
+        } else {
+            return [
+                'software_name' => $operation['new_software_name'] ?? $operation['replacement_software_name'] ?? $operation['replacement_sw_software_name'] ?? $component->softwareInventory->software_name ?? null,
+                'software_type' => $operation['new_software_type'] ?? $operation['replacement_software_type'] ?? $operation['replacement_sw_software_type'] ?? $component->softwareInventory->software_type ?? null,
+                'version' => $operation['new_version'] ?? $operation['replacement_version'] ?? $operation['replacement_sw_version'] ?? $component->softwareInventory->version ?? null,
+                'license_key' => $operation['new_license_key'] ?? $operation['replacement_license_key'] ?? $operation['replacement_sw_license_key'] ?? $component->softwareLicense->license_key ?? null,
+                'account_user' => $operation['new_account_user'] ?? $operation['replacement_account_user'] ?? $operation['replacement_sw_account_user'] ?? $component->softwareLicense->account_user ?? null,
+            ];
+        }
+    }
+
+    /**
+     * BUSINESS LOGIC: Prepare issuance data
+     */
+    protected function prepareIssuanceData(string $issuanceNumber, array $operations, $hardware, int $createdBy): array
+    {
+        $firstOp = $operations[0];
+
+        return [
+            'issuance_number' => $issuanceNumber,
+            'issuance_type' => 2, // Component Maintenance
+            'issued_to' => $firstOp['issued_to'] ?? $hardware->issued_to ?? $createdBy,
+            'hostname' => $hardware->hostname ?? $hardware->serial,
+            'hardware_id' => $hardware->id,
+            'location' => $hardware->location,
+            'remarks' => 'Component maintenance operation',
+            'created_by' => $createdBy,
+        ];
+    }
+
+    /**
+     * BUSINESS LOGIC: Prepare component detail data
+     */
+    protected function prepareComponentDetailData(array $operation, $hardware): array
+    {
+        $detailData = [
+            'operation_type' => $operation['operation'],
+            'component_type' => $operation['component_type'],
+            'reason' => $operation['reason'] ?? null,
+            'remarks' => $operation['remarks'] ?? null,
+        ];
+
+        // Add old component data (for replace and remove)
+        if (isset($operation['old_component_id'])) {
+            $detailData['old_component_id'] = $operation['old_component_id'];
+            $detailData['old_component_condition'] = $operation['old_component_condition'] ?? null;
+            $detailData['old_component_data'] = $operation['old_component_data'] ?? null;
+        }
+
+        // Add new component data (for add and replace)
+        if (isset($operation['new_component_id'])) {
+            $detailData['new_component_id'] = $operation['new_component_id'];
+            $detailData['new_component_condition'] = $operation['new_condition'] ?? null;
+            $detailData['new_component_data'] = $operation['new_component_data'] ?? null;
+        }
+
+        // Add hardware changes context
+        $detailData['hardware_changes'] = [
+            'hardware_id' => $hardware->id,
+            'hostname' => $hardware->hostname ?? $hardware->serial,
+            'operation' => $operation['operation'],
+            'component_type' => $operation['component_type'],
+            'performed_at' => now()->toDateTimeString(),
+        ];
+
+        return $detailData;
+    }
+
+    /**
+     * BUSINESS LOGIC: Prepare acknowledgement data
+     */
+    protected function prepareAcknowledgementData(string $acknowledgedBy, $hardware): array
+    {
+        return [
+            'reference_type' => 1, // Issuance
+            'acknowledged_by' => $acknowledgedBy,
+            'status' => 0, // Pending
+            'remarks' => "Component maintenance on {$hardware->hostname}",
+        ];
+    }
+
+    /**
+     * BUSINESS LOGIC: Acknowledge an issuance
      */
     public function acknowledgeIssuance($issuanceId, $employeeId)
     {
-        DB::beginTransaction();
         try {
-            // Find the issuance
-            $issuance = $this->issuanceRepository->query()->find($issuanceId);
+            // Get the issuance with acknowledgement
+            $issuance = $this->issuanceRepository->findIssuanceWithAcknowledgement($issuanceId);
 
             if (!$issuance) {
                 return [
@@ -46,7 +546,6 @@ class IssuanceService
                 ];
             }
 
-            // Get the acknowledgement record
             $acknowledgement = $issuance->acknowledgement;
 
             if (!$acknowledgement) {
@@ -57,7 +556,7 @@ class IssuanceService
                 ];
             }
 
-            // Check if already acknowledged
+            // Business logic validation
             if ($acknowledgement->status == IssuanceStatus::ACKNOWLEDGED) {
                 return [
                     'success' => false,
@@ -66,7 +565,6 @@ class IssuanceService
                 ];
             }
 
-            // Check if the employee is allowed to acknowledge
             if ($acknowledgement->acknowledged_by != $employeeId) {
                 return [
                     'success' => false,
@@ -75,14 +573,15 @@ class IssuanceService
                 ];
             }
 
-            // Update to acknowledged status
-            $updated = $this->issuanceRepository->updateAcknowledgement($acknowledgement->id, [
+            // Prepare update data
+            $updateData = [
                 'status' => IssuanceStatus::ACKNOWLEDGED,
                 'acknowledged_at' => now(),
                 'remarks' => 'Acknowledged via system',
-            ]);
+            ];
 
-            DB::commit();
+            // Delegate to repository
+            $updated = $this->issuanceRepository->updateAcknowledgement($acknowledgement->id, $updateData);
 
             Log::info("Issuance acknowledged", [
                 'issuance_id' => $issuanceId,
@@ -103,7 +602,6 @@ class IssuanceService
                 'status' => 200,
             ];
         } catch (\Exception $e) {
-            DB::rollBack();
             Log::error('Failed to acknowledge issuance: ' . $e->getMessage());
 
             return [
@@ -113,285 +611,73 @@ class IssuanceService
             ];
         }
     }
+
     /**
-     * Create whole unit issuance
+     * BUSINESS LOGIC: Update acknowledgement status
      */
-    public function createWholeUnitIssuance(array $data, $createdBy)
+    public function updateAcknowledgementStatus($id, int $employeeId)
     {
-        DB::beginTransaction();
         try {
-            $results = [];
+            $acknowledgement = $this->issuanceRepository->findAcknowledgement($id);
 
-            foreach ($data['hostnames'] as $hostnameData) {
-                // Reuse existing hardware details method
-                $hardware = $this->hardwareDetailRepository->getHardwareInfo($hostnameData['hostname']);
-
-                if (!$hardware) {
-                    throw new \Exception("Hardware not found: {$hostnameData['hostname']}");
-                }
-
-                // Create issuance record
-                $issuance = $this->issuanceRepository->createIssuance([
-                    'request_number' => $data['request_number'],
-                    'issued_to' => $hostnameData['issued_to'],
-                    'hostname' => $hardware->hostname ?? $hardware->serial,
-                    'location' => $hostnameData['location'] ?? null,
-                    'remarks' => $hostnameData['remarks'] ?? null,
-                    'created_by' => $createdBy,
-                ]);
-
-                // Update hardware location and issued_to
-                $this->hardwareUpdateService->updateHardware($hardware->id, [
-                    'issued_to' => $hostnameData['issued_to'],
-                    'location' => $hostnameData['location'] ?? $hardware->location,
-                    'date_issued' => now(),
-                    'updated_by' => $createdBy,
-                ], $createdBy);
-
-                // Create acknowledgement
-                $this->issuanceRepository->createAcknowledgement([
-                    'reference_type' => 1, // Issuance (whole unit)
-                    'reference_id' => $issuance->id,
-                    'acknowledged_by' => $hostnameData['issued_to'],
-                    'status' => 0, // Pending
-                    'remarks' => null,
-                ]);
-
-                Log::info("Hardware updated during issuance", [
-                    'hardware_id' => $hardware->id,
-                    'hostname' => $hardware->hostname ?? $hardware->serial,
-                    'issued_to' => $hostnameData['issued_to'],
-                    'location' => $hostnameData['location'],
-                    'updated_by' => $createdBy,
-                ]);
-
-                $results[] = [
-                    'issuance_id' => $issuance->id,
-                    'hostname' => $hardware->hostname ?? $hardware->serial,
-                    'hardware_id' => $hardware->id,
+            if (!$acknowledgement) {
+                return [
+                    'success' => false,
+                    'message' => 'Acknowledgement not found',
+                    'status' => 404,
                 ];
             }
 
-            DB::commit();
-
-            return [
-                'success' => true,
-                'message' => 'Items issued successfully',
-                'data' => $results,
-            ];
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Issuance creation failed: ' . $e->getMessage());
-
-            return [
-                'success' => false,
-                'message' => 'Failed to create issuance: ' . $e->getMessage(),
-            ];
-        }
-    }
-
-    /**
-     * Create individual part/software issuance
-     */
-    public function createIndividualItemIssuance(array $data, $createdBy)
-    {
-        // dd($data);
-        DB::beginTransaction();
-        try {
-            $issuedItems = [];
-
-            foreach ($data['items'] as $itemData) {
-                // Create issuance item
-                $issuanceItem = $this->issuanceRepository->createIssuanceItem([
-                    'issuance_id' => null, // NULL for individual items
-                    'item_type' => $itemData['item_type'],
-                    'item_id' => $itemData['item_id'],
-                    'item_name' => $itemData['item_name'],
-                    'description' => $itemData['description'] ?? null,
-                    'quantity' => $itemData['quantity'],
-                    'serial_number' => $itemData['serial_number'] ?? null,
-                    'remarks' => $itemData['remarks'] ?? null,
-                ]);
-
-                // Create acknowledgement
-                $this->issuanceRepository->createAcknowledgement([
-                    'reference_type' => 2, // Issuance Item
-                    'reference_id' => $issuanceItem->id,
-                    'acknowledged_by' => $data['issued_to'],
-                    'status' => 0, // Pending
-                    'remarks' => null,
-                ]);
-
-                $issuedItems[] = $issuanceItem;
+            // Business logic validation
+            if ($acknowledgement->status !== 0) {
+                return [
+                    'success' => false,
+                    'message' => 'Acknowledgement has already been processed',
+                    'status' => 403,
+                ];
             }
 
-            DB::commit();
-
-            return [
-                'success' => true,
-                'message' => 'Individual items issued successfully',
-                'data' => $issuedItems,
-            ];
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Individual item issuance failed: ' . $e->getMessage());
-
-            return [
-                'success' => false,
-                'message' => 'Failed to issue items: ' . $e->getMessage(),
-            ];
-        }
-    }
-
-
-    /**
-     * Create issuance item for component addition
-     * Used when adding parts or software to existing hardware
-     */
-    public function createComponentIssuanceItem(array $data, $createdBy)
-    {
-        dd($data);
-        DB::beginTransaction();
-        try {
-            // Determine item type and prepare data
-            $itemType = $data['component_type']; // 'part' or 'software'
-            $hardwareId = $data['hardware_id'];
-            $issuedTo = $data['issued_to'];
-
-            // Get hardware info
-            $hardware = $this->hardwareDetailRepository->getHardwareInfo($hardwareId);
-
-            if (!$hardware) {
-                throw new \Exception("Hardware not found");
+            if ($acknowledgement->acknowledged_by != $employeeId) {
+                return [
+                    'success' => false,
+                    'message' => 'You are not authorized to acknowledge this item',
+                    'status' => 403,
+                ];
             }
 
-            $issuanceItemData = [
-                'issuance_id' => null,              // NULL for individual component additions
-                'hardware_id' => $hardwareId,       // Reference to hardware
-                'item_type' => $itemType,           // 'part' or 'software'
-                'item_id' => $data['component_id'], // ID of the hardware_part or hardware_software record
-                'item_name' => $data['item_name'],
-                'description' => $data['description'] ?? null,
-                'quantity' => $data['quantity'] ?? 1,
-                'serial_number' => $data['serial_number'] ?? null,
-                'remarks' => $data['remarks'] ?? null,
-                'created_by' => $createdBy,
+            // Prepare update data
+            $updateData = [
+                'status' => 1, // Acknowledged
+                'acknowledged_at' => now(),
             ];
 
-            // Create issuance item
-            $issuanceItem = $this->issuanceRepository->createIssuanceItem($issuanceItemData);
+            // Delegate to repository
+            $updated = $this->issuanceRepository->updateAcknowledgement($id, $updateData);
 
-            // Create acknowledgement
-            $this->issuanceRepository->createAcknowledgement([
-                'reference_type' => 2, // Issuance Item
-                'reference_id' => $issuanceItem->id,
-                'acknowledged_by' => $issuedTo,
-                'status' => 0, // Pending
-                'remarks' => "Component added to {$hardware->hostname}",
+            Log::info("Acknowledgement status updated to 1", [
+                'acknowledgement_id' => $id,
+                'employee_id' => $employeeId,
             ]);
-
-            Log::info("Component issuance item created", [
-                'issuance_item_id' => $issuanceItem->id,
-                'hardware_id' => $hardwareId,
-                'item_type' => $itemType,
-                'item_name' => $data['item_name'],
-                'issued_to' => $issuedTo,
-                'created_by' => $createdBy,
-            ]);
-
-            DB::commit();
 
             return [
                 'success' => true,
-                'message' => 'Component issuance item created successfully',
-                'data' => $issuanceItem,
+                'message' => 'Acknowledgement updated successfully',
+                'data' => $updated,
+                'status' => 200,
             ];
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Component issuance item creation failed: ' . $e->getMessage());
+            Log::error('Failed to update acknowledgement: ' . $e->getMessage());
 
             return [
                 'success' => false,
-                'message' => 'Failed to create component issuance item: ' . $e->getMessage(),
+                'message' => 'Failed to update acknowledgement: ' . $e->getMessage(),
+                'status' => 500,
             ];
         }
     }
 
     /**
-     * Create issuance item for component replacement
-     * Used when replacing parts or software on existing hardware
-     */
-    public function createComponentReplacementIssuanceItem(array $data, $createdBy)
-    {
-        // dd($data);
-        DB::beginTransaction();
-        try {
-            // Determine item type and prepare data
-            $itemType = $data['component_type']; // 'part' or 'software'
-            $hardwareId = $data['hardware_id'];
-            $issuedTo = $data['issued_to'];
-
-            // Get hardware info
-            $hardware = $this->hardwareDetailRepository->getHardwareInfo($hardwareId);
-
-            if (!$hardware) {
-                throw new \Exception("Hardware not found");
-            }
-
-            $issuanceItemData = [
-                'issuance_id' => null,                      // NULL for individual component replacements
-                'hardware_id' => $hardwareId,               // Reference to hardware
-                'item_type' => $itemType,                   // 'part' or 'software'
-                'item_id' => $data['new_component_id'],     // ID of the new hardware_part or hardware_software record
-                'item_name' => $data['new_item_name'],
-                'description' => $data['description'] ?? "Replacement for {$data['old_item_name']}",
-                'quantity' => $data['quantity'] ?? 1,
-                'serial_number' => $data['serial_number'] ?? null,
-                'remarks' => $data['remarks'] ?? null,
-                'created_by' => $createdBy,
-            ];
-
-            // Create issuance item for the new component
-            $issuanceItem = $this->issuanceRepository->createIssuanceItem($issuanceItemData);
-
-            // Create acknowledgement
-            $this->issuanceRepository->createAcknowledgement([
-                'reference_type' => 2, // Issuance Item
-                'reference_id' => $issuanceItem->id,
-                'acknowledged_by' => $issuedTo,
-                'status' => 0, // Pending
-                'remarks' => "Component replacement on {$hardware->hostname}. Old: {$data['old_item_name']}",
-            ]);
-
-            Log::info("Component replacement issuance item created", [
-                'issuance_item_id' => $issuanceItem->id,
-                'hardware_id' => $hardwareId,
-                'item_type' => $itemType,
-                'old_item' => $data['old_item_name'],
-                'new_item' => $data['new_item_name'],
-                'issued_to' => $issuedTo,
-                'created_by' => $createdBy,
-            ]);
-
-            DB::commit();
-
-            return [
-                'success' => true,
-                'message' => 'Component replacement issuance item created successfully',
-                'data' => $issuanceItem,
-            ];
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Component replacement issuance item creation failed: ' . $e->getMessage());
-
-            return [
-                'success' => false,
-                'message' => 'Failed to create component replacement issuance item: ' . $e->getMessage(),
-            ];
-        }
-    }
-    /**
-     * Get whole unit issuance table
+     * BUSINESS LOGIC: Get whole unit issuance table data
      */
     public function getWholeUnitIssuanceTable(array $filters)
     {
@@ -402,6 +688,7 @@ class IssuanceService
             $formattedData = $result['data']->map(function ($issuance) {
                 return [
                     'id' => $issuance->id,
+                    'issuance_number' => $issuance->issuance_number,
                     'request_number' => $issuance->request_number,
                     'hostname' => $issuance->hostname,
                     'location' => $issuance->location,
@@ -444,7 +731,7 @@ class IssuanceService
                     'current_page' => 1,
                     'total_pages' => 0,
                     'total_records' => 0,
-                    'page_size' => $filters['pageSize'],
+                    'page_size' => $filters['pageSize'] ?? 10,
                 ],
                 'filters' => $filters,
             ];
@@ -452,42 +739,49 @@ class IssuanceService
     }
 
     /**
-     * Get individual item issuance table
+     * BUSINESS LOGIC: Get component maintenance issuances table
      */
-    public function getIndividualItemIssuanceTable(array $filters)
+    public function getComponentMaintenanceIssuanceTable(array $filters)
     {
         try {
-            $result = $this->issuanceRepository->getIndividualItemIssuancesTable($filters);
+            $result = $this->issuanceRepository->getComponentMaintenanceIssuancesTable($filters);
 
             // Format data for frontend
-            $formattedData = $result['data']->map(function ($item) {
+            $formattedData = $result['data']->map(function ($issuance) {
                 return [
-                    'id' => $item->id,
-                    'hardware_id' => $item->hardware_id,
-                    'hostname' => $item->hardware ? ($item->hardware->hostname ?? $item->hardware->serial) : 'N/A',
-                    'item_type' => $item->item_type,
-                    'item_name' => $item->item_name,
-                    'description' => $item->description,
-                    'quantity' => $item->quantity,
-                    'serial_number' => $item->serial_number,
-                    'acknowledgement' => $item->acknowledgement ? [
-                        'id' => $item->acknowledgement->id,
-                        'acknowledged_at' => $item->acknowledgement->acknowledged_at,
-                        'status' => $item->acknowledgement->status,
-                        'acknowledged_by' => $item->acknowledgement->acknowledged_by,
-                        'recipient_name' => $item->acknowledgement->acknowledgedByEmployee
-                            ? trim($item->acknowledgement->acknowledgedByEmployee->EMPNAME)
-                            : 'N/A',
-                        'status_label' => IssuanceStatus::getLabel($item->acknowledgement->status),
-                        'status_color' => IssuanceStatus::getColor($item->acknowledgement->status),
-                        'acknowledged_at' => $item->acknowledgement->acknowledged_at,
-                        'remarks' => $item->acknowledgement->remarks,
+                    'id' => $issuance->id,
+                    'issuance_number' => $issuance->issuance_number,
+                    'issuance_type' => 2,
+                    'hostname' => $issuance->hostname,
+                    'hardware_id' => $issuance->hardware_id,
+                    'location' => $issuance->location,
+                    'issued_to' => $issuance->issued_to,
+                    'recipient_name' => $issuance->recipient
+                        ? trim("{$issuance->recipient->EMPNAME}")
+                        : 'N/A',
+                    'component_count' => $issuance->componentDetails->count(),
+                    'operations' => $issuance->componentDetails->map(function ($detail) {
+                        return [
+                            'operation_type' => $detail->operation_type,
+                            'component_type' => $detail->component_type,
+                            'old_component_id' => $detail->old_component_id,
+                            'new_component_id' => $detail->new_component_id,
+                            'reason' => $detail->reason,
+                        ];
+                    }),
+                    'acknowledgement' => $issuance->acknowledgement ? [
+                        'id' => $issuance->acknowledgement->id,
+                        'acknowledged_by' => $issuance->acknowledgement->acknowledged_by,
+                        'status' => $issuance->acknowledgement->status,
+                        'status_label' => IssuanceStatus::getLabel($issuance->acknowledgement->status),
+                        'status_color' => IssuanceStatus::getColor($issuance->acknowledgement->status),
+                        'acknowledged_at' => $issuance->acknowledgement->acknowledged_at,
+                        'remarks' => $issuance->acknowledgement->remarks,
                     ] : null,
-                    'remarks' => $item->remarks,
-                    'created_at' => $item->created_at,
-                    'created_by' => $item->created_by,
-                    'creator_name' => $item->creator
-                        ? trim("{$item->creator->EMPNAME}")
+                    'created_at' => $issuance->created_at,
+                    'created_by' => $issuance->created_by,
+                    'creator_name' => $issuance->creator
+                        ? trim("{$issuance->creator->EMPNAME}")
                         : 'N/A',
                 ];
             });
@@ -499,7 +793,7 @@ class IssuanceService
                 'filters' => $filters,
             ];
         } catch (\Exception $e) {
-            Log::error('Failed to get individual item issuance table: ' . $e->getMessage());
+            Log::error('Failed to get component maintenance issuance table: ' . $e->getMessage());
 
             return [
                 'success' => false,
@@ -509,7 +803,7 @@ class IssuanceService
                     'current_page' => 1,
                     'total_pages' => 0,
                     'total_records' => 0,
-                    'page_size' => $filters['pageSize'],
+                    'page_size' => $filters['pageSize'] ?? 10,
                 ],
                 'filters' => $filters,
             ];
@@ -517,78 +811,7 @@ class IssuanceService
     }
 
     /**
-     * Update acknowledgement status
-     * Only allows acknowledgement if:
-     * - status is 0 (Pending)
-     * - acknowledged_by matches employee ID
-     */
-    public function updateAcknowledgementStatus($id, int $employeeId)
-    {
-        DB::beginTransaction();
-        try {
-            $acknowledgement = $this->issuanceRepository->findAcknowledgement($id);
-
-            if (!$acknowledgement) {
-                return [
-                    'success' => false,
-                    'message' => 'Acknowledgement not found',
-                    'status' => 404,
-                ];
-            }
-
-            // Check if already acknowledged
-            if ($acknowledgement->status !== 0) {
-                return [
-                    'success' => false,
-                    'message' => 'Acknowledgement has already been processed',
-                    'status' => 403,
-                ];
-            }
-
-            // Check if the employee is allowed to acknowledge
-            if ($acknowledgement->acknowledged_by != $employeeId) {
-                return [
-                    'success' => false,
-                    'message' => 'You are not authorized to acknowledge this item',
-                    'status' => 403,
-                ];
-            }
-
-            $updateData = [
-                'status' => 1, // Force to Acknowledged
-                'acknowledged_at' => now(),
-            ];
-
-            // Update the acknowledgement
-            $updated = $this->issuanceRepository->updateAcknowledgement($id, $updateData);
-
-            DB::commit();
-
-            Log::info("Acknowledgement status updated to 1", [
-                'acknowledgement_id' => $id,
-                'employee_id' => $employeeId,
-            ]);
-
-            return [
-                'success' => true,
-                'message' => 'Acknowledgement updated successfully',
-                'data' => $updated,
-                'status' => 200,
-            ];
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Failed to update acknowledgement: ' . $e->getMessage());
-
-            return [
-                'success' => false,
-                'message' => 'Failed to update acknowledgement: ' . $e->getMessage(),
-                'status' => 500,
-            ];
-        }
-    }
-
-    /**
-     * Get acknowledgement details
+     * BUSINESS LOGIC: Get acknowledgement details
      */
     public function getAcknowledgementDetails($id)
     {
@@ -600,6 +823,11 @@ class IssuanceService
                     'success' => false,
                     'message' => 'Acknowledgement not found',
                 ];
+            }
+
+            // Load relationships based on reference type
+            if ($acknowledgement->reference_type == 1) {
+                $acknowledgement->load(['issuance.hardware', 'issuance.componentDetails']);
             }
 
             return [
@@ -614,19 +842,5 @@ class IssuanceService
                 'message' => 'Failed to retrieve details: ' . $e->getMessage(),
             ];
         }
-    }
-
-
-    /**
-     * Get status text
-     */
-    private function getStatusText($status)
-    {
-        return match ((int) $status) {
-            0 => 'Pending',
-            1 => 'Acknowledged',
-            2 => 'Rejected',
-            default => 'Unknown'
-        };
     }
 }

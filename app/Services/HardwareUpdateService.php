@@ -704,15 +704,15 @@ class HardwareUpdateService
                     'remarks' => $data['reason'] ?? "Component addition",
                 ];
 
-                app(IssuanceService::class)->createComponentIssuanceItem($issuanceData, $employeeId);
+                // app(IssuanceService::class)->createComponentIssuanceItem($issuanceData, $employeeId);
 
-                Log::info("Added part to hardware with issuance item", [
-                    'hardware_id' => $hardware->id,
-                    'hostname' => $hardware->hostname,
-                    'hardware_part_id' => $newComponentId,
-                    'part_type' => $partData['part_type'],
-                    'added_by' => $employeeId,
-                ]);
+                // Log::info("Added part to hardware with issuance item", [
+                //     'hardware_id' => $hardware->id,
+                //     'hostname' => $hardware->hostname,
+                //     'hardware_part_id' => $newComponentId,
+                //     'part_type' => $partData['part_type'],
+                //     'added_by' => $employeeId,
+                // ]);
             } else {
                 // Add new software
                 $softwareData = [
@@ -742,15 +742,15 @@ class HardwareUpdateService
                     'remarks' => $data['reason'] ?? "Component addition",
                 ];
 
-                app(IssuanceService::class)->createComponentIssuanceItem($issuanceData, $employeeId);
+                // app(IssuanceService::class)->createComponentIssuanceItem($issuanceData, $employeeId);
 
-                Log::info("Added software to hardware with issuance item", [
-                    'hardware_id' => $hardware->id,
-                    'hostname' => $hardware->hostname,
-                    'hardware_software_id' => $newComponentId,
-                    'software_name' => $softwareData['software_name'],
-                    'added_by' => $employeeId,
-                ]);
+                // Log::info("Added software to hardware with issuance item", [
+                //     'hardware_id' => $hardware->id,
+                //     'hostname' => $hardware->hostname,
+                //     'hardware_software_id' => $newComponentId,
+                //     'software_name' => $softwareData['software_name'],
+                //     'added_by' => $employeeId,
+                // ]);
             }
 
             // REPO: Reload with relationships
@@ -888,17 +888,17 @@ class HardwareUpdateService
                     'serial_number' => $newPartData['serial_number'],
                     'remarks' => $data['remarks'] ?? "Part replacement",
                 ];
-                app(IssuanceService::class)->createComponentReplacementIssuanceItem($issuanceData, $employeeId);
+                // app(IssuanceService::class)->createComponentReplacementIssuanceItem($issuanceData, $employeeId);
 
 
-                Log::info("Replaced part on hardware with issuance item", [
-                    'hardware_id' => $hardware->id,
-                    'hostname' => $hardware->hostname,
-                    'old_part' => $oldItemName,
-                    'new_part' => $newItemName,
-                    'new_hardware_part_id' => $newComponentId,
-                    'replaced_by' => $employeeId,
-                ]);
+                // Log::info("Replaced part on hardware with issuance item", [
+                //     'hardware_id' => $hardware->id,
+                //     'hostname' => $hardware->hostname,
+                //     'old_part' => $oldItemName,
+                //     'new_part' => $newItemName,
+                //     'new_hardware_part_id' => $newComponentId,
+                //     'replaced_by' => $employeeId,
+                // ]);
             } else {
                 // Get old software details before removal
                 $oldSoftware = $this->hardwareRepository->findHardwareSoftwareById($componentId);
@@ -949,16 +949,16 @@ class HardwareUpdateService
                     'remarks' => $data['remarks'] ?? "Software replacement",
                 ];
 
-                app(IssuanceService::class)->createComponentReplacementIssuanceItem($issuanceData, $employeeId);
+                // app(IssuanceService::class)->createComponentReplacementIssuanceItem($issuanceData, $employeeId);
 
-                Log::info("Replaced software on hardware with issuance item", [
-                    'hardware_id' => $hardware->id,
-                    'hostname' => $hardware->hostname,
-                    'old_software' => $oldItemName,
-                    'new_software' => $newItemName,
-                    'new_hardware_software_id' => $newComponentId,
-                    'replaced_by' => $employeeId,
-                ]);
+                // Log::info("Replaced software on hardware with issuance item", [
+                //     'hardware_id' => $hardware->id,
+                //     'hostname' => $hardware->hostname,
+                //     'old_software' => $oldItemName,
+                //     'new_software' => $newItemName,
+                //     'new_hardware_software_id' => $newComponentId,
+                //     'replaced_by' => $employeeId,
+                // ]);
             }
 
             // REPO: Reload with relationships

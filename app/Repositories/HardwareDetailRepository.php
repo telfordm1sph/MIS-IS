@@ -29,7 +29,18 @@ class HardwareDetailRepository
             ->where('hostname', $hardwareId)
             ->first();
     }
-
+    public function getHardwareInfoById(int $hardwareId)
+    {
+        return Hardware::with([
+            'issuedToUser:EMPLOYID,EMPNAME',
+            'installedByUser:EMPLOYID,EMPNAME',
+            'parts.sourceInventory',        // Include inventory details for each part
+            'software.softwareInventory',   // Include software info
+            'software.softwareLicense',     // Include license info
+        ])
+            ->where('id', $hardwareId)
+            ->first();
+    }
     /**
      * Get parts with inventory (filtered)
      * DB OPERATION: Query parts with inventory relationships
@@ -589,5 +600,21 @@ class HardwareDetailRepository
         }
 
         return $query;
+    }
+
+    /**
+     * Get hardware part by ID
+     */
+    public function getHardwarePartById(int $id): ?HardwarePart
+    {
+        return HardwarePart::find($id);
+    }
+
+    /**
+     * Get hardware software by ID
+     */
+    public function getHardwareSoftwareById(int $id): ?HardwareSoftware
+    {
+        return HardwareSoftware::with(['softwareInventory', 'softwareLicense'])->find($id);
     }
 }

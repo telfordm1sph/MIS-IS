@@ -1,35 +1,21 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Form, Select, Card, Button, Input, message, Tag } from "antd";
-import { CirclePlusIcon } from "lucide-react";
+import React, { useState, useCallback } from "react";
+import { Form, Select, Card, Input, message, Alert } from "antd";
+import { InfoCircleOutlined } from "@ant-design/icons";
 
 import InventoryTable from "./InventoryTable";
 import ComponentsReviewTable from "./ComponentsReviewTable";
+import { getPartColumns, getSoftwareColumns } from "@/Utils/inventoryColumns";
+import { useComponentManagement } from "@/Hooks/useComponentManagement";
+import { useComponentSelection } from "@/Hooks/useComponentSelection";
 
 const ReplaceComponent = ({ form, componentOptions, hardware }) => {
     const [selectedOldComponent, setSelectedOldComponent] = useState(null);
     const [componentType, setComponentType] = useState(null);
     const [selectedComponentInfo, setSelectedComponentInfo] = useState(null);
-    const [replacements, setReplacements] = useState([]);
     const [selectedPartType, setSelectedPartType] = useState(null);
 
-    // Initialize replacements array if it doesn't exist
-    useEffect(() => {
-        const existingReplacements = form.getFieldValue("replacements");
-        if (!existingReplacements) {
-            form.setFieldsValue({ replacements: [] });
-            setReplacements([]);
-        } else {
-            setReplacements(existingReplacements);
-        }
-    }, [form]);
-
-    // Watch for form changes and update local state
-    useEffect(() => {
-        const values = form.getFieldsValue();
-        if (values.replacements) {
-            setReplacements(values.replacements);
-        }
-    }, [form, form.getFieldValue("replacements")]);
+    // Watch replacements array directly from the form
+    const replacements = Form.useWatch("replacements", form) || [];
 
     // Get component data
     const getComponentData = useCallback(
@@ -38,22 +24,16 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
             const [type, id] = componentId.split("_");
             if (type === "part") {
                 const data = hardware?.parts?.find((p) => p.id == id);
-                return {
-                    type: "part",
-                    data: data,
-                };
+                return { type: "part", data };
             } else {
                 const data = hardware?.software?.find((s) => s.id == id);
-                return {
-                    type: "software",
-                    data: data,
-                };
+                return { type: "software", data };
             }
         },
         [hardware],
     );
 
-    // Handle component selection change
+    // Handle old component selection
     const handleOldComponentChange = (value) => {
         setSelectedOldComponent(value);
         if (value) {
@@ -61,11 +41,12 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
             setComponentType(componentInfo?.type || null);
             setSelectedComponentInfo(componentInfo);
 
-            // Pass part type if it's a part
             if (componentInfo?.type === "part") {
-                setSelectedPartType(componentInfo.data.part_info.part_type);
+                setSelectedPartType(componentInfo.data.part_info?.part_type);
             } else {
-                setSelectedPartType(componentInfo.data.inventory.software_name);
+                setSelectedPartType(
+                    componentInfo.data.inventory?.software_name,
+                );
             }
         } else {
             setComponentType(null);
@@ -74,178 +55,42 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
         }
     };
 
-    // Handle selecting a replacement from InventoryTable
-    const handleSelectReplacement = (record) => {
-        const currentReplacements = form.getFieldValue("replacements") || [];
-        const componentInfo = selectedComponentInfo;
+    // Initialize the selection hook
+    const { handleSelectComponent } = useComponentSelection({
+        form,
+        fieldName: "replacements",
+        mode: "replace",
+    });
 
-        if (!componentInfo) {
-            message.error("Please select a component to replace first");
-            return;
-        }
-
-        // Check if this replacement already exists for the same old component
-        const exists = currentReplacements.find(
-            (r) =>
-                r.old_component_id === selectedOldComponent &&
-                r.new_component_id === record.id &&
-                (componentInfo.type !== "part" ||
-                    r.component_data?.condition === record.condition),
-        );
-
-        const maxQty =
-            componentInfo.type === "part"
-                ? record.quantity
-                : record.available_activations || 999;
-
-        if (exists) {
-            if (exists.quantity < maxQty) {
-                const updated = currentReplacements.map((r) => {
-                    if (
-                        r.old_component_id === selectedOldComponent &&
-                        r.new_component_id === record.id &&
-                        (componentInfo.type !== "part" ||
-                            r.component_data?.condition === record.condition)
-                    ) {
-                        return { ...r, quantity: r.quantity + 1 };
-                    }
-                    return r;
-                });
-                form.setFieldsValue({ replacements: updated });
-                setReplacements(updated);
-                message.success("Quantity increased by 1");
-            } else {
-                message.warning("Maximum quantity reached for this component");
+    // Wrap the handleSelectComponent to inject the context
+    const handleReplacementSelect = useCallback(
+        (record) => {
+            if (!selectedOldComponent || !selectedComponentInfo) {
+                message.error("Please select a component to replace first");
+                return;
             }
-            return;
-        }
 
-        // Create new replacement entry
-        const newReplacement = {
-            key: `${selectedOldComponent}-${record.id}-${record.condition || "default"}-${Date.now()}-${Math.random()}`,
-            old_component_id: selectedOldComponent,
-            old_component_type: componentInfo.type,
-            old_component_data: componentInfo.data,
-            new_component_id: record.id,
-            new_component_type: componentInfo.type,
-            component_data: record,
-            component_type: componentInfo.type,
-            quantity: 1,
-            serial_number: "",
-            reason: "",
-            remarks: "",
-        };
-
-        const updatedReplacements = [...currentReplacements, newReplacement];
-        form.setFieldsValue({ replacements: updatedReplacements });
-        setReplacements(updatedReplacements);
-        message.success("Replacement selected");
-    };
+            handleSelectComponent({
+                record,
+                selectedOldComponent,
+                selectedComponentInfo,
+            });
+        },
+        [selectedOldComponent, selectedComponentInfo, handleSelectComponent],
+    );
 
     // Step 3 handlers
-    const handleQuantityChange = (index, value) => {
-        const updated = [...replacements];
-        const maxQty =
-            updated[index]?.component_type === "part"
-                ? updated[index]?.component_data?.quantity
-                : updated[index]?.component_data?.available_activations || 999;
-
-        const newQuantity = Math.max(1, Math.min(value || 1, maxQty));
-        updated[index].quantity = newQuantity;
-        form.setFieldsValue({ replacements: updated });
-        setReplacements(updated);
-    };
-
-    const handleSerialChange = (index, value) => {
-        const updated = [...replacements];
-        updated[index].serial_number = value;
-        form.setFieldsValue({ replacements: updated });
-        setReplacements(updated);
-    };
-
-    const handleReasonChange = (index, value) => {
-        const updated = [...replacements];
-        updated[index].reason = value;
-        form.setFieldsValue({ replacements: updated });
-        setReplacements(updated);
-    };
-
-    const handleRemoveComponent = (index) => {
-        const updated = [...replacements];
-        updated.splice(index, 1);
-        form.setFieldsValue({ replacements: updated });
-        setReplacements(updated);
-    };
-
-    // Table columns for inventory
-    const partColumns = [
-        {
-            title: "Add",
-            key: "add",
-            fixed: "left",
-            width: 60,
-            render: (_, record) => (
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<CirclePlusIcon size={16} />}
-                    onClick={() => handleSelectReplacement(record)}
-                    disabled={record.quantity <= 0}
-                />
-            ),
-        },
-        { title: "Part Type", dataIndex: "part_type", width: 120 },
-        { title: "Brand", dataIndex: "brand", width: 120 },
-        { title: "Model", dataIndex: "model", width: 120 },
-        { title: "Specifications", dataIndex: "specifications", width: 150 },
-        {
-            title: "Condition",
-            dataIndex: "condition",
-            width: 100,
-            render: (condition) => <Tag color="green">{condition}</Tag>,
-        },
-        { title: "Qty Available", dataIndex: "quantity", width: 100 },
-        { title: "Location", dataIndex: "location", width: 120 },
-    ];
-
-    const softwareColumns = [
-        {
-            title: "Add",
-            key: "add",
-            fixed: "left",
-            width: 60,
-            render: (_, record) => (
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<CirclePlusIcon size={16} />}
-                    onClick={() => handleSelectReplacement(record)}
-                    disabled={record.available_activations <= 0}
-                />
-            ),
-        },
-        { title: "Software Name", dataIndex: "software_name", width: 150 },
-        { title: "Type", dataIndex: "software_type", width: 120 },
-        { title: "Version", dataIndex: "version", width: 100 },
-        {
-            title: "Identifier",
-            dataIndex: "identifier",
-            width: 150,
-            render: (text, record) => (
-                <div>
-                    <div>{text}</div>
-                    <small style={{ color: "#888" }}>
-                        {record.identifier_type}
-                    </small>
-                </div>
-            ),
-        },
-        {
-            title: "Available Activations",
-            dataIndex: "available_activations",
-            width: 130,
-        },
-    ];
+    const {
+        handleQuantityChange,
+        handleSerialChange,
+        handleReasonChange,
+        handleRemarksChange,
+        handleConditionChange,
+        handleRemoveComponent,
+    } = useComponentManagement({
+        form,
+        fieldName: "replacements",
+    });
 
     return (
         <>
@@ -254,10 +99,20 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
                 <Input />
             </Form.Item>
 
+            {/* Info Alert */}
+            <Alert
+                t="Component Replacement Process"
+                description="Select the old component to replace, then choose a replacement from inventory. You must specify the condition of the old component to determine how it will be returned to inventory."
+                type="info"
+                showIcon
+                icon={<InfoCircleOutlined />}
+                style={{ marginBottom: 16 }}
+            />
+
             {/* Step 1: Select Component to Replace */}
             <Card size="small" title="Step 1: Select Component to Replace">
                 <Form.Item
-                    label="Select Old Component"
+                    label="Old Component"
                     name="old_component_selector"
                     rules={[
                         {
@@ -293,22 +148,27 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
                                 : route("inventory.software.available")
                         }
                         selectedType={selectedPartType}
-                        onSelectComponent={handleSelectReplacement}
+                        onSelectComponent={handleReplacementSelect}
                         columns={
                             componentType === "part"
-                                ? partColumns
-                                : softwareColumns
+                                ? getPartColumns(handleReplacementSelect)
+                                : getSoftwareColumns(handleReplacementSelect)
                         }
                     />
                 </Card>
             )}
 
             {/* Step 3: Review Selected Replacements */}
-            {replacements && replacements.length > 0 && (
+            {replacements.length > 0 && (
                 <Card
                     size="small"
-                    title={`Step 3: Review Selected Replacements (${replacements.length})`}
+                    title={`Step 3: Review & Configure (${replacements.length} replacement${replacements.length > 1 ? "s" : ""})`}
                     style={{ marginTop: 16 }}
+                    extra={
+                        <span style={{ fontSize: 12, color: "#999" }}>
+                            Required: Old condition, Reason
+                        </span>
+                    }
                 >
                     <ComponentsReviewTable
                         components={replacements}
@@ -316,6 +176,8 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
                         onQuantityChange={handleQuantityChange}
                         onSerialChange={handleSerialChange}
                         onReasonChange={handleReasonChange}
+                        onRemarksChange={handleRemarksChange}
+                        onConditionChange={handleConditionChange}
                         onRemove={handleRemoveComponent}
                     />
                 </Card>

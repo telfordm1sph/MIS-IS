@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\Issuance;
 use App\Models\IssuanceItem;
 use App\Models\Acknowledgement;
+use App\Models\ComponentIssuanceDetail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -320,5 +321,138 @@ class IssuanceRepository
     public function createAcknowledgement(array $data)
     {
         return Acknowledgement::create($data);
+    }
+    /**
+     * Get last issuance number
+     */
+    public function getLastIssuanceNumber()
+    {
+        return Issuance::where('issuance_number', 'like', 'ISS-' . date('Y') . date('m') . '-%')
+            ->orderBy('id', 'desc')
+            ->first();
+    }
+
+    /**
+     * Create component maintenance issuance with all related records
+     */
+    public function createComponentMaintenanceIssuance(array $issuanceData, array $componentDetailsData, array $acknowledgementData)
+    {
+        return DB::transaction(function () use ($issuanceData, $componentDetailsData, $acknowledgementData) {
+            // Create issuance
+            $issuance = Issuance::create($issuanceData);
+
+            // Create component details
+            $componentDetails = [];
+            foreach ($componentDetailsData as $detailData) {
+                $detailData['issuance_id'] = $issuance->id;
+                $componentDetails[] = ComponentIssuanceDetail::create($detailData);
+            }
+
+            // Create acknowledgement
+            $acknowledgementData['reference_id'] = $issuance->id;
+            $acknowledgement = Acknowledgement::create($acknowledgementData);
+
+            return [
+                'issuance' => $issuance,
+                'component_details' => $componentDetails,
+                'acknowledgement' => $acknowledgement,
+            ];
+        });
+    }
+
+    /**
+     * Find issuance with acknowledgement
+     */
+    public function findIssuanceWithAcknowledgement(int $issuanceId)
+    {
+        return Issuance::with('acknowledgement')
+            ->where('id', $issuanceId)
+            ->first();
+    }
+
+    /**
+     * Get component maintenance issuances table
+     */
+    public function getComponentMaintenanceIssuancesTable(array $filters)
+    {
+        $query = Issuance::with([
+            'acknowledgement.acknowledgedByEmployee:EMPLOYID,EMPNAME',
+            'componentDetails',
+            'hardware:id,hostname,serial_number,location',
+            'recipient:EMPLOYID,EMPNAME',
+            'creator:EMPLOYID,EMPNAME'
+        ])->where('issuance_type', 2); // Component Maintenance
+
+        // Apply search filter
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('issuance_number', 'like', "%{$search}%")
+                    ->orWhere('hostname', 'like', "%{$search}%")
+                    ->orWhereHas('hardware', function ($subQuery) use ($search) {
+                        $subQuery->where('hostname', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        // Apply status filter
+        if (isset($filters['status']) && $filters['status'] !== '') {
+            $query->whereHas('acknowledgement', function ($q) use ($filters) {
+                $q->where('status', $filters['status']);
+            });
+        }
+
+        // Apply date range filter
+        if (!empty($filters['dateFrom']) && !empty($filters['dateTo'])) {
+            $query->whereBetween('created_at', [
+                $filters['dateFrom'] . ' 00:00:00',
+                $filters['dateTo'] . ' 23:59:59'
+            ]);
+        }
+
+        // Apply sorting
+        $sortField = $this->mapIssuanceSortField($filters['sortField'] ?? 'created_at');
+        $sortOrder = in_array(strtolower($filters['sortOrder'] ?? 'desc'), ['asc', 'desc'])
+            ? strtolower($filters['sortOrder'])
+            : 'desc';
+        $query->orderBy($sortField, $sortOrder);
+
+        // Pagination
+        $page = max(1, (int)($filters['page'] ?? 1));
+        $pageSize = max(1, min(100, (int)($filters['pageSize'] ?? 10)));
+        $offset = ($page - 1) * $pageSize;
+
+        $totalRecords = $query->count();
+        $data = $query->skip($offset)->take($pageSize)->get();
+
+        return [
+            'data' => $data,
+            'pagination' => [
+                'current_page' => $page,
+                'total_pages' => $totalRecords > 0 ? ceil($totalRecords / $pageSize) : 1,
+                'total_records' => $totalRecords,
+                'page_size' => $pageSize,
+            ],
+        ];
+    }
+
+    /**
+     * Create whole unit issuance
+     */
+    public function createWholeUnitIssuance(array $issuanceData, array $acknowledgementData)
+    {
+        return DB::transaction(function () use ($issuanceData, $acknowledgementData) {
+            // Create issuance
+            $issuance = Issuance::create($issuanceData);
+
+            // Create acknowledgement
+            $acknowledgementData['reference_id'] = $issuance->id;
+            $acknowledgement = Acknowledgement::create($acknowledgementData);
+
+            return [
+                'issuance' => $issuance,
+                'acknowledgement' => $acknowledgement,
+            ];
+        });
     }
 }

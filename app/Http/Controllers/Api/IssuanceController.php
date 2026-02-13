@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\IssuanceService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class IssuanceController extends Controller
 {
@@ -49,9 +50,9 @@ class IssuanceController extends Controller
     }
 
     /**
-     * Get individual item issuances table
+     * Get component maintenance issuances table
      */
-    public function getIndividualItemIssuanceTable(Request $request)
+    public function getComponentMaintenanceIssuanceTable(Request $request)
     {
         $filters = $this->decodeFilters($request->input('f', ''));
 
@@ -62,52 +63,122 @@ class IssuanceController extends Controller
             'sortField' => $filters['sortField'] ?? 'created_at',
             'sortOrder' => $filters['sortOrder'] ?? 'desc',
             'status' => $filters['status'] ?? '',
-            'itemType' => $filters['itemType'] ?? '',
             'dateFrom' => $filters['dateFrom'] ?? '',
             'dateTo' => $filters['dateTo'] ?? '',
         ];
 
-        $result = $this->issuanceService->getIndividualItemIssuanceTable($filters);
-
-        if ($request->wantsJson()) {
-            return response()->json($result);
-        }
+        $result = $this->issuanceService->getComponentMaintenanceIssuanceTable($filters);
 
         return response()->json($result);
     }
 
     /**
-     * Update acknowledgement status
-     * REQUEST: Handles both session-based and API requests
+     * Create component maintenance issuance batch (ADD, REPLACE, REMOVE)
      */
-    public function updateAcknowledgement(Request $request, $id)
+    public function createComponentMaintenanceIssuance(Request $request)
     {
         try {
-            // Get employee ID from either session/auth or request body/header
+
             $employeeId = $this->getEmployeeId($request);
 
             if (!$employeeId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Employee identification required. Please provide employee_id in request body or X-Employee-ID header.',
+                    'message' => 'Employee identification required.',
                 ], 401);
             }
 
-            // Delegate to service
+            $validated = $request->validate([
+                'operations' => 'required|array|min:1',
+                'operations.*.operation' => 'required|in:add,replace,remove',
+                'operations.*.component_type' => 'required|in:part,software',
+                'operations.*.hardware_id' => 'required|integer',
+                'operations.*.issued_to' => 'required|string',
+                'operations.*.reason' => 'nullable|string',
+                'operations.*.remarks' => 'nullable|string',
+
+                // ADD operation fields
+                'operations.*.new_component_id' => 'nullable|integer',
+                'operations.*.new_part_type' => 'nullable|string',
+                'operations.*.new_brand' => 'nullable|string',
+                'operations.*.new_model' => 'nullable|string',
+                'operations.*.new_specifications' => 'nullable|string',
+                'operations.*.new_condition' => 'nullable|string',
+                'operations.*.new_serial_number' => 'nullable|string',
+                'operations.*.new_software_name' => 'nullable|string',
+                'operations.*.new_software_type' => 'nullable|string',
+                'operations.*.new_version' => 'nullable|string',
+                'operations.*.new_license_key' => 'nullable|string',
+                'operations.*.new_account_user' => 'nullable|string',
+
+                // REPLACE operation fields
+                'operations.*.component_id' => 'nullable|integer',
+                'operations.*.old_component_condition' => 'nullable|string',
+                'operations.*.replacement_part_type' => 'nullable|string',
+                'operations.*.replacement_brand' => 'nullable|string',
+                'operations.*.replacement_model' => 'nullable|string',
+                'operations.*.replacement_specifications' => 'nullable|string',
+                'operations.*.replacement_condition' => 'nullable|string',
+                'operations.*.replacement_serial_number' => 'nullable|string',
+                'operations.*.replacement_software_name' => 'nullable|string',
+                'operations.*.replacement_software_type' => 'nullable|string',
+                'operations.*.replacement_version' => 'nullable|string',
+                'operations.*.replacement_license_key' => 'nullable|string',
+                'operations.*.replacement_account_user' => 'nullable|string',
+
+                // REMOVE operation fields
+                'operations.*.condition' => 'nullable|string',
+            ]);
+
+            $result = $this->issuanceService->processComponentMaintenance(
+                $validated['operations'],
+                $employeeId
+            );
+
+            return response()->json($result, $result['success'] ? 200 : 500);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Component maintenance batch failed: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process component maintenance: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Update acknowledgement status
+     */
+    public function updateAcknowledgement(Request $request, $id)
+    {
+        try {
+            $employeeId = $this->getEmployeeId($request);
+
+            if (!$employeeId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee identification required.',
+                ], 401);
+            }
+
             $result = $this->issuanceService->updateAcknowledgementStatus($id, $employeeId);
 
-            // Return proper HTTP status based on service response
             return response()->json($result, $result['status'] ?? 200);
         } catch (\Exception $e) {
-
-
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update acknowledgement: ' . $e->getMessage(),
             ], 500);
         }
     }
-
 
     /**
      * Get acknowledgement details
@@ -132,7 +203,7 @@ class IssuanceController extends Controller
             ], 401);
         }
 
-        $request->validate([
+        $validated = $request->validate([
             'request_number' => 'required|string',
             'hostnames' => 'required|array',
             'hostnames.*.issued_to' => 'required|string',
@@ -142,44 +213,10 @@ class IssuanceController extends Controller
         ]);
 
         $result = $this->issuanceService->createWholeUnitIssuance(
-            $request->all(),
+            $validated,
             $employeeId
         );
 
         return response()->json($result, $result['success'] ? 200 : 500);
     }
-
-    /**
-     * Create individual part/software issuance
-     */
-    // public function createItemIssuance(Request $request)
-    // {
-    //     $employeeId = $this->getEmployeeId($request);
-
-    //     if (!$employeeId) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Employee identification required.',
-    //         ], 401);
-    //     }
-
-    //     $request->validate([
-    //         'hostname' => 'required|string',
-    //         'issued_to' => 'required|string',
-    //         'items' => 'required|array',
-    //         'items.*.item_type' => 'required|in:1,2',
-    //         'items.*.item_id' => 'required|integer',
-    //         'items.*.item_name' => 'required|string',
-    //         'items.*.quantity' => 'required|integer|min:1',
-    //         'items.*.serial_number' => 'nullable|string',
-    //         'items.*.remarks' => 'nullable|string',
-    //     ]);
-
-    //     $result = $this->issuanceService->createIndividualItemIssuance(
-    //         $request->all(),
-    //         $employeeId
-    //     );
-
-    //     return response()->json($result, $result['success'] ? 200 : 500);
-    // }
 }

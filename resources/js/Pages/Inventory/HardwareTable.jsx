@@ -217,7 +217,7 @@ const HardwareTable = () => {
                             key: "maintenance",
                             label: "Component Issuance",
                             onClick: () => handleOpenMaintenance(record),
-                            icon: <SwapOutlined style={{ color: "#722ed1" }} />,
+                            icon: <EditOutlined style={{ color: "#722ed1" }} />,
                         },
                     ];
 
