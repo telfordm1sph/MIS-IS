@@ -1,33 +1,33 @@
 import React, { useState } from "react";
-import { Drawer, Form, Button, Radio, Space, Divider } from "antd";
+import { Drawer, Form, Button, Radio, Space, Divider, message } from "antd";
 import {
     EditOutlined,
     SwapOutlined,
     PlusCircleOutlined,
     DeleteOutlined,
+    SaveOutlined,
 } from "@ant-design/icons";
 
 import { useComponentMaintenance } from "@/Hooks/useComponentMaintenance";
 import HardwareInfo from "./HardwareInfo";
-import EditHardwareInfo from "./EditHardwareInfo";
 import ReplaceComponent from "./ReplaceComponent";
 import AddComponent from "./AddComponent";
 import RemoveComponent from "./RemoveComponent";
+import IssuanceConfirmationModal from "./IssuanceConfirmationModal";
 
 const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
     const [form] = Form.useForm();
-    const [action, setAction] = useState("edit");
+    const [action, setAction] = useState("replace");
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [pendingData, setPendingData] = useState(null);
 
     const {
         loading,
         partsHooks,
         softwareHooks,
-        selectedComponent,
         selectedComponentType,
-        selectedComponentData,
         getComponentOptions,
         handleComponentSelectWrapper,
-        handleFinish,
         handleClose,
     } = useComponentMaintenance(form, open, hardware, action, onSave, onClose);
 
@@ -38,150 +38,231 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
 
     const handleComponentTypeSelect = (value) => {
         handleComponentSelectWrapper(null, { componentType: value });
-        form.resetFields([
-            "new_part_type",
-            "new_brand",
-            "new_model",
-            "new_specifications",
-            "new_sw_software_name",
-            "new_sw_software_type",
-            "new_sw_version",
-            "new_sw_license",
-        ]);
+    };
+
+    // Centralized save handler
+    const handleSave = async () => {
+        try {
+            const values = await form.validateFields();
+
+            // Build consolidated payload
+            const payload = {
+                hardware_id: hardware.id,
+                hostname: hardware.hostname,
+                operations: [],
+            };
+
+            // Process based on action
+            if (action === "replace") {
+                const replacements = values.replacements || [];
+                replacements.forEach((replacement) => {
+                    payload.operations.push({
+                        operation: "replace",
+                        old_component_id: replacement.old_component_id,
+                        old_component_type: replacement.old_component_type,
+                        old_component_data: replacement.old_component_data,
+                        old_condition: replacement.old_condition,
+                        new_component_id: replacement.new_component_id,
+                        new_component_data: replacement.new_component_data,
+                        reason: replacement.reason,
+                        remarks: replacement.remarks,
+                    });
+                });
+            } else if (action === "add") {
+                const components = values.components || [];
+                components.forEach((component) => {
+                    payload.operations.push({
+                        operation: "add",
+                        component_type: component.component_type,
+                        component_id: component.component_id,
+                        component_data: component.component_data,
+                        reason: component.reason,
+                    });
+                });
+            } else if (action === "remove") {
+                const components = values.components_to_remove || [];
+                components.forEach((component) => {
+                    payload.operations.push({
+                        operation: "remove",
+                        component_id: component.component_id,
+                        condition: component.condition,
+                        reason: component.reason,
+                        remarks: component.remarks,
+                    });
+                });
+            }
+
+            console.log(
+                "📦 CONSOLIDATED PAYLOAD:",
+                JSON.stringify(payload, null, 2),
+            );
+
+            // Show confirmation modal
+            setPendingData(payload);
+            setShowConfirmModal(true);
+        } catch (error) {
+            console.error("Validation error:", error);
+            message.error("Please fill in all required fields");
+        }
+    };
+
+    // Confirm and submit
+    const handleConfirmSubmit = async () => {
+        try {
+            setLoading(true);
+
+            // Make API call here
+            // const response = await axios.post(route('hardware.maintenance.batch'), pendingData);
+
+            message.success("Maintenance operations completed successfully");
+            setShowConfirmModal(false);
+            setPendingData(null);
+            form.resetFields();
+            onSave?.();
+            handleClose();
+        } catch (error) {
+            console.error("Submit error:", error);
+            message.error("Failed to save maintenance operations");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const ACTION_CONFIG = {
-        edit: {
-            text: "Update Hardware",
-            icon: <EditOutlined />,
-            type: "primary",
-            danger: false,
-        },
         replace: {
-            text: "Replace Component",
-            icon: <SwapOutlined />,
+            text: "Save All Changes",
+            icon: <SaveOutlined />,
             type: "primary",
             danger: false,
         },
         add: {
-            text: "Add Component",
-            icon: <PlusCircleOutlined />,
+            text: "Save All Changes",
+            icon: <SaveOutlined />,
             type: "primary",
             danger: false,
         },
         remove: {
-            text: "Remove Component",
-            icon: <DeleteOutlined />,
+            text: "Save All Changes",
+            icon: <SaveOutlined />,
             type: "primary",
             danger: true,
         },
     };
 
-    const config = ACTION_CONFIG[action] || ACTION_CONFIG.edit;
+    const config = ACTION_CONFIG[action];
 
     return (
-        <Drawer
-            title={
-                <Space>
-                    <EditOutlined />
-                    Hardware Maintenance
-                </Space>
-            }
-            size={1200}
-            onClose={handleClose}
-            open={open}
-            styles={{ body: { paddingBottom: 80 } }}
-            footer={
-                <div style={{ textAlign: "right" }}>
-                    <Button onClick={handleClose} style={{ marginRight: 8 }}>
-                        Cancel
-                    </Button>
-                    <Button
-                        type={config.type}
-                        danger={config.danger}
-                        onClick={() => form.submit()}
-                        loading={loading}
-                        icon={config.icon}
+        <>
+            <Drawer
+                title={
+                    <Space>
+                        <EditOutlined />
+                        Hardware Maintenance
+                    </Space>
+                }
+                size={1200}
+                onClose={handleClose}
+                open={open}
+                styles={{ body: { paddingBottom: 80 } }}
+                footer={
+                    <div style={{ textAlign: "right" }}>
+                        <Button
+                            onClick={handleClose}
+                            style={{ marginRight: 8 }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type={config.type}
+                            danger={config.danger}
+                            onClick={handleSave}
+                            loading={loading}
+                            icon={config.icon}
+                        >
+                            {config.text}
+                        </Button>
+                    </div>
+                }
+            >
+                <HardwareInfo hardware={hardware} />
+
+                <Divider />
+                <Radio.Group
+                    value={action}
+                    onChange={handleActionChange}
+                    style={{ marginBottom: 24, width: "100%" }}
+                    buttonStyle="solid"
+                >
+                    <Radio.Button
+                        value="replace"
+                        style={{ width: "33.33%", textAlign: "center" }}
                     >
-                        {config.text}
-                    </Button>
-                </div>
-            }
-        >
-            {/* Hardware Info - Hide when editing */}
-            {action !== "edit" && <HardwareInfo hardware={hardware} />}
+                        <SwapOutlined /> Replace Component
+                    </Radio.Button>
+                    <Radio.Button
+                        value="add"
+                        style={{ width: "33.33%", textAlign: "center" }}
+                    >
+                        <PlusCircleOutlined /> Add Component
+                    </Radio.Button>
+                    <Radio.Button
+                        value="remove"
+                        style={{ width: "33.33%", textAlign: "center" }}
+                    >
+                        <DeleteOutlined /> Remove Component
+                    </Radio.Button>
+                </Radio.Group>
 
-            <Divider />
+                <Divider />
 
-            {/* Action Selector */}
-            <Radio.Group
-                value={action}
-                onChange={handleActionChange}
-                style={{ marginBottom: 24, width: "100%" }}
-                buttonStyle="solid"
-            >
-                <Radio.Button value="edit" style={{ width: "25%" }}>
-                    <EditOutlined /> Edit Details
-                </Radio.Button>
-                <Radio.Button value="replace" style={{ width: "25%" }}>
-                    <SwapOutlined /> Replace Component
-                </Radio.Button>
-                <Radio.Button value="add" style={{ width: "25%" }}>
-                    <PlusCircleOutlined /> Add Component
-                </Radio.Button>
-                <Radio.Button value="remove" style={{ width: "25%" }}>
-                    <DeleteOutlined /> Remove Component
-                </Radio.Button>
-            </Radio.Group>
+                <Form
+                    form={form}
+                    layout="vertical"
+                    initialValues={{ components: [], component_type: null }}
+                    autoComplete="off"
+                >
+                    {action === "replace" && (
+                        <ReplaceComponent
+                            form={form}
+                            componentOptions={getComponentOptions()}
+                            partsHooks={partsHooks}
+                            softwareHooks={softwareHooks}
+                            hardware={hardware}
+                        />
+                    )}
 
-            <Divider />
+                    {action === "add" && (
+                        <AddComponent
+                            form={form}
+                            selectedComponentType={selectedComponentType}
+                            onComponentTypeSelect={(value) => {
+                                handleComponentSelectWrapper(null, {
+                                    componentType: value,
+                                });
+                            }}
+                        />
+                    )}
 
-            {/* Dynamic Form based on action */}
-            <Form
-                form={form}
-                layout="vertical"
-                onFinish={handleFinish}
-                autoComplete="off"
-            >
-                {action === "edit" && (
-                    <EditHardwareInfo hardware={hardware} form={form} />
-                )}
+                    {action === "remove" && (
+                        <RemoveComponent
+                            form={form}
+                            componentOptions={getComponentOptions()}
+                        />
+                    )}
+                </Form>
+            </Drawer>
 
-                {action === "replace" && (
-                    <ReplaceComponent
-                        form={form}
-                        selectedComponent={selectedComponent}
-                        selectedComponentType={selectedComponentType}
-                        selectedComponentData={selectedComponentData}
-                        componentOptions={getComponentOptions()}
-                        partsHooks={partsHooks}
-                        softwareHooks={softwareHooks}
-                        onComponentSelect={handleComponentSelectWrapper}
-                    />
-                )}
-
-                {action === "add" && (
-                    <AddComponent
-                        form={form}
-                        selectedComponentType={selectedComponentType}
-                        partsHooks={partsHooks}
-                        softwareHooks={softwareHooks}
-                        onComponentTypeSelect={handleComponentTypeSelect}
-                    />
-                )}
-
-                {action === "remove" && (
-                    <RemoveComponent
-                        form={form}
-                        selectedComponent={selectedComponent}
-                        selectedComponentType={selectedComponentType}
-                        selectedComponentData={selectedComponentData}
-                        componentOptions={getComponentOptions()}
-                        onComponentSelect={handleComponentSelectWrapper}
-                    />
-                )}
-            </Form>
-        </Drawer>
+            <IssuanceConfirmationModal
+                visible={showConfirmModal}
+                onCancel={() => setShowConfirmModal(false)}
+                onConfirm={handleConfirmSubmit}
+                hardware={hardware}
+                operations={pendingData?.operations || []}
+                action={action}
+                employeeData={{ emp_id: "EMP001", emp_name: "John Doe" }}
+                loading={loading}
+            />
+        </>
     );
 };
 

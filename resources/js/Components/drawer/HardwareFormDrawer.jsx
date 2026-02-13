@@ -17,10 +17,7 @@ import RemovalReasonModal from "../modal/RemovalReasonModal";
 import { useHardwareParts } from "@/Hooks/useHardwareParts";
 import { useHardwareSoftware } from "@/Hooks/useHardwareSoftware";
 import { useRemovalModal } from "@/Hooks/useRemovalModal";
-import {
-    convertDatesToDayjs,
-    convertDayjsToStrings,
-} from "../utils/dateHelper";
+import { convertDatesToDayjs, convertDayjsToStrings } from "@/Utils/dateHelper";
 import CascadingPartFields from "@/Components/forms/CascadingPartFields";
 import CascadingSoftwareFields from "@/Components/forms/CascadingSoftwareFields";
 

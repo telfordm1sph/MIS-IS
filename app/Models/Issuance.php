@@ -10,9 +10,12 @@ class Issuance extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'issuance_number',
+        'issuance_type',
         'request_number',
         'issued_to',
         'hostname',
+        'hardware_id',
         'location',
         'remarks',
         'created_by',
@@ -20,8 +23,12 @@ class Issuance extends Model
 
     protected $dates = ['created_at'];
 
+    protected $casts = [
+        'issuance_type' => 'integer',
+    ];
+
     /**
-     * Acknowledgement for this whole unit issuance
+     * Acknowledgement for this issuance
      */
     public function acknowledgement()
     {
@@ -30,17 +37,11 @@ class Issuance extends Model
     }
 
     /**
-     * This relationship is NOT for component issuances.
-     * This is only for items that are part of a bundled issuance package,
-     * if you have a scenario where multiple items are issued together
-     * under one issuance record.
-     * 
-     * For individual component additions/replacements, those IssuanceItems
-     * will have issuance_id = NULL and reference hardware_id instead.
+     * Component issuance details (for issuance_type = 2)
      */
-    public function items()
+    public function componentDetails()
     {
-        return $this->hasMany(IssuanceItem::class, 'issuance_id');
+        return $this->hasMany(ComponentIssuanceDetail::class, 'issuance_id');
     }
 
     /**
@@ -48,7 +49,7 @@ class Issuance extends Model
      */
     public function hardware()
     {
-        return $this->belongsTo(Hardware::class, 'hostname', 'hostname');
+        return $this->belongsTo(Hardware::class, 'hardware_id', 'id');
     }
 
     /**
@@ -65,5 +66,21 @@ class Issuance extends Model
     public function recipient()
     {
         return $this->belongsTo(Masterlist::class, 'issued_to', 'EMPLOYID');
+    }
+
+    /**
+     * Scope for whole unit issuances
+     */
+    public function scopeWholeUnit($query)
+    {
+        return $query->where('issuance_type', 1);
+    }
+
+    /**
+     * Scope for component maintenance issuances
+     */
+    public function scopeComponentMaintenance($query)
+    {
+        return $query->where('issuance_type', 2);
     }
 }

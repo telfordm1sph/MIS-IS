@@ -37,4 +37,11 @@ Route::prefix('hardware')->middleware('api.token')->group(function () {
         ->name('hardware.component.add');
     Route::post('remove-component', [HardwareController::class, 'removeComponent'])
         ->name('hardware.component.remove');
+
+
+
+    Route::get('/parts/available', [HardwareDetailController::class, 'availableParts']);
+    Route::get('/parts/all-available', [HardwareDetailController::class, 'allAvailableParts'])->name('inventory.parts.available');
+    Route::get('/software/available', [HardwareDetailController::class, 'availableSoftware']);
+    Route::get('/software/all-available', [HardwareDetailController::class, 'allAvailableSoftware'])->name('inventory.software.available');
 });

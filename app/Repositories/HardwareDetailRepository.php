@@ -6,6 +6,7 @@ use App\Models\Hardware;
 use App\Models\HardwarePart;
 use App\Models\HardwareSoftware;
 use App\Models\Part;
+use App\Models\PartInventory;
 use App\Models\SoftwareInventory;
 use App\Models\SoftwareLicense;
 use Illuminate\Support\Facades\DB;
@@ -300,5 +301,293 @@ class HardwareDetailRepository
             ->select('id', 'software_name', 'software_type', 'version', 'publisher')
             ->orderBy('software_name')
             ->get();
+    }
+    // ============================================================
+// NEW QUERIES FOR TABLE-BASED SELECTION (ELOQUENT)
+// ============================================================
+
+    /**
+     * Get available parts by filters (for REPLACE - filtered by part_type)
+     * Uses Eloquent relationships to join with part_inventory
+     * Only returns parts where quantity > 0 and not currently installed
+     * 
+     * @param array $filters
+     * @return \Illuminate\Support\Collection
+     */
+    public function getAvailablePartsByFilters(array $filters = [])
+    {
+        $query = Part::query()
+            ->with(['inventories' => function ($q) {
+                $q->where('quantity', '>', 0)
+                    ->where('condition', '!=', 'Defective')
+                    ->select('part_id', 'condition', 'quantity', 'location', 'unit_cost', 'supplier', 'updated_at');
+            }])
+            ->whereHas('inventories', function ($q) {
+                $q->where('quantity', '>', 0)
+                    ->where('condition', '!=', 'Defective');
+            });
+
+        // Apply filters
+        if (!empty($filters['part_type'])) {
+            $query->where('part_type', $filters['part_type']);
+        }
+
+        if (!empty($filters['brand'])) {
+            $query->where('brand', $filters['brand']);
+        }
+
+        if (!empty($filters['model'])) {
+            $query->where('model', $filters['model']);
+        }
+
+        if (!empty($filters['condition'])) {
+            $query->whereHas('inventories', function ($q) use ($filters) {
+                $q->where('condition', $filters['condition']);
+            });
+        }
+
+        return $query->orderBy('brand')
+            ->orderBy('model')
+            ->get()
+            ->flatMap(function ($part) {
+                // Return one row per inventory record (different conditions/locations)
+                return $part->inventories->map(function ($inventory) use ($part) {
+                    return (object) [
+                        'id' => $part->id,
+                        'inventory_id' => $inventory->id,
+                        'part_type' => $part->part_type,
+                        'brand' => $part->brand,
+                        'model' => $part->model,
+                        'specifications' => $part->specifications,
+                        'inventory_condition' => $inventory->condition,
+                        'inventory_quantity' => $inventory->quantity,
+                        'inventory_location' => $inventory->location,
+                        'inventory_unit_cost' => $inventory->unit_cost,
+                        'inventory_supplier' => $inventory->supplier,
+                        'inventory_updated_at' => $inventory->updated_at,
+                    ];
+                });
+            });
+    }
+
+    /**
+     * Get all available parts (for ADD - all part types)
+     * Returns all parts with available inventory across all types
+     * 
+     * @param array $filters
+     * @return \Illuminate\Support\Collection
+     */
+    public function getAllAvailableParts(array $filters = [])
+    {
+        $query = Part::query()
+            ->with(['inventories' => function ($q) {
+                $q->where('quantity', '>', 0)
+                    ->where('condition', '!=', 'Defective')
+                    ->select('part_id', 'condition', 'quantity', 'location', 'unit_cost', 'supplier');
+            }])
+            ->whereHas('inventories', function ($q) {
+                $q->where('quantity', '>', 0)
+                    ->where('condition', '!=', 'Defective');
+            });
+
+        // Optional filters
+        if (!empty($filters['part_type'])) {
+            $query->where('part_type', $filters['part_type']);
+        }
+
+        if (!empty($filters['brand'])) {
+            $query->where('brand', $filters['brand']);
+        }
+
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('brand', 'like', "%{$search}%")
+                    ->orWhere('model', 'like', "%{$search}%")
+                    ->orWhere('specifications', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->orderBy('part_type')
+            ->orderBy('brand')
+            ->orderBy('model')
+            ->get()
+            ->flatMap(function ($part) {
+                return $part->inventories->map(function ($inventory) use ($part) {
+                    return (object) [
+                        'id' => $part->id,
+                        'inventory_id' => $inventory->id,
+                        'part_type' => $part->part_type,
+                        'brand' => $part->brand,
+                        'model' => $part->model,
+                        'specifications' => $part->specifications,
+                        'inventory_condition' => $inventory->condition,
+                        'inventory_quantity' => $inventory->quantity,
+                        'inventory_location' => $inventory->location,
+                        'inventory_unit_cost' => $inventory->unit_cost,
+                        'inventory_supplier' => $inventory->supplier,
+                    ];
+                });
+            });
+    }
+
+    /**
+     * Get available software by filters (for REPLACE - filtered by name/type)
+     * Uses Eloquent relationships with software_licenses
+     * Only returns software where available_activations > 0
+     * 
+     * @param array $filters
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getAvailableSoftwareByFilters(array $filters = [])
+    {
+        $query = SoftwareInventory::query()
+            ->with(['licenses' => function ($q) {
+                $q->whereRaw('current_activations < max_activations')
+                    ->orderBy('subscription_end', 'desc');
+            }])
+            ->whereHas('licenses', function ($q) {
+                $q->whereRaw('current_activations < max_activations');
+            });
+
+        // Apply filters
+        if (!empty($filters['software_name'])) {
+            $query->where('software_name', $filters['software_name']);
+        }
+
+        if (!empty($filters['software_type'])) {
+            $query->where('software_type', $filters['software_type']);
+        }
+
+        if (!empty($filters['version'])) {
+            $query->where('version', $filters['version']);
+        }
+
+        return $query->orderBy('software_name')
+            ->orderBy('version', 'desc')
+            ->get();
+    }
+
+    /**
+     * Get all available software (for ADD - all types)
+     * Returns all software with available license activations
+     * 
+     * @param array $filters
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getAllAvailableSoftware(array $filters = [])
+    {
+        $query = SoftwareInventory::query()
+            ->with(['licenses' => function ($q) {
+                $q->whereRaw('current_activations < max_activations')
+                    ->orderBy('subscription_end', 'desc');
+            }])
+            ->whereHas('licenses', function ($q) {
+                $q->whereRaw('current_activations < max_activations');
+            });
+
+        // Optional filters
+        if (!empty($filters['software_name'])) {
+            $query->where('software_name', $filters['software_name']);
+        }
+
+        if (!empty($filters['software_type'])) {
+            $query->where('software_type', $filters['software_type']);
+        }
+
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('software_name', 'like', "%{$search}%")
+                    ->orWhere('software_type', 'like', "%{$search}%")
+                    ->orWhere('version', 'like', "%{$search}%")
+                    ->orWhere('publisher', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->orderBy('software_name')
+            ->orderBy('software_type')
+            ->orderBy('version', 'desc')
+            ->get();
+    }
+
+
+
+    /**
+     * Returns PartInventory query with related Part for available parts
+     */
+    public function getAllAvailablePartsQuery(array $filters = [])
+    {
+        $query = PartInventory::with(['part'])
+            ->where('quantity', '>', 0)
+            ->where('condition', '!=', 'Defective');
+
+        // Optional filters applied on related Part
+        if (!empty($filters['part_type'])) {
+            $query->whereHas('part', fn($q) => $q->where('part_type', $filters['part_type']));
+        }
+
+        if (!empty($filters['selected_type'])) {
+            $query->whereHas('part', fn($q) => $q->where('part_type', $filters['selected_type']));
+        }
+        if (!empty($filters['brand'])) {
+            $query->whereHas('part', fn($q) => $q->where('brand', $filters['brand']));
+        }
+        if (!empty($filters['model'])) {
+            $query->whereHas('part', fn($q) => $q->where('model', $filters['model']));
+        }
+
+        // Search across brand, model, specifications
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->whereHas(
+                'part',
+                fn($q) =>
+                $q->where('brand', 'like', "%{$search}%")
+                    ->orWhere('model', 'like', "%{$search}%")
+                    ->orWhere('specifications', 'like', "%{$search}%")
+            );
+        }
+
+        return $query;
+    }
+
+
+    /**
+     * Returns SoftwareLicense query with related SoftwareInventory for available software
+     */
+    public function getAllAvailableSoftwareQuery(array $filters = [])
+    {
+        $query = SoftwareLicense::with(['software'])
+            ->whereRaw('current_activations < max_activations');
+
+        // Optional filters applied on related Software
+        if (!empty($filters['software_name'])) {
+            $query->whereHas('software', fn($q) => $q->where('software_name', $filters['software_name']));
+        }
+        if (!empty($filters['selected_type'])) {
+            $query->whereHas('software', fn($q) => $q->where('software_name', $filters['selected_type']));
+        }
+        if (!empty($filters['software_type'])) {
+            $query->whereHas('software', fn($q) => $q->where('software_type', $filters['software_type']));
+        }
+
+        if (!empty($filters['version'])) {
+            $query->whereHas('software', fn($q) => $q->where('version', $filters['version']));
+        }
+
+        // Search across software_name, software_type, version
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->whereHas(
+                'software',
+                fn($q) =>
+                $q->where('software_name', 'like', "%{$search}%")
+                    ->orWhere('software_type', 'like', "%{$search}%")
+                    ->orWhere('version', 'like', "%{$search}%")
+            );
+        }
+
+        return $query;
     }
 }

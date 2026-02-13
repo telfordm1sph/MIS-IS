@@ -38,8 +38,4 @@ class Acknowledgement extends Model
      * Get the issuance item record (individual component)
      * Only loads when reference_type = 2
      */
-    public function issuanceItem()
-    {
-        return $this->belongsTo(IssuanceItem::class, 'reference_id', 'id');
-    }
 }

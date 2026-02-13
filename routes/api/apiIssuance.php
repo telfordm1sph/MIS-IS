@@ -10,6 +10,8 @@ Route::prefix('issuance')->middleware('api.token')->group(function () {
     // Individual item 
     // Route::post('/items/create', [IssuanceController::class, 'createItemIssuance']);
 
+
+    Route::post('/component/maintenance/batch', [IssuanceController::class, 'createComponentMaintenanceIssuance'])->name('component.maintenance.batch');
     // Tables
     Route::post('/whole-unit/table', [IssuanceController::class, 'getWholeUnitIssuanceTable']);
     Route::get('/individual-items/table', [IssuanceController::class, 'getIndividualItemIssuanceTable']);

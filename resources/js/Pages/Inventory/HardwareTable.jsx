@@ -187,7 +187,7 @@ const HardwareTable = () => {
             {
                 title: "Actions",
                 key: "actions",
-                width: 100,
+                width: 120,
                 render: (_, record) => {
                     const items = [
                         {
@@ -202,16 +202,22 @@ const HardwareTable = () => {
                             onClick: () => openLogs(record.id),
                             icon: (
                                 <HistoryOutlined style={{ color: "#faad14" }} />
-                            ), // yellow/orange
+                            ),
                         },
                         {
                             type: "divider",
                         },
                         {
+                            key: "edit",
+                            label: "Edit Hardware",
+                            onClick: () => openEdit(record),
+                            icon: <EditOutlined style={{ color: "#52c41a" }} />,
+                        },
+                        {
                             key: "maintenance",
-                            label: "Maintenance",
+                            label: "Component Issuance",
                             onClick: () => handleOpenMaintenance(record),
-                            icon: <EditOutlined style={{ color: "#1890ff" }} />,
+                            icon: <SwapOutlined style={{ color: "#722ed1" }} />,
                         },
                     ];
 

@@ -296,8 +296,8 @@ export const useComponentMaintenance = (
 
             console.log("🔍 FINAL PAYLOAD:", JSON.stringify(payload, null, 2));
 
-            const [method, url] = endpoints(hardware.id)[action];
-            const { data } = await axios[method](url, payload);
+            // const [method, url] = endpoints(hardware.id)[action];
+            // const { data } = await axios[method](url, payload);
 
             if (!data?.success)
                 return message.error(data?.message || `Failed to ${action}`);

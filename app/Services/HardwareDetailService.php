@@ -253,4 +253,248 @@ class HardwareDetailService
             ];
         })->toArray();
     }
+    /**
+     * Get available parts for selection (for REPLACE operation)
+     * Returns parts with specific part_type that have available inventory
+     * Each part represents a unique serial number with its inventory details
+     * 
+     * @param array $filters ['part_type' => 'RAM', 'brand' => 'Kingston', etc.]
+     * @return array
+     */
+    public function getAvailablePartsForSelection(array $filters = []): array
+    {
+        $parts = $this->repository->getAvailablePartsByFilters($filters);
+
+        return $parts->map(function ($part) {
+            return [
+                'id' => $part->id,
+                'part_type' => $part->part_type,
+                'brand' => $part->brand,
+                'model' => $part->model,
+                'specifications' => $part->specifications,
+                'serial_number' => $part->serial_number,
+                'condition' => $part->inventory_condition ?? 'Unknown',
+                'quantity' => $part->inventory_quantity ?? 0,
+                'location' => $part->inventory_location ?? 'N/A',
+                'unit_cost' => $part->inventory_unit_cost ?? 0,
+                'supplier' => $part->inventory_supplier ?? 'N/A',
+                'status' => $part->inventory_quantity > 0 ? 'Available' : 'Out of Stock',
+                'last_updated' => $part->inventory_updated_at ?? null,
+            ];
+        })->toArray();
+    }
+
+    /**
+     * Get all available parts (for ADD operation)
+     * Returns all parts across all part types that have available inventory
+     * 
+     * @param array $filters Optional filters for search/filtering
+     * @return array
+     */
+    public function getAllAvailablePartsForSelection(array $filters = []): array
+    {
+        $parts = $this->repository->getAllAvailableParts($filters);
+
+        return $parts->map(function ($part) {
+            return [
+                'id' => $part->id,
+                'part_type' => $part->part_type,
+                'brand' => $part->brand,
+                'model' => $part->model,
+                'specifications' => $part->specifications,
+                'condition' => $part->inventory_condition ?? 'Unknown',
+                'quantity' => $part->inventory_quantity ?? 0,
+                'location' => $part->inventory_location ?? 'N/A',
+                'unit_cost' => $part->inventory_unit_cost ?? 0,
+                'supplier' => $part->inventory_supplier ?? 'N/A',
+                'status' => $part->inventory_quantity > 0 ? 'Available' : 'Out of Stock',
+                'display_name' => "{$part->brand} {$part->model} - {$part->specifications}",
+            ];
+        })->toArray();
+    }
+
+    /**
+     * Get available software for selection (for REPLACE operation)
+     * Returns software with specific name/type that have available license activations
+     * Each entry represents a unique license with activation availability
+     * 
+     * @param array $filters ['software_name' => 'Windows', 'software_type' => 'OS', etc.]
+     * @return array
+     */
+    public function getAvailableSoftwareForSelection(array $filters = []): array
+    {
+        $softwareList = $this->repository->getAvailableSoftwareByFilters($filters);
+
+        $result = [];
+        foreach ($softwareList as $software) {
+            foreach ($software->licenses as $license) {
+                $availableActivations = $license->max_activations - $license->current_activations;
+
+                if ($availableActivations > 0) {
+                    // Determine identifier (license key or account)
+                    $identifier = $license->license_key ?? $license->account_user ?? 'N/A';
+                    $identifierType = !empty($license->license_key) ? 'License Key' : 'Account';
+
+                    $result[] = [
+                        'id' => $license->id,
+                        'software_inventory_id' => $software->id,
+                        'software_name' => $software->software_name,
+                        'software_type' => $software->software_type,
+                        'version' => $software->version,
+                        'publisher' => $software->publisher,
+                        'license_type' => $software->license_type,
+                        'license_key' => $license->license_key,
+                        'account_user' => $license->account_user,
+                        'account_password' => $license->account_password,
+                        'identifier' => $identifier,
+                        'identifier_type' => $identifierType,
+                        'max_activations' => $license->max_activations,
+                        'current_activations' => $license->current_activations,
+                        'available_activations' => $availableActivations,
+                        'status' => 'Available',
+                        'expiry_date' => $license->expiry_date ?? null,
+                    ];
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get all available software (for ADD operation)
+     * Returns all software across all types that have available license activations
+     * 
+     * @param array $filters Optional filters for search/filtering
+     * @return array
+     */
+    public function getAllAvailableSoftwareForSelection(array $filters = []): array
+    {
+        $softwareList = $this->repository->getAllAvailableSoftware($filters);
+
+        $result = [];
+        foreach ($softwareList as $software) {
+            foreach ($software->licenses as $license) {
+                $availableActivations = $license->max_activations - $license->current_activations;
+
+                if ($availableActivations > 0) {
+                    $identifier = $license->license_key ?? $license->account_user ?? 'N/A';
+                    $identifierType = !empty($license->license_key) ? 'License Key' : 'Account';
+
+                    $result[] = [
+                        'id' => $license->id,
+                        'software_inventory_id' => $software->id,
+                        'software_name' => $software->software_name,
+                        'software_type' => $software->software_type,
+                        'version' => $software->version,
+                        'publisher' => $software->publisher,
+                        'license_type' => $software->license_type,
+                        'license_key' => $license->license_key,
+                        'account_user' => $license->account_user,
+                        'account_password' => $license->account_password,
+                        'identifier' => $identifier,
+                        'identifier_type' => $identifierType,
+                        'max_activations' => $license->max_activations,
+                        'current_activations' => $license->current_activations,
+                        'available_activations' => $availableActivations,
+                        'status' => 'Available',
+                        'display_name' => "{$software->software_name} {$software->version} ({$software->software_type})",
+                    ];
+                }
+            }
+        }
+
+        return $result;
+    }
+    // In HardwareDetailService.php
+
+    public function getAllAvailablePartsPaginated(array $filters = [], $page = 1, $pageSize = 5, $sortField = 'brand', $sortOrder = 'asc')
+    {
+        $query = $this->repository->getAllAvailablePartsQuery($filters);
+
+        // Sorting: join only if sorting by part fields
+        if (in_array($sortField, ['brand', 'model', 'part_type'])) {
+            $query->join('parts', 'parts.id', '=', 'part_inventory.part_id')
+                ->orderBy("parts.{$sortField}", $sortOrder)
+                ->select('part_inventory.*'); // keep inventory columns
+        } else {
+            $query->orderBy($sortField, $sortOrder);
+        }
+
+        $paginator = $query->paginate($pageSize, ['*'], 'page', $page);
+
+        $items = $paginator->getCollection()->map(function ($inventory) {
+            $part = $inventory->part;
+            return [
+                'id' => $part->id,
+                'inventory_id' => $inventory->id,
+                'part_type' => $part->part_type,
+                'brand' => $part->brand,
+                'model' => $part->model,
+                'specifications' => $part->specifications,
+                'condition' => $inventory->condition,
+                'quantity' => $inventory->quantity,
+                'location' => $inventory->location,
+                'unit_cost' => $inventory->unit_cost,
+                'supplier' => $inventory->supplier,
+                'status' => $inventory->quantity > 0 ? 'Available' : 'Out of Stock',
+            ];
+        });
+
+        return [
+            'data' => $items,
+            'current_page' => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+        ];
+    }
+
+
+    public function getAllAvailableSoftwarePaginated(array $filters = [], $page = 1, $pageSize = 5, $sortField = 'software_name', $sortOrder = 'asc')
+    {
+        $query = $this->repository->getAllAvailableSoftwareQuery($filters);
+
+        // Apply sorting on SoftwareInventory columns
+        if (in_array($sortField, ['software_name', 'software_type', 'version'])) {
+            $query->join('software_inventory', 'software_inventory.id', '=', 'software_licenses.software_inventory_id')
+                ->orderBy("software_inventory.{$sortField}", $sortOrder)
+                ->select('software_licenses.*');
+        } else {
+            $query->orderBy($sortField, $sortOrder);
+        }
+
+        $paginator = $query->paginate($pageSize, ['*'], 'page', $page);
+
+        $items = $paginator->getCollection()->map(function ($license) {
+            $software = $license->software; // <- use existing relationship
+            $availableActivations = $license->max_activations - $license->current_activations;
+            $identifier = $license->license_key ?? $license->account_user ?? 'N/A';
+            $identifierType = !empty($license->license_key) ? 'License Key' : 'Account';
+
+            return [
+                'id' => $license->id,
+                'software_inventory_id' => $software->id,
+                'software_name' => $software->software_name,
+                'software_type' => $software->software_type,
+                'version' => $software->version,
+                'publisher' => $software->publisher,
+                'license_type' => $software->license_type,
+                'identifier' => $identifier,
+                'identifier_type' => $identifierType,
+                'max_activations' => $license->max_activations,
+                'current_activations' => $license->current_activations,
+                'available_activations' => $availableActivations,
+                'status' => $availableActivations > 0 ? 'Available' : 'Full',
+            ];
+        });
+
+        return [
+            'data' => $items,
+            'current_page' => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+        ];
+    }
 }
