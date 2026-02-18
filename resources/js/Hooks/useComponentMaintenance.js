@@ -57,10 +57,12 @@ export const useComponentMaintenance = (
             form.resetFields();
             resetAddSelection();
             resetReplaceSelection();
+            setSelectedComponentType(null);
+
             partsHooks.loadPartTypes();
             softwareHooks.loadSoftwareNames();
         }
-    }, [open, hardware]);
+    }, [open, hardware, action]);
 
     // Generate component options for Select dropdowns
     const getComponentOptions = () => {

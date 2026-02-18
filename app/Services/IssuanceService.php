@@ -30,8 +30,8 @@ class IssuanceService
         $lastIssuanceNumber = $lastIssuance ? $lastIssuance->issuance_number : null;
 
         $year = date('Y');
-        $month = date('m');
-        $prefix = "ISS-{$year}{$month}-";
+
+        $prefix = "ISS-{$year}-";
 
         if ($lastIssuanceNumber) {
             $parts = explode('-', $lastIssuanceNumber);
@@ -61,10 +61,14 @@ class IssuanceService
                 throw new \Exception("Hardware not found: {$firstOp['hardware_id']}");
             }
 
+            // Extract issued_to from first operation (should be the same for all)
+            $issuedTo = $firstOp['issued_to'] ?? $hardware->issued_to ?? $createdBy;
+
             // Process each operation using HardwareUpdateService (inventory management)
             $processedOperations = [];
             foreach ($operations as $operation) {
                 $operation['employee_id'] = $createdBy;
+                $operation['issued_to'] = $issuedTo; // Add this line to ensure issued_to is set
                 $processedOperation = $this->processSingleOperation($operation, $hardware, $createdBy);
                 $processedOperations[] = $processedOperation;
             }
@@ -77,7 +81,8 @@ class IssuanceService
                 $issuanceNumber,
                 $processedOperations,
                 $hardware,
-                $createdBy
+                $createdBy,
+                $issuedTo
             );
 
             // Prepare component details for each operation
@@ -91,7 +96,7 @@ class IssuanceService
 
             // Prepare acknowledgement data
             $acknowledgementData = $this->prepareAcknowledgementData(
-                $processedOperations[0]['issued_to'] ?? $createdBy,
+                $issuedTo,
                 $hardware
             );
 
@@ -462,14 +467,12 @@ class IssuanceService
     /**
      * BUSINESS LOGIC: Prepare issuance data
      */
-    protected function prepareIssuanceData(string $issuanceNumber, array $operations, $hardware, int $createdBy): array
+    protected function prepareIssuanceData(string $issuanceNumber, array $operations, $hardware, int $createdBy, string $issuedTo): array
     {
-        $firstOp = $operations[0];
-
         return [
             'issuance_number' => $issuanceNumber,
             'issuance_type' => 2, // Component Maintenance
-            'issued_to' => $firstOp['issued_to'] ?? $hardware->issued_to ?? $createdBy,
+            'issued_to' => $issuedTo, // Use the passed issued_to
             'hostname' => $hardware->hostname ?? $hardware->serial,
             'hardware_id' => $hardware->id,
             'location' => $hardware->location,

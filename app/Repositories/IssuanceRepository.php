@@ -327,7 +327,7 @@ class IssuanceRepository
      */
     public function getLastIssuanceNumber()
     {
-        return Issuance::where('issuance_number', 'like', 'ISS-' . date('Y') . date('m') . '-%')
+        return Issuance::where('issuance_number', 'like', 'ISS-' . date('Y') . '-%')
             ->orderBy('id', 'desc')
             ->first();
     }

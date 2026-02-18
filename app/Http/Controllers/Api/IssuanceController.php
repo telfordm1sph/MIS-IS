@@ -77,6 +77,7 @@ class IssuanceController extends Controller
      */
     public function createComponentMaintenanceIssuance(Request $request)
     {
+        // dd($request->all());
         try {
 
             $employeeId = $this->getEmployeeId($request);

@@ -32,7 +32,7 @@ class HardwareRepository
                     'softwareLicense:id,license_key,account_user'
                 ]);
             },
-            'issuedToUser',
+            'users.user',
             'installedByUser'
         ]);
     }
@@ -197,7 +197,7 @@ class HardwareRepository
             'parts',
             'software.softwareInventory',
             'software.softwareLicense',
-            'issuedToUser',
+            'users.user',
             'installedByUser'
         ])->find($hardwareId);
     }
@@ -904,7 +904,9 @@ class HardwareRepository
      */
     public function getIssuedToUser(int $userId)
     {
-        return $this->query()->where('issued_to', $userId);
+        return $this->query()->whereHas('users', function ($q) use ($userId) {
+            $q->where('user_id', $userId);
+        });
     }
 
     /**

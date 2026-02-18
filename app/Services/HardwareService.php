@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Constants\Status;
 use App\Repositories\HardwareRepository;
 use App\Models\Hardware;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -192,26 +193,54 @@ class HardwareService
             $hardwareArray['software'] = collect($hardwareArray['software'] ?? [])->map(function ($s) {
                 $s = (array) $s;
 
-                $s['inventory'] = isset($s['software_inventory'])
-                    ? (array) $s['software_inventory']
-                    : null;
-
-                $s['license'] = isset($s['software_license'])
-                    ? (array) $s['software_license']
-                    : null;
+                $s['inventory'] = isset($s['software_inventory']) ? (array) $s['software_inventory'] : null;
+                $s['license'] = isset($s['software_license']) ? (array) $s['software_license'] : null;
 
                 unset($s['software_inventory'], $s['software_license']);
 
                 return $s;
             });
+            // Fetch assigned users manually (cross-DB safe)
+            $assignedUsers = $hardware->users // hardware_users relationship on mysql
+                ->map(function ($hu) {
+                    $user = User::on('masterlist')->find($hu->user_id);
+                    if (!$user) return null;
+
+                    // Build full name
+                    $fullNameParts = [
+                        $user->FIRSTNAME,
+                        $user->MIDDLE_INITIAL ? $user->MIDDLE_INITIAL : null,
+                        $user->LASTNAME,
+                    ];
+
+                    $fullName = trim(implode(' ', array_filter($fullNameParts)));
+
+                    if (empty($fullName)) return null;
+
+                    // Build initials (F + M + L)
+                    $initials = strtoupper(
+                        ($user->FIRSTNAME[0] ?? '') .
+                            ($user->MIDDLE_INITIAL[0] ?? '') .
+                            ($user->LASTNAME[0] ?? '')
+                    );
+
+                    return [
+                        'EMPLOYID' => $user->EMPLOYID,
+                        'fullName' => $fullName,
+                        'initials' => $initials,
+                    ];
+                })
+                ->filter() // remove nulls
+                ->values();
+
+            // Build comma-separated string for issued_to_label
+            $issuedToNames = $assignedUsers->pluck('fullName')->implode(', ');
 
             return array_merge($hardwareArray, [
                 'status_label' => Status::getLabel($hardwareArray['status']),
                 'status_color' => Status::getColor($hardwareArray['status']),
-                'issued_to_label' => $this->getUserName(
-                    $hardwareArray['issued_to'] ?? null,
-                    $hardware->issuedToUser ?? null
-                ),
+                'issued_to_label' => $issuedToNames,
+                'assignedUsers' => $assignedUsers,
                 'installed_by_label' => $this->getUserName(
                     $hardwareArray['installed_by'] ?? null,
                     $hardware->installedByUser ?? null
@@ -219,6 +248,8 @@ class HardwareService
             ]);
         });
     }
+
+
 
     /**
      * Return part to inventory when hardware is deleted

@@ -80,7 +80,10 @@ export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
                 }
                 return;
             }
-
+            const componentId = parseInt(
+                selectedOldComponent?.split("_")[1],
+                10,
+            );
             // Create new entry
             let newItem;
             if (mode === "replace") {
@@ -90,7 +93,7 @@ export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
                 newItem = {
                     key: uuidv4(),
                     // Required fields
-                    component_id: record.id,
+                    component_id: componentId,
                     old_component_id: selectedOldComponent,
                     component_to_replace: selectedOldComponent,
                     component_type: componentType,
@@ -128,7 +131,7 @@ export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
                 // Build add payload matching backend validation
                 newItem = {
                     key: uuidv4(),
-                    component_id: record.id,
+                    component_id: componentId,
                     component_type: selectedComponentType,
                     quantity: 1,
                     remarks: "", // Optional for add

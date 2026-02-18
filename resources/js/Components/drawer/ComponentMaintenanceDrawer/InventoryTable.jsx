@@ -27,13 +27,9 @@ const InventoryTable = ({
     useEffect(() => {
         setData([]);
         setSearchText("");
-        setPagination({
-            current: 1,
-            pageSize: 5,
-            total: 0,
-        });
-        fetchData(1, 5, "");
-    }, [componentType, fetchEndpoint]);
+        setPagination({ current: 1, pageSize: 5, total: 0 });
+        fetchData(1, 5, "", selectedType); // pass selectedType explicitly
+    }, [componentType, fetchEndpoint, selectedType]);
 
     const fetchData = async (
         page = 1,

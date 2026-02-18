@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
     Modal,
     Descriptions,
@@ -12,137 +12,111 @@ import {
     Row,
     Col,
     Statistic,
-    Select,
-    message,
 } from "antd";
 import {
     CheckCircleOutlined,
     SwapOutlined,
     PlusCircleOutlined,
     DeleteOutlined,
-    EditOutlined,
-    WarningOutlined,
-    UserOutlined,
     DesktopOutlined,
+    UserOutlined,
+    WarningOutlined,
 } from "@ant-design/icons";
-import axios from "axios";
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 
 const IssuanceConfirmationModal = ({
     visible,
     onCancel,
     onConfirm,
     hardware,
-    operations = [],
+    operations = {},
     action,
     employeeData,
     loading = false,
 }) => {
-    const [selectedEmployee, setSelectedEmployee] = useState(null);
-    const [employees, setEmployees] = useState([]);
-    const [loadingEmployees, setLoadingEmployees] = useState(false);
-
-    // Fetch employees when modal opens
-    useEffect(() => {
-        if (visible) {
-            fetchEmployees();
-        }
-    }, [visible]);
-
-    // Set default employee if emp_data is provided
-    useEffect(() => {
-        if (employeeData?.emp_id) {
-            setSelectedEmployee(employeeData.emp_id);
-        }
-    }, [employeeData]);
-
-    const fetchEmployees = async () => {
-        setLoadingEmployees(true);
-        try {
-            // Try to fetch from API first
-            const response = await axios.get(route("employees.list"));
-            setEmployees(response.data);
-        } catch (error) {
-            console.error("Failed to fetch employees:", error);
-            // Use dummy employee data as fallback
-            const dummyEmployees = [
-                { emp_id: "1705", emp_name: "John Doe", department: "IT" },
-                { emp_id: "EMP002", emp_name: "Jane Smith", department: "HR" },
-                {
-                    emp_id: "EMP003",
-                    emp_name: "Mike Johnson",
-                    department: "Finance",
-                },
-                {
-                    emp_id: "EMP004",
-                    emp_name: "Sarah Williams",
-                    department: "Operations",
-                },
-            ];
-
-            // Include current employee data if available, otherwise use all dummy data
-            if (employeeData) {
-                setEmployees([employeeData, ...dummyEmployees]);
-            } else {
-                setEmployees(dummyEmployees);
-            }
-        } finally {
-            setLoadingEmployees(false);
-        }
-    };
-
     const handleConfirm = () => {
-        if (!selectedEmployee) {
-            message.error("Please select an employee to issue to");
-            return;
+        onConfirm(employeeData?.emp_id || employeeData);
+    };
+
+    const getOperationsArray = () => {
+        if (!operations) return [];
+        switch (action) {
+            case "replace":
+                return operations.replacements || [];
+            case "add":
+                return operations.components || [];
+            case "remove":
+                return operations.components_to_remove || [];
+            default:
+                return [];
         }
-        onConfirm(selectedEmployee);
     };
 
-    // Component type tag colors
-    const componentTypeColors = {
-        part: "blue",
-        software: "green",
+    const operationsArray = getOperationsArray();
+
+    const stats = {
+        total: operationsArray.length,
+        adds: action === "add" ? operationsArray.length : 0,
+        removes: action === "remove" ? operationsArray.length : 0,
+        replaces: action === "replace" ? operationsArray.length : 0,
     };
 
-    // Operation type icons and colors
+    const componentTypeColors = { part: "blue", software: "green" };
     const operationConfig = {
-        add: {
-            icon: <PlusCircleOutlined />,
-            color: "green",
-            text: "Add",
-        },
-        remove: {
-            icon: <DeleteOutlined />,
-            color: "red",
-            text: "Remove",
-        },
-        replace: {
-            icon: <SwapOutlined />,
-            color: "orange",
-            text: "Replace",
-        },
-        edit: {
-            icon: <EditOutlined />,
-            color: "blue",
-            text: "Edit",
-        },
+        add: { icon: <PlusCircleOutlined />, color: "green", text: "Add" },
+        remove: { icon: <DeleteOutlined />, color: "red", text: "Remove" },
+        replace: { icon: <SwapOutlined />, color: "orange", text: "Replace" },
     };
 
-    // Columns for operations table
+    const tableData = operationsArray.map((op, index) => {
+        const type = op?.component_type || op?.componentType;
+        const isPart = type === "part";
+
+        const oldCompName = op?.component_to_replace
+            ? isPart
+                ? `${op?.replacement_brand || ""} ${op?.replacement_model || ""} - ${op?.replacement_specifications || ""}`
+                : `${op?.replacement_software_name || ""} ${op?.replacement_version || ""}`
+            : "-";
+
+        const newCompName = (() => {
+            if (op?.operation === "remove") return "-";
+            if (op?.operation === "add") {
+                return isPart
+                    ? `${op?.new_brand || ""} ${op?.new_model || ""} - ${op?.new_specifications || ""}`
+                    : `${op?.new_software_name || ""} ${op?.new_version || ""}`;
+            }
+            return isPart
+                ? `${op?.replacement_brand || ""} ${op?.replacement_model || ""} - ${op?.replacement_specifications || ""}`
+                : `${op?.replacement_software_name || ""} ${op?.replacement_version || ""}`;
+        })();
+
+        return {
+            key: index,
+            operation: op?.operation || action,
+            componentType: type,
+            oldComponent: oldCompName,
+            oldCondition: op?.old_component_condition,
+            newComponent: newCompName,
+            newCondition: op?.replacement_condition || op?.new_condition,
+            reason: op?.reason,
+            remarks: op?.remarks,
+            oldComponentId: op?.component_to_replace || op?.component_id,
+            newComponentId:
+                op?.replacement_serial_number || op?.new_serial_number,
+        };
+    });
+
     const columns = [
         {
             title: "Operation",
             dataIndex: "operation",
             key: "operation",
-            width: 100,
             render: (op) => {
-                const config = operationConfig[op] || operationConfig.add;
+                const cfg = operationConfig[op] || {};
                 return (
-                    <Tag icon={config.icon} color={config.color}>
-                        {config.text}
+                    <Tag icon={cfg.icon} color={cfg.color}>
+                        {cfg.text}
                     </Tag>
                 );
             },
@@ -151,126 +125,65 @@ const IssuanceConfirmationModal = ({
             title: "Component Type",
             dataIndex: "componentType",
             key: "componentType",
-            render: (type) => (
-                <Tag color={componentTypeColors[type] || "default"}>
-                    {type?.toUpperCase()}
+            render: (t) => (
+                <Tag color={componentTypeColors[t] || "default"}>
+                    {t?.toUpperCase()}
                 </Tag>
             ),
         },
         {
             title: "Old Component",
             key: "oldComponent",
-            render: (_, record) => {
-                if (record.operation === "add" || record.operation === "add")
-                    return <Text type="secondary">-</Text>;
-
-                let componentName = "";
-                if (record.oldComponentData) {
-                    if (record.componentType === "part") {
-                        const p = record.oldComponentData.part_info;
-                        componentName = `${p?.brand || ""} ${p?.model || ""} - ${p?.specifications || ""}`;
-                    } else {
-                        const s = record.oldComponentData.inventory;
-                        componentName = `${s?.software_name || ""} ${s?.version || ""}`;
-                    }
-                }
-
-                return (
-                    <Space orientation="vertical" size={0}>
-                        <Text strong>{record.oldComponentId || "-"}</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                            {componentName || "N/A"}
-                        </Text>
-                        {record.oldCondition && (
-                            <Tag
-                                color={
-                                    record.oldCondition === "working"
-                                        ? "green"
-                                        : "red"
-                                }
-                                size="small"
-                            >
-                                {record.oldCondition}
-                            </Tag>
-                        )}
-                    </Space>
-                );
-            },
+            render: (_, rec) => (
+                <Space direction="vertical" size={0}>
+                    <Text strong>{rec.oldComponentId || "-"}</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                        {rec.oldComponent || "N/A"}
+                    </Text>
+                    {rec.oldCondition && (
+                        <Tag
+                            color={
+                                rec.oldCondition === "working" ? "green" : "red"
+                            }
+                            size="small"
+                        >
+                            {rec.oldCondition}
+                        </Tag>
+                    )}
+                </Space>
+            ),
         },
         {
             title: "New Component",
             key: "newComponent",
-            render: (_, record) => {
-                if (record.operation === "remove")
-                    return <Text type="secondary">-</Text>;
-
-                let componentName = "";
-
-                // Handle add mode payload
-                if (record.operation === "add") {
-                    if (record.component_type === "part") {
-                        componentName = `${record.new_brand || ""} ${record.new_model || ""} - ${record.new_specifications || ""}`;
-                    } else {
-                        componentName = `${record.new_software_name || record.new_sw_software_name || ""} ${record.new_version || record.new_sw_version || ""}`;
-                    }
-
-                    return (
-                        <Space orientation="vertical" size={0}>
-                            <Text strong>
-                                {record.new_serial_number || "New"}
-                            </Text>
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                                {componentName || "N/A"}
-                            </Text>
-                            {record.new_condition && (
-                                <Tag color="green" size="small">
-                                    {record.new_condition}
-                                </Tag>
-                            )}
-                        </Space>
-                    );
-                }
-
-                // Handle replace mode payload
-                let componentDetails =
-                    record.newComponentData || record.component_data;
-                if (componentDetails) {
-                    if (record.componentType === "part") {
-                        componentName = `${componentDetails.new_brand || componentDetails.brand || ""} ${componentDetails.new_model || componentDetails.model || ""} - ${componentDetails.new_specifications || componentDetails.specifications || ""}`;
-                    } else {
-                        componentName = `${componentDetails.new_sw_software_name || componentDetails.software_name || ""} ${componentDetails.new_sw_version || componentDetails.version || ""}`;
-                    }
-                }
-
-                return (
-                    <Space orientation="vertical" size={0}>
-                        <Text strong>{record.newComponentId || "New"}</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                            {componentName || "N/A"}
-                        </Text>
-                        {record.newCondition && (
-                            <Tag color="green" size="small">
-                                {record.newCondition}
-                            </Tag>
-                        )}
-                    </Space>
-                );
-            },
+            render: (_, rec) => (
+                <Space direction="vertical" size={0}>
+                    <Text strong>{rec.newComponentId || "New"}</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                        {rec.newComponent || "N/A"}
+                    </Text>
+                    {rec.newCondition && (
+                        <Tag color="green" size="small">
+                            {rec.newCondition}
+                        </Tag>
+                    )}
+                </Space>
+            ),
         },
         {
             title: "Reason/Remarks",
             key: "remarks",
             width: 200,
-            render: (_, record) => (
-                <Space orientation="vertical" size={0}>
-                    {record.reason && (
+            render: (_, rec) => (
+                <Space direction="vertical" size={0}>
+                    {rec.reason && (
                         <Text type="secondary" style={{ fontSize: 12 }}>
-                            <Text strong>Reason:</Text> {record.reason}
+                            <Text strong>Reason:</Text> {rec.reason}
                         </Text>
                     )}
-                    {record.remarks && (
+                    {rec.remarks && (
                         <Text type="secondary" style={{ fontSize: 12 }}>
-                            <Text strong>Remarks:</Text> {record.remarks}
+                            <Text strong>Remarks:</Text> {rec.remarks}
                         </Text>
                     )}
                 </Space>
@@ -278,83 +191,12 @@ const IssuanceConfirmationModal = ({
         },
     ];
 
-    // Transform operations to table data
-    const tableData = operations.map((op, index) => {
-        // For add mode
-        if (action === "add") {
-            return {
-                key: index,
-                operation: "add",
-                componentType: op.component_type,
-                component_type: op.component_type,
-                new_brand: op.new_brand,
-                new_model: op.new_model,
-                new_specifications: op.new_specifications,
-                new_serial_number: op.new_serial_number,
-                new_condition: op.new_condition,
-                new_software_name: op.new_software_name,
-                new_version: op.new_version,
-                reason: op.reason,
-                remarks: op.remarks,
-            };
-        }
-
-        // For replace mode
-        else if (action === "replace") {
-            return {
-                key: index,
-                operation: "replace",
-                componentType: op.component_type,
-                component_type: op.component_type,
-                oldComponentId: op.component_to_replace,
-                oldComponentData: op.old_component_data,
-                oldCondition: op.old_component_condition,
-                newComponentData: op,
-                newComponentId: op.replacement_serial_number,
-                newCondition: op.replacement_condition,
-                reason: op.reason,
-                remarks: op.remarks,
-            };
-        }
-
-        // For remove mode
-        else if (action === "remove") {
-            return {
-                key: index,
-                operation: "remove",
-                componentType: op.component_type,
-                component_type: op.component_type,
-                oldComponentId: op.component_id,
-                oldComponentData: op.component_data,
-                oldCondition: op.condition,
-                reason: op.reason,
-                remarks: op.remarks,
-            };
-        }
-
-        return op;
-    });
-
-    // Calculate statistics
-    const stats = {
-        total: operations.length,
-        adds: operations.filter(
-            (op) => action === "add" || op.operation === "add",
-        ).length,
-        removes: operations.filter(
-            (op) => action === "remove" || op.operation === "remove",
-        ).length,
-        replaces: operations.filter(
-            (op) => action === "replace" || op.operation === "replace",
-        ).length,
-    };
-
     return (
         <Modal
             title={
                 <Space>
-                    <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                    <span>Confirm Hardware Maintenance Issuance</span>
+                    <CheckCircleOutlined style={{ color: "#52c41a" }} /> Confirm
+                    Hardware Maintenance Issuance
                 </Space>
             }
             open={visible}
@@ -366,18 +208,13 @@ const IssuanceConfirmationModal = ({
             width={1000}
             style={{ top: 20 }}
         >
-            <Space
-                orientation="vertical"
-                size="large"
-                style={{ width: "100%" }}
-            >
-                {/* Hardware Information */}
+            <Space direction="vertical" size="large" style={{ width: "100%" }}>
+                {/* Hardware Info */}
                 <Card
                     size="small"
                     title={
                         <Space>
-                            <DesktopOutlined />
-                            Hardware Information
+                            <DesktopOutlined /> Hardware Information
                         </Space>
                     }
                 >
@@ -423,35 +260,13 @@ const IssuanceConfirmationModal = ({
                     size="small"
                     title={
                         <Space>
-                            <UserOutlined />
-                            Issuance Details
+                            <UserOutlined /> Issuance Details
                         </Space>
                     }
                 >
                     <Descriptions column={2} size="small" layout="vertical">
                         <Descriptions.Item label="Issued To" span={2}>
-                            <Select
-                                placeholder="Select employee"
-                                style={{ width: "100%" }}
-                                value={selectedEmployee}
-                                onChange={setSelectedEmployee}
-                                loading={loadingEmployees}
-                                showSearch
-                                optionFilterProp="children"
-                                filterOption={(input, option) =>
-                                    option.children
-                                        .toLowerCase()
-                                        .indexOf(input.toLowerCase()) >= 0
-                                }
-                            >
-                                {employees.map((emp) => (
-                                    <Option key={emp.emp_id} value={emp.emp_id}>
-                                        {emp.emp_name} ({emp.emp_id})
-                                        {emp.department &&
-                                            ` - ${emp.department}`}
-                                    </Option>
-                                ))}
-                            </Select>
+                            <Text strong>{hardware?.issued_to || "N/A"}</Text>
                         </Descriptions.Item>
                         <Descriptions.Item label="Issuance Date">
                             {new Date().toLocaleDateString()}
@@ -462,7 +277,7 @@ const IssuanceConfirmationModal = ({
                     </Descriptions>
                 </Card>
 
-                {/* Operations Summary */}
+                {/* Stats */}
                 <Row gutter={16}>
                     <Col span={6}>
                         <Card size="small">
@@ -508,12 +323,10 @@ const IssuanceConfirmationModal = ({
 
                 <Divider style={{ margin: "8px 0" }} />
 
-                {/* Components Table */}
-                {operations.length > 0 && (
-                    <div>
-                        <Title level={5} style={{ marginBottom: 16 }}>
-                            Component Changes
-                        </Title>
+                {/* Table */}
+                {operationsArray.length > 0 && (
+                    <>
+                        <Title level={5}>Component Changes</Title>
                         <Table
                             columns={columns}
                             dataSource={tableData}
@@ -522,23 +335,19 @@ const IssuanceConfirmationModal = ({
                             bordered
                             scroll={{ x: 800 }}
                         />
-                    </div>
+                    </>
                 )}
 
-                {/* Warning for removals */}
+                {/* Warnings */}
                 {stats.removes > 0 && (
                     <Alert
-                        message="Components Being Removed"
-                        description={`${stats.removes} component(s) will be removed from this hardware and returned to inventory or marked for disposal.`}
+                        description={`${stats.removes} component(s) will be removed from this hardware.`}
                         type="warning"
                         showIcon
                         icon={<WarningOutlined />}
                     />
                 )}
-
-                {/* Acknowledgment Notice */}
                 <Alert
-                    message="Acknowledgment Required"
                     description="The user must acknowledge receipt of these changes. The issuance will be marked as 'Pending Acknowledgment' until confirmed."
                     type="info"
                     showIcon

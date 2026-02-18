@@ -2,7 +2,16 @@ import React, { useCallback, useMemo, useState } from "react";
 import { usePage } from "@inertiajs/react";
 import { router } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Breadcrumb, Card, Table, Tag, Button, Dropdown } from "antd";
+import {
+    Breadcrumb,
+    Card,
+    Table,
+    Tag,
+    Button,
+    Dropdown,
+    Tooltip,
+    Avatar,
+} from "antd";
 import {
     PlusCircleOutlined,
     EyeOutlined,
@@ -11,7 +20,11 @@ import {
     SwapOutlined,
     UpCircleOutlined,
 } from "@ant-design/icons";
-import { EllipsisVertical } from "lucide-react";
+import {
+    ClipboardPlus,
+    ClipboardPlusIcon,
+    EllipsisVertical,
+} from "lucide-react";
 import dayjs from "dayjs";
 
 import { useInventoryFilters } from "@/Hooks/useInventoryFilters";
@@ -142,6 +155,17 @@ const HardwareTable = () => {
         );
     }, []);
 
+    // Simple function to generate a consistent color from a string
+    const stringToColor = (str) => {
+        if (!str) return "#999";
+
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+
+        return `hsl(${Math.abs(hash) % 360}, 70%, 60%)`;
+    };
     // ✅ Column definitions (page-specific)
     const columnDefinitions = useMemo(
         () => [
@@ -174,8 +198,41 @@ const HardwareTable = () => {
             },
             {
                 title: "Issued To",
-                dataIndex: "issued_to_label",
-                key: "issued_to_label",
+                dataIndex: "assignedUsers",
+                key: "issued_to",
+                render: (assignedUsers) => {
+                    if (!assignedUsers?.length) return null;
+
+                    return (
+                        <Avatar.Group
+                            max={{
+                                count: 3,
+                                style: {
+                                    color: "#fff",
+                                    backgroundColor: "#999",
+                                },
+                            }}
+                        >
+                            {assignedUsers.map((user) => (
+                                <Tooltip
+                                    title={user.fullName}
+                                    key={user.EMPLOYID}
+                                >
+                                    <Avatar
+                                        style={{
+                                            backgroundColor: stringToColor(
+                                                user.fullName,
+                                            ),
+                                            color: "#fff",
+                                        }}
+                                    >
+                                        {user.initials}
+                                    </Avatar>
+                                </Tooltip>
+                            ))}
+                        </Avatar.Group>
+                    );
+                },
             },
             {
                 title: "Status",
@@ -204,22 +261,27 @@ const HardwareTable = () => {
                                 <HistoryOutlined style={{ color: "#faad14" }} />
                             ),
                         },
-                        {
-                            type: "divider",
-                        },
+                        { type: "divider" },
                         {
                             key: "edit",
                             label: "Edit Hardware",
                             onClick: () => openEdit(record),
                             icon: <EditOutlined style={{ color: "#52c41a" }} />,
                         },
-                        {
-                            key: "maintenance",
-                            label: "Component Issuance",
-                            onClick: () => handleOpenMaintenance(record),
-                            icon: <EditOutlined style={{ color: "#722ed1" }} />,
-                        },
-                    ];
+                        record.status == "1"
+                            ? {
+                                  key: "maintenance",
+                                  label: "Component Issuance",
+                                  onClick: () => handleOpenMaintenance(record),
+                                  icon: (
+                                      <ClipboardPlusIcon
+                                          style={{ color: "#722ed1" }}
+                                          width={10}
+                                      />
+                                  ),
+                              }
+                            : null,
+                    ].filter(Boolean); // remove null entries
 
                     return (
                         <Dropdown
@@ -236,7 +298,7 @@ const HardwareTable = () => {
                 },
             },
         ],
-        [openLogs],
+        [handleView, openLogs, openEdit, handleOpenMaintenance], // updated dependencies
     );
 
     // ✅ Table configuration from hook

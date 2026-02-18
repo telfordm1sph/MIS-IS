@@ -21,7 +21,7 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
     const [form] = Form.useForm();
     const [action, setAction] = useState("replace");
     const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [pendingData, setPendingData] = useState([]);
+    const [pendingData, setPendingData] = useState(null);
     const [loading, setLoading] = useState(false);
 
     const { emp_data } = usePage().props;
@@ -43,16 +43,17 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
     // ----------------------------
     // Build unified payload for all actions
     // ----------------------------
-    const buildPayload = (values, issuedToEmployeeId) => {
-        // Add issuedToEmployeeId parameter
+    const buildPayload = (values) => {
         const basePayload = {
             hardware_id: hardware.id,
             hostname: hardware.hostname,
-            issued_to: issuedToEmployeeId, // Include issued_to in base payload
+            issued_to: hardware.issued_to,
         };
         const payloads = [];
 
         const addOrReplaceHandler = (item, type) => {
+            console.log("COMPONENT", item);
+
             const qty = item.quantity || 1;
             for (let i = 0; i < qty; i++) {
                 const common = {
@@ -165,13 +166,25 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
                 return;
             }
 
-            const payloads = buildPayload(values);
-            if (!payloads.length) {
-                message.error("Please select at least one component");
+            if (
+                action === "add" &&
+                (!values.components || values.components.length === 0)
+            ) {
+                message.error("Please select at least one component to add");
                 return;
             }
 
-            setPendingData(payloads);
+            if (
+                action === "remove" &&
+                (!values.components_to_remove ||
+                    values.components_to_remove.length === 0)
+            ) {
+                message.error("Please select at least one component to remove");
+                return;
+            }
+
+            // Store the form values, not the built payload
+            setPendingData(values);
             setShowConfirmModal(true);
         } catch (error) {
             console.error(error);
@@ -185,26 +198,36 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
     const handleConfirmSubmit = async (employeeId) => {
         try {
             setLoading(true);
-            console.log("Pending data", pendingData);
 
-            if (!pendingData.length) return;
+            if (!pendingData) {
+                message.error("No data to submit");
+                return;
+            }
+
+            // Build the payload with the employeeId
+            const payloads = buildPayload(pendingData, employeeId);
+
+            if (!payloads.length) {
+                message.error("Please select at least one component");
+                return;
+            }
 
             const payload = {
                 employee_id: emp_data?.emp_id,
-                operations: pendingData.map((op) => ({
-                    ...op,
-                    issued_to: employeeId,
-                })),
+                operations: payloads,
             };
-            // const endpoint = route("component.maintenance.batch");
-            // await axios.post(endpoint, payload);
+
+            console.log("Final payload:", payload);
+
+            const endpoint = route("component.maintenance.batch");
+            await axios.post(endpoint, payload);
 
             message.success(
-                `Hardware ${action} completed successfully (${pendingData.length} item${pendingData.length > 1 ? "s" : ""})`,
+                `Hardware ${action} completed successfully (${payloads.length} item${payloads.length > 1 ? "s" : ""})`,
             );
 
             setShowConfirmModal(false);
-            setPendingData([]);
+            setPendingData(null);
             form.resetFields();
             onSave?.();
             handleClose();
@@ -250,7 +273,7 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
                         <EditOutlined /> Hardware Maintenance
                     </Space>
                 }
-                width={1200}
+                size={1200}
                 onClose={handleClose}
                 open={open}
                 footer={
@@ -304,7 +327,11 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
                 <Form
                     form={form}
                     layout="vertical"
-                    initialValues={{ components: [], replacements: [] }}
+                    initialValues={{
+                        components: [],
+                        replacements: [],
+                        components_to_remove: [],
+                    }}
                     autoComplete="off"
                 >
                     {action === "replace" && (
@@ -335,7 +362,7 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
             <IssuanceConfirmationModal
                 visible={showConfirmModal}
                 onCancel={() => setShowConfirmModal(false)}
-                onConfirm={handleConfirmSubmit} // employeeId passed from modal
+                onConfirm={handleConfirmSubmit}
                 hardware={hardware}
                 operations={pendingData}
                 action={action}

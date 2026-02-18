@@ -874,31 +874,6 @@ class HardwareUpdateService
                 $createdPart = $this->createPartAndReturn($hardware, $newPartData, $employeeId);
                 $newComponentId = $createdPart->id;
                 $newItemName = "{$newPartData['part_type']} - {$newPartData['brand']} {$newPartData['model']}";
-
-                // Create issuance item for the replacement
-                $issuanceData = [
-                    'component_type' => 'part',
-                    'hardware_id' => $hardwareId,
-                    'issued_to' => $hardware->issued_to ?? $employeeId,
-                    'old_item_name' => $oldItemName,
-                    'new_component_id' => $newComponentId,
-                    'new_item_name' => $newItemName,
-                    'description' => "Part replacement on {$hardware->hostname}",
-                    'quantity' => 1,
-                    'serial_number' => $newPartData['serial_number'],
-                    'remarks' => $data['remarks'] ?? "Part replacement",
-                ];
-                // app(IssuanceService::class)->createComponentReplacementIssuanceItem($issuanceData, $employeeId);
-
-
-                // Log::info("Replaced part on hardware with issuance item", [
-                //     'hardware_id' => $hardware->id,
-                //     'hostname' => $hardware->hostname,
-                //     'old_part' => $oldItemName,
-                //     'new_part' => $newItemName,
-                //     'new_hardware_part_id' => $newComponentId,
-                //     'replaced_by' => $employeeId,
-                // ]);
             } else {
                 // Get old software details before removal
                 $oldSoftware = $this->hardwareRepository->findHardwareSoftwareById($componentId);
