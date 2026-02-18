@@ -61,7 +61,25 @@ return [
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
         ],
-
+        'qa' => [
+            'driver' => 'mysql',
+            'url' => env('QA_URL'),
+            'host' => env('QA_HOST', '127.0.0.1'),
+            'port' => env('QA_PORT', '3306'),
+            'database' => env('QA_DATABASE', 'laravel'),
+            'username' => env('QA_USERNAME', 'root'),
+            'password' => env('QA_PASSWORD', ''),
+            'unix_socket' => env('QA_SOCKET', ''),
+            'charset' => env('QA_CHARSET', 'utf8mb4'),
+            'collation' => env('QA_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
         'masterlist' => [
             'driver' => 'mysql',
             'url' => env('ADB_URL'),

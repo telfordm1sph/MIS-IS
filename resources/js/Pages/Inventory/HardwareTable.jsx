@@ -55,7 +55,11 @@ const HardwareTable = () => {
         openEdit,
         close: closeForm,
         employeeOptions,
-        employeesLoading,
+        departmentOptions,
+        locationOptions,
+        prodLineOptions,
+        stationOptions,
+        loadingOptions,
     } = useFormDrawer();
 
     const {
@@ -395,201 +399,249 @@ const HardwareTable = () => {
     };
 
     // ✅ Form field groups (page-specific)
-    const formFieldGroups = [
-        {
-            title: "Hardware Specifications",
-            column: 2,
-            fields: [
-                {
-                    key: "id",
-                    dataIndex: "id",
-                    type: "hidden",
-                },
-                {
-                    key: "status",
-                    label: "Status",
-                    dataIndex: "status",
-                    type: "select",
-                    options: [
-                        { label: "Active", value: 1 },
-                        { label: "New", value: 2 },
-                        { label: "Inactive", value: 3 },
-                        { label: "Defective", value: 4 },
-                    ],
-                },
-                {
-                    key: "hostname",
-                    label: "Host Name",
-                    dataIndex: "hostname",
-                    type: "input",
-                },
-                {
-                    key: "model",
-                    label: "Model",
-                    dataIndex: "model",
-                    type: "input",
-                },
-                {
-                    key: "brand",
-                    label: "Brand",
-                    dataIndex: "brand",
-                    type: "input",
-                },
-                {
-                    key: "category",
-                    label: "Category",
-                    dataIndex: "category",
-                    type: "select",
-                    options: [
-                        { label: "Desktop", value: "Desktop" },
-                        { label: "Laptop", value: "Laptop" },
-                        { label: "Server", value: "Server" },
-                        { label: "Network Device", value: "Network Device" },
-                        { label: "Other", value: "Other" },
-                    ],
-                },
-                {
-                    key: "serial_number",
-                    label: "Serial Number",
-                    dataIndex: "serial_number",
-                    type: "input",
-                },
-                {
-                    key: "processor",
-                    label: "Processor",
-                    dataIndex: "processor",
-                    type: "input",
-                },
-                {
-                    key: "motherboard",
-                    label: "Motherboard",
-                    dataIndex: "motherboard",
-                    type: "input",
-                },
-                {
-                    key: "ip_address",
-                    label: "IP Address",
-                    dataIndex: "ip_address",
-                    type: "input",
-                },
-                {
-                    key: "wifi_mac",
-                    label: "WiFi MAC Address",
-                    dataIndex: "wifi_mac",
-                    type: "input",
-                },
-                {
-                    key: "lan_mac",
-                    label: "LAN MAC Address",
-                    dataIndex: "lan_mac",
-                    type: "input",
-                },
-                {
-                    key: "assignedUsersIds",
-                    label: "Issued To",
-                    dataIndex: "assignedUsersIds",
-                    type: "multiSelect",
-                },
-            ],
-        },
-        {
-            title: "Hardware Parts",
-            column: 1,
-            fields: [
-                {
-                    key: "parts",
-                    label: "Hardware Part",
-                    type: "dynamicList",
-                    dataIndex: "parts",
-                    subFields: [
-                        {
-                            key: "id",
-                            dataIndex: "id",
-                            type: "hidden",
-                        },
-                        {
-                            key: "condition",
-                            dataIndex: "condition",
-                            type: "hidden",
-                        },
-                        {
-                            key: "part_type",
-                            label: "Part Type",
-                            dataIndex: "part_type",
-                            type: "input",
-                        },
-                        {
-                            key: "brand",
-                            label: "Brand",
-                            dataIndex: "brand",
-                            type: "input",
-                        },
-                        {
-                            key: "model",
-                            label: "Model",
-                            dataIndex: "model",
-                            type: "input",
-                        },
-                        {
-                            key: "specifications",
-                            label: "Specifications",
-                            dataIndex: "specifications",
-                            type: "input",
-                        },
-                        {
-                            key: "serial_number",
-                            label: "Serial Number",
-                            dataIndex: "serial_number",
-                            type: "input",
-                        },
-                    ],
-                },
-            ],
-        },
-        {
-            title: "Installed Software",
-            column: 1,
-            fields: [
-                {
-                    key: "id",
-                    dataIndex: "id",
-                    type: "hidden",
-                },
-                {
-                    key: "software",
-                    label: "Software",
-                    type: "dynamicList",
-                    dataIndex: "software",
-                    subFields: [
-                        {
-                            key: "software_name",
-                            label: "Software Name",
-                            dataIndex: "software_name",
-                            type: "input",
-                        },
-                        {
-                            key: "software_type",
-                            label: "Software Type",
-                            dataIndex: "software_type",
-                            type: "input",
-                        },
-                        {
-                            key: "version",
-                            label: "Version",
-                            dataIndex: "version",
-                            type: "input",
-                        },
-                        {
-                            key: "license_key",
-                            label: "License Key",
-                            dataIndex: "license_key",
-                            type: "input",
-                        },
-                    ],
-                },
-            ],
-        },
-    ];
+    const formFieldGroups = useMemo(
+        () => [
+            {
+                title: "Hardware Specifications",
+                column: 2,
+                fields: [
+                    {
+                        key: "id",
+                        dataIndex: "id",
+                        type: "hidden",
+                    },
+                    {
+                        key: "status",
+                        label: "Status",
+                        dataIndex: "status",
+                        type: "select",
+                        options: [
+                            { label: "Active", value: 1 },
+                            { label: "New", value: 2 },
+                            { label: "Inactive", value: 3 },
+                            { label: "Defective", value: 4 },
+                        ],
+                    },
+                    {
+                        key: "hostname",
+                        label: "Host Name",
+                        dataIndex: "hostname",
+                        type: "input",
+                    },
+                    {
+                        key: "model",
+                        label: "Model",
+                        dataIndex: "model",
+                        type: "input",
+                    },
+                    {
+                        key: "brand",
+                        label: "Brand",
+                        dataIndex: "brand",
+                        type: "input",
+                    },
+                    {
+                        key: "category",
+                        label: "Category",
+                        dataIndex: "category",
+                        type: "select",
+                        options: [
+                            { label: "Desktop", value: "Desktop" },
+                            { label: "Laptop", value: "Laptop" },
+                            { label: "Server", value: "Server" },
+                            {
+                                label: "Network Device",
+                                value: "Network Device",
+                            },
+                            { label: "Other", value: "Other" },
+                        ],
+                    },
+                    {
+                        key: "serial_number",
+                        label: "Serial Number",
+                        dataIndex: "serial_number",
+                        type: "input",
+                    },
+                    {
+                        key: "processor",
+                        label: "Processor",
+                        dataIndex: "processor",
+                        type: "input",
+                    },
+                    {
+                        key: "motherboard",
+                        label: "Motherboard",
+                        dataIndex: "motherboard",
+                        type: "input",
+                    },
+                    {
+                        key: "ip_address",
+                        label: "IP Address",
+                        dataIndex: "ip_address",
+                        type: "input",
+                    },
+                    {
+                        key: "wifi_mac",
+                        label: "WiFi MAC Address",
+                        dataIndex: "wifi_mac",
+                        type: "input",
+                    },
+                    {
+                        key: "lan_mac",
+                        label: "LAN MAC Address",
+                        dataIndex: "lan_mac",
+                        type: "input",
+                    },
+
+                    {
+                        key: "department",
+                        label: "Department",
+                        dataIndex: "department",
+                        type: "select",
+                        options: departmentOptions,
+                        loading: loadingOptions,
+                    },
+                    {
+                        key: "location",
+                        label: "Location",
+                        dataIndex: "location",
+                        type: "select",
+                        options: locationOptions,
+                        loading: loadingOptions,
+                    },
+                    {
+                        key: "prodline",
+                        label: "Product Line",
+                        dataIndex: "prodline",
+                        type: "select",
+                        options: prodLineOptions,
+                        loading: loadingOptions,
+                    },
+                    {
+                        key: "station",
+                        label: "Station",
+                        dataIndex: "station",
+                        type: "select",
+                        options: stationOptions,
+                        loading: loadingOptions,
+                    },
+                    {
+                        key: "assignedUsersIds",
+                        label: "Issued To",
+                        dataIndex: "assignedUsersIds",
+                        type: "multiSelect",
+                        options: employeeOptions,
+                        loading: loadingOptions,
+                    },
+                ],
+            },
+            {
+                title: "Hardware Parts",
+                column: 1,
+                fields: [
+                    {
+                        key: "parts",
+                        label: "Hardware Part",
+                        type: "dynamicList",
+                        dataIndex: "parts",
+                        subFields: [
+                            {
+                                key: "id",
+                                dataIndex: "id",
+                                type: "hidden",
+                            },
+                            {
+                                key: "condition",
+                                dataIndex: "condition",
+                                type: "hidden",
+                            },
+                            {
+                                key: "part_type",
+                                label: "Part Type",
+                                dataIndex: "part_type",
+                                type: "input",
+                            },
+                            {
+                                key: "brand",
+                                label: "Brand",
+                                dataIndex: "brand",
+                                type: "input",
+                            },
+                            {
+                                key: "model",
+                                label: "Model",
+                                dataIndex: "model",
+                                type: "input",
+                            },
+                            {
+                                key: "specifications",
+                                label: "Specifications",
+                                dataIndex: "specifications",
+                                type: "input",
+                            },
+                            {
+                                key: "serial_number",
+                                label: "Serial Number",
+                                dataIndex: "serial_number",
+                                type: "input",
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                title: "Installed Software",
+                column: 1,
+                fields: [
+                    {
+                        key: "id",
+                        dataIndex: "id",
+                        type: "hidden",
+                    },
+                    {
+                        key: "software",
+                        label: "Software",
+                        type: "dynamicList",
+                        dataIndex: "software",
+                        subFields: [
+                            {
+                                key: "software_name",
+                                label: "Software Name",
+                                dataIndex: "software_name",
+                                type: "input",
+                            },
+                            {
+                                key: "software_type",
+                                label: "Software Type",
+                                dataIndex: "software_type",
+                                type: "input",
+                            },
+                            {
+                                key: "version",
+                                label: "Version",
+                                dataIndex: "version",
+                                type: "input",
+                            },
+                            {
+                                key: "license_key",
+                                label: "License Key",
+                                dataIndex: "license_key",
+                                type: "input",
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+        [
+            departmentOptions,
+            locationOptions,
+            prodLineOptions,
+            stationOptions,
+            employeeOptions,
+            loadingOptions,
+        ],
+    );
     const handleMaintenanceClose = () => {
         setMaintenanceDrawerOpen(false);
         setSelectedHardware(null);
@@ -675,8 +727,6 @@ const HardwareTable = () => {
                     item={editingItem}
                     onSave={handleFormSave}
                     fieldGroups={formFieldGroups}
-                    employeeOptions={employeeOptions}
-                    employeesLoading={employeesLoading}
                 />
                 <ComponentMaintenanceDrawer
                     open={maintenanceDrawerOpen}

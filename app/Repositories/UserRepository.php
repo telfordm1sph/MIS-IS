@@ -2,9 +2,13 @@
 
 namespace App\Repositories;
 
+use App\Models\Departments;
+use App\Models\Locations;
 use App\Models\Masterlist;
-use Illuminate\Support\Facades\DB;
+use App\Models\Prodlines;
+use App\Models\Stations;
 use Illuminate\Support\Facades\Log;
+
 
 class UserRepository
 {
@@ -135,5 +139,49 @@ class UserRepository
             Log::error("Failed to check Operation Director as only approver for requestor {$requestorId}: " . $e->getMessage());
             return false;
         }
+    }
+    public function getDepartmentOptions(): array
+    {
+        return Departments::select('DEPTID', 'DEPTNAME')
+            ->distinct()
+            ->orderBy('DEPTNAME')
+            ->get()
+            ->map(fn($dept) => [
+                'dept_id'   => $dept->DEPTID,
+                'dept_name' => $dept->DEPTNAME,
+            ])
+            ->toArray();
+    }
+    public function getLocationList()
+    {
+        return Locations::select('id', 'location_name')
+            ->distinct()
+            ->where('location_name', '<>', 'Others')
+            ->orderBy('location_name')
+            ->get();
+    }
+    public function getProdlineOptions()
+    {
+        return Prodlines::select('PLID', 'PLNAME')
+            ->distinct()
+            ->orderBy('PLNAME')
+            ->get()
+            ->map(fn($pl) => [
+                'pl_id'   => $pl->PLID,
+                'pl_name' => $pl->PLNAME,
+            ])
+            ->toArray();
+    }
+    public function getStationOptions()
+    {
+        return Stations::select('STATIONID', 'STATIONNAME')
+            ->distinct()
+            ->orderBy('STATIONNAME')
+            ->get()
+            ->map(fn($station) => [
+                'station_id'   => $station->STATIONID,
+                'station_name' => $station->STATIONNAME,
+            ])
+            ->toArray();
     }
 }

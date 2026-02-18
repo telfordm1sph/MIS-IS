@@ -24,6 +24,8 @@ class Hardware extends Model
         'status',
         'location',
         'department',
+        'prodline',
+        'station',
         'installed_by',
         'date_issued',
         'created_by',

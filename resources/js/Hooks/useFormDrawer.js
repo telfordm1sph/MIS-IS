@@ -5,38 +5,78 @@ export const useFormDrawer = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
     const [employeeOptions, setEmployeeOptions] = useState([]);
-    const [employeesLoading, setEmployeesLoading] = useState(false);
+    const [departmentOptions, setDepartmentOptions] = useState([]);
+    const [locationOptions, setLocationOptions] = useState([]);
+    const [prodLineOptions, setProdLineOptions] = useState([]);
+    const [stationOptions, setStationOptions] = useState([]);
+    const [loadingOptions, setLoadingOptions] = useState(false);
 
-    const fetchEmployees = useCallback(async () => {
-        setEmployeesLoading(true);
+    const fetchOptions = useCallback(async () => {
+        setLoadingOptions(true);
         try {
-            const res = await axios.get(route("employees.list"));
+            const [empRes, deptRes, locRes, prodLineRes, stationRes] =
+                await Promise.all([
+                    axios.get(route("employees.list")),
+                    axios.get(route("departments.list")),
+                    axios.get(route("locations.list")),
+                    axios.get(route("prod-lines.list")),
+                    axios.get(route("stations.list")),
+                ]);
+
             setEmployeeOptions(
-                res.data.employees.map((emp) => ({
+                (empRes.data.employees ?? []).map((emp) => ({
                     label: `${emp.empname} - ${emp.emp_id}`,
                     value: emp.emp_id,
                 })),
             );
+
+            setDepartmentOptions(
+                (deptRes.data.departments ?? []).map((dept) => ({
+                    label: dept.dept_name,
+                    value: dept.dept_id,
+                })),
+            );
+
+            setLocationOptions(
+                (locRes.data.locations ?? []).map((loc) => ({
+                    label: loc.location_name,
+                    value: loc.id,
+                })),
+            );
+
+            setProdLineOptions(
+                (prodLineRes.data.prodlines ?? []).map((prod) => ({
+                    label: prod.pl_name,
+                    value: prod.pl_id,
+                })),
+            );
+
+            setStationOptions(
+                (stationRes.data.stations ?? []).map((station) => ({
+                    label: station.station_name,
+                    value: station.station_id,
+                })),
+            );
         } catch (error) {
-            console.error("Failed to fetch employees:", error);
+            console.error("Failed to fetch form options:", error);
         } finally {
-            setEmployeesLoading(false);
+            setLoadingOptions(false);
         }
     }, []);
 
     const openCreate = useCallback(() => {
         setEditingItem(null);
         setIsOpen(true);
-        fetchEmployees();
-    }, [fetchEmployees]);
+        fetchOptions();
+    }, [fetchOptions]);
 
     const openEdit = useCallback(
         (record) => {
             setEditingItem(record);
             setIsOpen(true);
-            fetchEmployees();
+            fetchOptions();
         },
-        [fetchEmployees],
+        [fetchOptions],
     );
 
     const close = useCallback(() => {
@@ -52,6 +92,10 @@ export const useFormDrawer = () => {
         close,
         isEditing: !!editingItem,
         employeeOptions,
-        employeesLoading,
+        departmentOptions,
+        locationOptions,
+        prodLineOptions,
+        stationOptions,
+        loadingOptions,
     };
 };

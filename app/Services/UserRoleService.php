@@ -55,4 +55,20 @@ class UserRoleService
     {
         return $this->userRepository->getStaffList($empId);
     }
+    public function getDepartmentOptions(): array
+    {
+        return $this->userRepository->getDepartmentOptions();
+    }
+    public function getLocationList()
+    {
+        return $this->userRepository->getLocationList();
+    }
+    public function getProdlineOptions()
+    {
+        return $this->userRepository->getProdlineOptions();
+    }
+    public function getStationOptions()
+    {
+        return $this->userRepository->getStationOptions();
+    }
 }

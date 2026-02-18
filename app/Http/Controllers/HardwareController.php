@@ -247,7 +247,7 @@ class HardwareController extends Controller
             // Employee ID (optional - only for API requests without session)
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
             'assignedUsersIds'   => ['nullable', 'array'],
-            'assignedUsersIds.*' => ['string'],
+
             // Hardware fields
             'hostname' => 'nullable|string|max:255',
             'category' => 'required|string|max:100',
@@ -259,8 +259,10 @@ class HardwareController extends Controller
             'ip_address' => 'nullable|ip',
             'wifi_mac' => 'nullable|string|max:17',
             'lan_mac' => 'nullable|string|max:17',
-            'location' => 'nullable|string|max:255',
-            'department' => 'nullable|string|max:100',
+            'location' => 'nullable|max:55',
+            'department' => 'nullable|max:100',
+            'station' => 'nullable|max:55',
+            'prodline' => 'nullable|max:55',
             'issued_to' => 'nullable|integer',
             'installed_by' => 'nullable|integer',
             'date_issued' => 'nullable|date',
@@ -298,7 +300,7 @@ class HardwareController extends Controller
             // Employee ID (optional - only for API requests without session)
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
             'assignedUsersIds'   => ['nullable', 'array'],
-            'assignedUsersIds.*' => ['string'],
+
             /*
         |--------------------------------------------------------------------------
         | Hardware fields
@@ -314,8 +316,10 @@ class HardwareController extends Controller
             'ip_address' => 'sometimes|nullable|ip',
             'wifi_mac' => 'sometimes|nullable|string|max:17',
             'lan_mac' => 'sometimes|nullable|string|max:17',
-            'location' => 'sometimes|nullable|string|max:255',
-            'department' => 'sometimes|nullable|string|max:100',
+            'location' => 'nullable|max:55',
+            'department' => 'nullable|max:100',
+            'station' => 'nullable|max:55',
+            'prodline' => 'nullable|max:55',
             'issued_to' => 'sometimes|nullable|integer',
             'installed_by' => 'sometimes|nullable|integer',
             'date_issued' => 'sometimes|nullable|date',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     Drawer,
     Form,
@@ -23,15 +23,7 @@ import CascadingSoftwareFields from "@/Components/forms/CascadingSoftwareFields"
 
 const { TextArea } = Input;
 
-const HardwareFormDrawer = ({
-    open,
-    onClose,
-    item,
-    onSave,
-    fieldGroups,
-    employeeOptions = [],
-    employeesLoading = false,
-}) => {
+const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
     const [removedItems, setRemovedItems] = useState({});
     const [loading, setLoading] = useState(false);
     const [form] = Form.useForm();
@@ -193,251 +185,280 @@ const HardwareFormDrawer = ({
         setRemovedItems({});
     };
 
-    const tabItems = [
-        {
-            key: "hardware",
-            label: "Hardware",
-            children: (
-                <Row gutter={16}>
-                    {fieldGroups
-                        ?.find((g) => g.title === "Hardware Specifications")
-                        ?.fields.map((field) =>
-                            field.type === "hidden" ? (
-                                <Form.Item
-                                    key={field.key}
-                                    name={field.dataIndex}
-                                    style={{ display: "none" }}
-                                >
-                                    <Input type="hidden" />
-                                </Form.Item>
-                            ) : (
-                                <Col xs={24} sm={12} md={8} key={field.key}>
+    const tabItems = useMemo(
+        () => [
+            {
+                key: "hardware",
+                label: "Hardware",
+                children: (
+                    <Row gutter={16}>
+                        {fieldGroups
+                            ?.find((g) => g.title === "Hardware Specifications")
+                            ?.fields.map((field) =>
+                                field.type === "hidden" ? (
                                     <Form.Item
+                                        key={field.key}
                                         name={field.dataIndex}
-                                        label={field.label}
-                                        rules={field.rules || []}
-                                    >
-                                        {field.type === "select" ? (
-                                            <Select
-                                                options={field.options}
-                                                placeholder={`Select ${field.label}`}
-                                            />
-                                        ) : field.type === "multiSelect" ? (
-                                            <Select
-                                                mode="multiple"
-                                                allowClear
-                                                showSearch
-                                                optionFilterProp="label"
-                                                placeholder="Select Employees"
-                                                options={employeeOptions}
-                                                loading={employeesLoading}
-                                            />
-                                        ) : (
-                                            <Input
-                                                placeholder={`Enter ${field.label}`}
-                                                allowClear
-                                            />
-                                        )}
-                                    </Form.Item>
-                                </Col>
-                            ),
-                        )}
-                </Row>
-            ),
-        },
-        {
-            key: "parts",
-            label: "Parts",
-            children: (
-                <Form.List name="parts">
-                    {(fields, { add, remove }) => (
-                        <>
-                            {fields.map(({ key, name }, index) => (
-                                <Row
-                                    key={key}
-                                    gutter={12}
-                                    align="middle"
-                                    style={{ marginBottom: 8 }}
-                                >
-                                    <Form.Item name={[name, "id"]} hidden>
-                                        <Input type="hidden" />
-                                    </Form.Item>
-                                    <Form.Item
-                                        name={[name, "condition"]}
-                                        hidden
+                                        style={{ display: "none" }}
                                     >
                                         <Input type="hidden" />
                                     </Form.Item>
+                                ) : (
+                                    <Col xs={24} sm={12} md={8} key={field.key}>
+                                        <Form.Item
+                                            name={field.dataIndex}
+                                            label={field.label}
+                                            rules={field.rules || []}
+                                        >
+                                            {field.type === "select" ? (
+                                                <Select
+                                                    options={
+                                                        field.options ?? []
+                                                    }
+                                                    showSearch
+                                                    optionFilterProp="label"
+                                                    loading={
+                                                        field.loading ?? false
+                                                    }
+                                                    placeholder={`Select ${field.label}`}
+                                                    notFoundContent={
+                                                        field.loading ? (
+                                                            <Spin size="small" />
+                                                        ) : (
+                                                            "No Data"
+                                                        )
+                                                    }
+                                                />
+                                            ) : field.type === "multiSelect" ? (
+                                                <Select
+                                                    mode="multiple"
+                                                    allowClear
+                                                    showSearch
+                                                    optionFilterProp="label"
+                                                    placeholder={`Select ${field.label}`}
+                                                    options={
+                                                        field.options ?? []
+                                                    }
+                                                    loading={
+                                                        field.loading ?? false
+                                                    }
+                                                />
+                                            ) : (
+                                                <Input
+                                                    placeholder={`Enter ${field.label}`}
+                                                    allowClear
+                                                />
+                                            )}
+                                        </Form.Item>
+                                    </Col>
+                                ),
+                            )}
+                    </Row>
+                ),
+            },
+            {
+                key: "parts",
+                label: "Parts",
+                children: (
+                    <Form.List name="parts">
+                        {(fields, { add, remove }) => (
+                            <>
+                                {fields.map(({ key, name }, index) => (
+                                    <Row
+                                        key={key}
+                                        gutter={12}
+                                        align="middle"
+                                        style={{ marginBottom: 8 }}
+                                    >
+                                        <Form.Item name={[name, "id"]} hidden>
+                                            <Input type="hidden" />
+                                        </Form.Item>
+                                        <Form.Item
+                                            name={[name, "condition"]}
+                                            hidden
+                                        >
+                                            <Input type="hidden" />
+                                        </Form.Item>
 
-                                    {/* Cascading Part Fields */}
-                                    <Col xs={24}>
-                                        <Row gutter={12} align="middle">
-                                            <CascadingPartFields
-                                                fieldPrefix={`parts_${name}`}
-                                                form={form}
-                                                partsHooks={partsHooks}
-                                                layout="inline"
-                                                showLabels={index === 0}
-                                                isFormList={true}
-                                                rowIndex={name}
-                                            />
-                                            {/* Remove Button */}
-                                            <Col
-                                                xs={6}
-                                                sm={6}
-                                                md={1}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    marginTop:
-                                                        index === 0 ? 24 : 0,
-                                                }}
-                                            >
-                                                <MinusCircleOutlined
+                                        {/* Cascading Part Fields */}
+                                        <Col xs={24}>
+                                            <Row gutter={12} align="middle">
+                                                <CascadingPartFields
+                                                    fieldPrefix={`parts_${name}`}
+                                                    form={form}
+                                                    partsHooks={partsHooks}
+                                                    layout="inline"
+                                                    showLabels={index === 0}
+                                                    isFormList={true}
+                                                    rowIndex={name}
+                                                />
+                                                {/* Remove Button */}
+                                                <Col
+                                                    xs={6}
+                                                    sm={6}
+                                                    md={1}
                                                     style={{
-                                                        fontSize: 20,
-                                                        color: "#ff4d4f",
-                                                        cursor: "pointer",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent:
+                                                            "center",
+                                                        marginTop:
+                                                            index === 0
+                                                                ? 24
+                                                                : 0,
                                                     }}
-                                                    onClick={() => {
-                                                        const row =
-                                                            form.getFieldValue(
+                                                >
+                                                    <MinusCircleOutlined
+                                                        style={{
+                                                            fontSize: 20,
+                                                            color: "#ff4d4f",
+                                                            cursor: "pointer",
+                                                        }}
+                                                        onClick={() => {
+                                                            const row =
+                                                                form.getFieldValue(
+                                                                    "parts",
+                                                                )?.[name];
+                                                            handleRemoveWithReason(
                                                                 "parts",
-                                                            )?.[name];
-                                                        handleRemoveWithReason(
-                                                            "parts",
-                                                            name,
-                                                            row,
-                                                        );
-                                                    }}
-                                                />
-                                            </Col>
-                                        </Row>
-                                    </Col>
-                                </Row>
-                            ))}
+                                                                name,
+                                                                row,
+                                                            );
+                                                        }}
+                                                    />
+                                                </Col>
+                                            </Row>
+                                        </Col>
+                                    </Row>
+                                ))}
 
-                            <Button
-                                type="dashed"
-                                block
-                                icon={<PlusOutlined />}
-                                onClick={() =>
-                                    add({
-                                        part_type: "",
-                                        brand: "",
-                                        model: "",
-                                        specifications: "",
-                                        condition: "",
-                                        serial_number: "",
-                                    })
-                                }
-                                style={{ marginTop: 16 }}
-                            >
-                                Add Part
-                            </Button>
-                        </>
-                    )}
-                </Form.List>
-            ),
-        },
-        {
-            key: "software",
-            label: "Software",
-            children: (
-                <Form.List name="software">
-                    {(fields, { add, remove }) => (
-                        <>
-                            {fields.map(({ key, name }, index) => (
-                                <Row
-                                    key={key}
-                                    gutter={12}
-                                    align="middle"
-                                    style={{ marginBottom: 8 }}
+                                <Button
+                                    type="dashed"
+                                    block
+                                    icon={<PlusOutlined />}
+                                    onClick={() =>
+                                        add({
+                                            part_type: "",
+                                            brand: "",
+                                            model: "",
+                                            specifications: "",
+                                            condition: "",
+                                            serial_number: "",
+                                        })
+                                    }
+                                    style={{ marginTop: 16 }}
                                 >
-                                    <Form.Item name={[name, "id"]} hidden>
-                                        <Input type="hidden" />
-                                    </Form.Item>
+                                    Add Part
+                                </Button>
+                            </>
+                        )}
+                    </Form.List>
+                ),
+            },
+            {
+                key: "software",
+                label: "Software",
+                children: (
+                    <Form.List name="software">
+                        {(fields, { add, remove }) => (
+                            <>
+                                {fields.map(({ key, name }, index) => (
+                                    <Row
+                                        key={key}
+                                        gutter={12}
+                                        align="middle"
+                                        style={{ marginBottom: 8 }}
+                                    >
+                                        <Form.Item name={[name, "id"]} hidden>
+                                            <Input type="hidden" />
+                                        </Form.Item>
 
-                                    <Col xs={24}>
-                                        <Row gutter={12} align="middle">
-                                            {/* Cascading Software Fields */}
-                                            <CascadingSoftwareFields
-                                                fieldPrefix={`software_${name}`}
-                                                form={form}
-                                                softwareHooks={softwareHooks}
-                                                layout="inline"
-                                                showLabels={index === 0}
-                                                isFormList={true}
-                                                rowIndex={name}
-                                            />
-
-                                            {/* Remove Button */}
-                                            <Col
-                                                xs={6}
-                                                sm={6}
-                                                md={1}
-                                                style={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    marginTop:
-                                                        index === 0 ? 24 : 0,
-                                                }}
-                                            >
-                                                <MinusCircleOutlined
-                                                    style={{
-                                                        fontSize: 20,
-                                                        color: "#ff4d4f",
-                                                        cursor: "pointer",
-                                                    }}
-                                                    onClick={() => {
-                                                        const row =
-                                                            form.getFieldValue(
-                                                                "software",
-                                                            )?.[name];
-                                                        handleRemoveWithReason(
-                                                            "software",
-                                                            name,
-                                                            row,
-                                                        );
-                                                    }}
+                                        <Col xs={24}>
+                                            <Row gutter={12} align="middle">
+                                                {/* Cascading Software Fields */}
+                                                <CascadingSoftwareFields
+                                                    fieldPrefix={`software_${name}`}
+                                                    form={form}
+                                                    softwareHooks={
+                                                        softwareHooks
+                                                    }
+                                                    layout="inline"
+                                                    showLabels={index === 0}
+                                                    isFormList={true}
+                                                    rowIndex={name}
                                                 />
-                                            </Col>
-                                        </Row>
-                                    </Col>
 
-                                    {/* Hidden fields for license data */}
-                                    <Form.Item
-                                        name={[name, "account_user"]}
-                                        hidden
-                                    >
-                                        <Input type="hidden" />
-                                    </Form.Item>
-                                    <Form.Item
-                                        name={[name, "account_password"]}
-                                        hidden
-                                    >
-                                        <Input type="hidden" />
-                                    </Form.Item>
-                                </Row>
-                            ))}
+                                                {/* Remove Button */}
+                                                <Col
+                                                    xs={6}
+                                                    sm={6}
+                                                    md={1}
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent:
+                                                            "center",
+                                                        marginTop:
+                                                            index === 0
+                                                                ? 24
+                                                                : 0,
+                                                    }}
+                                                >
+                                                    <MinusCircleOutlined
+                                                        style={{
+                                                            fontSize: 20,
+                                                            color: "#ff4d4f",
+                                                            cursor: "pointer",
+                                                        }}
+                                                        onClick={() => {
+                                                            const row =
+                                                                form.getFieldValue(
+                                                                    "software",
+                                                                )?.[name];
+                                                            handleRemoveWithReason(
+                                                                "software",
+                                                                name,
+                                                                row,
+                                                            );
+                                                        }}
+                                                    />
+                                                </Col>
+                                            </Row>
+                                        </Col>
 
-                            <Button
-                                type="dashed"
-                                block
-                                icon={<PlusOutlined />}
-                                onClick={() => add()}
-                                style={{ marginTop: 16 }}
-                            >
-                                Add Software
-                            </Button>
-                        </>
-                    )}
-                </Form.List>
-            ),
-        },
-    ];
+                                        {/* Hidden fields for license data */}
+                                        <Form.Item
+                                            name={[name, "account_user"]}
+                                            hidden
+                                        >
+                                            <Input type="hidden" />
+                                        </Form.Item>
+                                        <Form.Item
+                                            name={[name, "account_password"]}
+                                            hidden
+                                        >
+                                            <Input type="hidden" />
+                                        </Form.Item>
+                                    </Row>
+                                ))}
+
+                                <Button
+                                    type="dashed"
+                                    block
+                                    icon={<PlusOutlined />}
+                                    onClick={() => add()}
+                                    style={{ marginTop: 16 }}
+                                >
+                                    Add Software
+                                </Button>
+                            </>
+                        )}
+                    </Form.List>
+                ),
+            },
+        ],
+        [fieldGroups],
+    );
 
     return (
         <>
