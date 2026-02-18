@@ -235,12 +235,14 @@ class HardwareService
 
             // Build comma-separated string for issued_to_label
             $issuedToNames = $assignedUsers->pluck('fullName')->implode(', ');
+            $assignedUsersIds = $assignedUsers->pluck('EMPLOYID')->values();
 
             return array_merge($hardwareArray, [
                 'status_label' => Status::getLabel($hardwareArray['status']),
                 'status_color' => Status::getColor($hardwareArray['status']),
                 'issued_to_label' => $issuedToNames,
                 'assignedUsers' => $assignedUsers,
+                'assignedUsersIds' => $assignedUsersIds,
                 'installed_by_label' => $this->getUserName(
                     $hardwareArray['installed_by'] ?? null,
                     $hardware->installedByUser ?? null

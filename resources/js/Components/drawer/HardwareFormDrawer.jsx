@@ -23,7 +23,15 @@ import CascadingSoftwareFields from "@/Components/forms/CascadingSoftwareFields"
 
 const { TextArea } = Input;
 
-const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
+const HardwareFormDrawer = ({
+    open,
+    onClose,
+    item,
+    onSave,
+    fieldGroups,
+    employeeOptions = [],
+    employeesLoading = false,
+}) => {
     const [removedItems, setRemovedItems] = useState({});
     const [loading, setLoading] = useState(false);
     const [form] = Form.useForm();
@@ -213,6 +221,16 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                             <Select
                                                 options={field.options}
                                                 placeholder={`Select ${field.label}`}
+                                            />
+                                        ) : field.type === "multiSelect" ? (
+                                            <Select
+                                                mode="multiple"
+                                                allowClear
+                                                showSearch
+                                                optionFilterProp="label"
+                                                placeholder="Select Employees"
+                                                options={employeeOptions}
+                                                loading={employeesLoading}
                                             />
                                         ) : (
                                             <Input

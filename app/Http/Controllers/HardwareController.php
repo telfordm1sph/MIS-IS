@@ -246,7 +246,8 @@ class HardwareController extends Controller
         return $request->validate([
             // Employee ID (optional - only for API requests without session)
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
-
+            'assignedUsersIds'   => ['nullable', 'array'],
+            'assignedUsersIds.*' => ['string'],
             // Hardware fields
             'hostname' => 'nullable|string|max:255',
             'category' => 'required|string|max:100',
@@ -296,7 +297,8 @@ class HardwareController extends Controller
         return $request->validate([
             // Employee ID (optional - only for API requests without session)
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
-
+            'assignedUsersIds'   => ['nullable', 'array'],
+            'assignedUsersIds.*' => ['string'],
             /*
         |--------------------------------------------------------------------------
         | Hardware fields

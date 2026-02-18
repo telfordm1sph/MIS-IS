@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\Hardware;
 use App\Models\HardwarePart;
 use App\Models\HardwareSoftware;
+use App\Models\HardwareUsers;
 use App\Models\Part;
 use App\Models\PartInventory;
 use App\Models\SoftwareInventory;
@@ -96,7 +97,52 @@ class HardwareRepository
 
         return $result;
     }
+// ==================== HARDWARE USERS OPERATIONS ====================
 
+    /**
+     * Get current assigned user IDs for hardware
+     * DB OPERATION: Query
+     */
+    public function getAssignedUserIds(int $hardwareId): array
+    {
+        return HardwareUsers::where('hardware_id', $hardwareId)
+            ->pluck('user_id')
+            ->toArray();
+    }
+
+    /**
+     * Assign user to hardware
+     * DB OPERATION: Insert
+     */
+    public function assignUser(int $hardwareId, string $userId, int $assignedBy): HardwareUsers
+    {
+        return HardwareUsers::create([
+            'hardware_id'   => $hardwareId,
+            'user_id'       => $userId,
+            'date_assigned' => now(),
+            'assigned_by'   => $assignedBy,
+        ]);
+    }
+
+    /**
+     * Remove assigned users from hardware
+     * DB OPERATION: Delete
+     */
+    public function removeAssignedUsers(int $hardwareId, array $userIds): void
+    {
+        HardwareUsers::where('hardware_id', $hardwareId)
+            ->whereIn('user_id', $userIds)
+            ->delete();
+    }
+
+    /**
+     * Remove all assigned users from hardware
+     * DB OPERATION: Delete
+     */
+    public function clearAssignedUsers(int $hardwareId): void
+    {
+        HardwareUsers::where('hardware_id', $hardwareId)->delete();
+    }
     /**
      * Get logs query
      * DB OPERATION: Query builder for logs

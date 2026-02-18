@@ -54,6 +54,8 @@ const HardwareTable = () => {
         openCreate,
         openEdit,
         close: closeForm,
+        employeeOptions,
+        employeesLoading,
     } = useFormDrawer();
 
     const {
@@ -482,6 +484,12 @@ const HardwareTable = () => {
                     dataIndex: "lan_mac",
                     type: "input",
                 },
+                {
+                    key: "assignedUsersIds",
+                    label: "Issued To",
+                    dataIndex: "assignedUsersIds",
+                    type: "multiSelect",
+                },
             ],
         },
         {
@@ -667,6 +675,8 @@ const HardwareTable = () => {
                     item={editingItem}
                     onSave={handleFormSave}
                     fieldGroups={formFieldGroups}
+                    employeeOptions={employeeOptions}
+                    employeesLoading={employeesLoading}
                 />
                 <ComponentMaintenanceDrawer
                     open={maintenanceDrawerOpen}

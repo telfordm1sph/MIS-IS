@@ -18,17 +18,14 @@ class HardwareUpdateService
         $this->hardwareRepository = $hardwareRepository;
     }
 
-    /**
-     * Create new hardware with parts and software
-     * BUSINESS LOGIC: Orchestrate creation with inventory management
-     */
     public function createHardware(array $data, int $employeeId): Hardware
     {
         return DB::transaction(function () use ($data, $employeeId) {
-            // BUSINESS LOGIC: Prepare hardware data
             $hardwareData = $this->prepareHardwareData($data, $employeeId, true);
 
-            // REPO: Create hardware record
+            // Extract BEFORE creating hardware
+            $issuedTo = $this->extractIssuedTo($data); // 👈 from $data, not $hardwareData
+
             $hardware = $this->hardwareRepository->createHardware($hardwareData);
 
             Log::info("Hardware created", [
@@ -37,64 +34,67 @@ class HardwareUpdateService
                 'created_by' => $employeeId,
             ]);
 
-            // BUSINESS LOGIC: Process parts if provided
+            // Sync assigned users
+            if (!empty($issuedTo)) {
+                $this->syncAssignedUsers($hardware, $issuedTo, $employeeId);
+            }
+
             if (isset($data['parts']) && is_array($data['parts'])) {
                 foreach ($data['parts'] as $partData) {
                     $this->createPart($hardware, $partData, $employeeId);
                 }
             }
 
-            // BUSINESS LOGIC: Process software if provided
             if (isset($data['software']) && is_array($data['software'])) {
                 foreach ($data['software'] as $softwareData) {
                     $this->createSoftware($hardware, $softwareData, $employeeId);
                 }
             }
 
-            // REPO: Reload with relationships
             return $this->hardwareRepository->findWithRelations($hardware->id);
         });
     }
 
-    /**
-     * Update hardware with parts and software
-     * BUSINESS LOGIC: Orchestrate update with inventory management
-     */
     public function updateHardware(int $hardwareId, array $data, int $employeeId): Hardware
     {
         return DB::transaction(function () use ($hardwareId, $data, $employeeId) {
-            // REPO: Find hardware
-            $hardware = $this->hardwareRepository->findById($hardwareId);
-
-            if (!$hardware) {
-                throw new \Exception("Hardware not found");
-            }
-
-            // BUSINESS LOGIC: Prepare hardware data
             $hardwareData = $this->prepareHardwareData($data, $employeeId, false);
 
-            // REPO: Update hardware record
-            $this->hardwareRepository->updateHardware($hardware->id, $hardwareData);
+            // Extract from $data not $hardwareData
+            $issuedTo = $this->extractIssuedTo($data); // 👈 from $data
 
-            Log::info("Hardware updated", [
-                'hardware_id' => $hardware->id,
-                'hostname' => $hardware->hostname,
-                'updated_by' => $employeeId,
-            ]);
+            $this->hardwareRepository->updateHardware($hardwareId, $hardwareData);
 
-            // BUSINESS LOGIC: Process parts if provided
+            $hardware = $this->hardwareRepository->findById($hardwareId);
+
+            if ($issuedTo !== null) {
+                $this->syncAssignedUsers($hardware, $issuedTo, $employeeId);
+            }
+
             if (isset($data['parts'])) {
                 $this->processParts($hardware, $data['parts'], $employeeId);
             }
 
-            // BUSINESS LOGIC: Process software if provided
             if (isset($data['software'])) {
                 $this->processSoftware($hardware, $data['software'], $employeeId);
             }
 
-            // REPO: Reload with relationships
-            return $this->hardwareRepository->findWithRelations($hardware->id);
+            return $this->hardwareRepository->findWithRelations($hardwareId);
         });
+    }
+
+    private function extractIssuedTo(array &$data): ?array
+    {
+        $key = 'assignedUsersIds';
+
+        if (!array_key_exists($key, $data)) {
+            return null;
+        }
+
+        $issuedTo = $data[$key] ?? [];
+        unset($data[$key]);
+
+        return is_array($issuedTo) ? $issuedTo : [];
     }
 
     /**
@@ -131,6 +131,25 @@ class HardwareUpdateService
 
         // Remove null values
         return array_filter($hardwareData, fn($value) => $value !== null);
+    }
+    /**
+     * Sync assigned users for hardware
+     * BUSINESS LOGIC: Determine diff and delegate to repo
+     */
+    private function syncAssignedUsers(Hardware $hardware, array $userIds, int $employeeId): void
+    {
+        $currentUserIds = $this->hardwareRepository->getAssignedUserIds($hardware->id);
+
+        $toAdd    = array_diff($userIds, $currentUserIds);
+        $toRemove = array_diff($currentUserIds, $userIds);
+
+        if (!empty($toRemove)) {
+            $this->hardwareRepository->removeAssignedUsers($hardware->id, $toRemove);
+        }
+
+        foreach ($toAdd as $userId) {
+            $this->hardwareRepository->assignUser($hardware->id, $userId, $employeeId);
+        }
     }
 
     /**
