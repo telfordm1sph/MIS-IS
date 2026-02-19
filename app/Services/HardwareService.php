@@ -3,11 +3,14 @@
 namespace App\Services;
 
 use App\Constants\Status;
+use App\Http\Resources\HardwareResource;
 use App\Repositories\HardwareRepository;
 use App\Models\Hardware;
 use App\Models\User;
 use App\Repositories\ReferenceRepository;
 use App\Repositories\UserRepository;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -30,44 +33,79 @@ class HardwareService
      */
     public function getHardwareTable(array $filters): array
     {
-        // REPO: Get base queries
         $tableQuery = $this->hardwareRepository->query();
-        $countQuery = $this->hardwareRepository->query();
-        $categoryCounts = $this->hardwareRepository->getCategoryCounts();
-
-        // BUSINESS LOGIC: Apply filters
         $tableQuery = $this->applyFilters($tableQuery, $filters);
+        $tableQuery->orderBy($filters['sortField'] ?? 'created_at', $filters['sortOrder'] ?? 'desc');
 
-        // BUSINESS LOGIC: Apply sorting
-        $sortField = $filters['sortField'] ?? 'created_at';
-        $sortOrder = $filters['sortOrder'] ?? 'desc';
-        $tableQuery->orderBy($sortField, $sortOrder);
+        $paginated = $this->hardwareRepository->paginate(
+            $tableQuery,
+            $filters['pageSize'] ?? 10,
+            $filters['page'] ?? 1
+        );
 
-        // REPO: Get paginated data
-        $page = $filters['page'] ?? 1;
-        $pageSize = $filters['pageSize'] ?? 10;
-        $paginated = $this->hardwareRepository->paginate($tableQuery, $pageSize, $page);
+        $items = collect($paginated->items());
 
-        // BUSINESS LOGIC: Format data
-        $data = $this->formatHardwareData($paginated->items());
-
-        // REPO: Get status counts
-        $countQuery = $this->applyFilters($countQuery, $filters);
-        $statusCounts = $this->hardwareRepository->getHardwareStatusCounts($countQuery);
+        // Resolve reference names and attach to model instances
+        $this->attachReferenceNames($items);
 
         return [
-            'data' => $data,
-            'pagination' => [
-                'current' => $paginated->currentPage(),
+            'data'           => HardwareResource::collection($items)->resolve(),
+            'pagination'     => [
+                'current'     => $paginated->currentPage(),
                 'currentPage' => $paginated->currentPage(),
-                'lastPage' => $paginated->lastPage(),
-                'total' => $paginated->total(),
-                'perPage' => $paginated->perPage(),
-                'pageSize' => $paginated->perPage(),
+                'lastPage'    => $paginated->lastPage(),
+                'total'       => $paginated->total(),
+                'perPage'     => $paginated->perPage(),
+                'pageSize'    => $paginated->perPage(),
             ],
-            'categoryCounts' => $categoryCounts,
-            'filters' => $filters,
+            'categoryCounts' => Cache::remember(
+                'hardware.category_counts',
+                60,
+                fn() =>
+                $this->hardwareRepository->getCategoryCounts()
+            ),
+            'filters'        => $filters,
         ];
+    }
+
+    protected function attachReferenceNames(Collection $items): void
+    {
+        $departmentIds = $items->pluck('department')->filter()->unique()->toArray();
+        $locationIds   = $items->pluck('location')->filter()->unique()->toArray();
+        $stationIds    = $items->pluck('station')->filter()->unique()->toArray();
+        $prodlineIds   = $items->pluck('prodline')->filter()->unique()->toArray();
+        $allUserIds    = $items->flatMap(fn($h) => $h->users->pluck('user_id'))->unique()->toArray();
+
+        $departments = $this->referenceRepository->getDepartmentsByIds($departmentIds);
+        $locations   = $this->referenceRepository->getLocationsByIds($locationIds);
+        $stations    = $this->referenceRepository->getStationsByIds($stationIds);
+        $prodlines   = $this->referenceRepository->getProdlinesByIds($prodlineIds);
+        $users       = $this->userRepository->getUsersByIds($allUserIds);
+
+        $items->each(function ($hardware) use ($departments, $locations, $stations, $prodlines, $users) {
+            $hardware->department_name = optional($departments[$hardware->department] ?? null)->DEPTNAME;
+            $hardware->location_name   = optional($locations[$hardware->location] ?? null)->location_name;
+            $hardware->station_name    = optional($stations[$hardware->station] ?? null)->station_name;
+            $hardware->prodline_name   = optional($prodlines[$hardware->prodline] ?? null)->pl_name;
+
+            // Attach resolved user details onto each HardwareUsers pivot record
+            $hardware->users->each(function ($hu) use ($users) {
+                $user = $users[$hu->user_id] ?? null;
+                if (!$user) return;
+
+                $hu->resolved_name = trim(implode(' ', array_filter([
+                    $user['FIRSTNAME'] ?? null,
+                    $user['MIDDLE_INITIAL'] ?? null,
+                    $user['LASTNAME'] ?? null,
+                ])));
+
+                $hu->resolved_initials = strtoupper(
+                    ($user['FIRSTNAME'][0] ?? '') .
+                        ($user['MIDDLE_INITIAL'][0] ?? '') .
+                        ($user['LASTNAME'][0] ?? '')
+                );
+            });
+        });
     }
 
     /**
@@ -181,146 +219,6 @@ class HardwareService
         }
 
         return $query;
-    }
-
-    /**
-     * Format hardware data
-     * BUSINESS LOGIC: Data transformation
-     */
-    protected function formatHardwareData($items)
-    {
-        $items = collect($items);
-
-        /*
-    |--------------------------------------------------------------------------
-    | STEP 1 — Collect ALL IDs
-    |--------------------------------------------------------------------------
-    */
-
-        $departmentIds = $items->pluck('department')->filter()->unique()->toArray();
-        $locationIds   = $items->pluck('location')->filter()->unique()->toArray();
-        $stationIds    = $items->pluck('station')->filter()->unique()->toArray();
-        $prodlineIds   = $items->pluck('prodline')->filter()->unique()->toArray();
-
-        $allUserIds = $items->flatMap(function ($hardware) {
-            return $hardware->users->pluck('user_id');
-        })->unique()->values()->toArray();
-
-        /*
-    |--------------------------------------------------------------------------
-    | STEP 2 — Query Once Per Entity
-    |--------------------------------------------------------------------------
-    */
-
-        $departments = $this->referenceRepository->getDepartmentsByIds($departmentIds);
-        $locations   = $this->referenceRepository->getLocationsByIds($locationIds);
-        $stations    = $this->referenceRepository->getStationsByIds($stationIds);
-        $prodlines   = $this->referenceRepository->getProdlinesByIds($prodlineIds);
-        $users       = $this->userRepository->getUsersByIds($allUserIds);
-
-        /*
-    |--------------------------------------------------------------------------
-    | STEP 3 — Map Each Hardware
-    |--------------------------------------------------------------------------
-    */
-
-        return $items->map(function ($hardware) use (
-            $departments,
-            $locations,
-            $stations,
-            $prodlines,
-            $users
-        ) {
-
-            $hardwareArray = $hardware->toArray();
-
-            // Format Parts
-            $hardwareArray['parts'] = collect($hardwareArray['parts'] ?? [])
-                ->map(fn($p) => (array) $p);
-
-            // Format Software
-            $hardwareArray['software'] = collect($hardwareArray['software'] ?? [])
-                ->map(function ($s) {
-                    $s = (array) $s;
-
-                    $s['inventory'] = isset($s['software_inventory'])
-                        ? (array) $s['software_inventory']
-                        : null;
-
-                    $s['license'] = isset($s['software_license'])
-                        ? (array) $s['software_license']
-                        : null;
-
-                    unset($s['software_inventory'], $s['software_license']);
-
-                    return $s;
-                });
-
-            /*
-        |--------------------------------------------------------------------------
-        | Resolve Names
-        |--------------------------------------------------------------------------
-        */
-
-            $departmentName = optional($departments[$hardware->department] ?? null)->DEPTNAME;
-            $locationName   = optional($locations[$hardware->location] ?? null)->location_name;
-            $stationName    = optional($stations[$hardware->station] ?? null)->station_name;
-            $prodlineName   = optional($prodlines[$hardware->prodline] ?? null)->pl_name;
-
-            /*
-        |--------------------------------------------------------------------------
-        | Assigned Users
-        |--------------------------------------------------------------------------
-        */
-
-            $assignedUsers = collect($hardware->users)
-                ->map(function ($hu) use ($users) {
-
-                    $user = $users[$hu->user_id] ?? null;
-                    if (!$user) return null;
-
-                    $fullName = trim(implode(' ', array_filter([
-                        $user['FIRSTNAME'] ?? null,
-                        $user['MIDDLE_INITIAL'] ?? null,
-                        $user['LASTNAME'] ?? null,
-                    ])));
-
-                    $initials = strtoupper(
-                        ($user['FIRSTNAME'][0] ?? '') .
-                            ($user['MIDDLE_INITIAL'][0] ?? '') .
-                            ($user['LASTNAME'][0] ?? '')
-                    );
-
-
-                    return [
-                        'EMPLOYID' => $user['EMPLOYID'],
-                        'fullName' => $fullName,
-                        'initials' => $initials,
-                    ];
-                })
-                ->filter()
-                ->values();
-
-            return array_merge($hardwareArray, [
-
-                'department_name' => $departmentName,
-                'location_name'   => $locationName,
-                'station_name'    => $stationName,
-                'prodline_name'   => $prodlineName,
-
-                'status_label'    => Status::getLabel($hardwareArray['status']),
-                'status_color'    => Status::getColor($hardwareArray['status']),
-
-                'issued_to_label'  => $assignedUsers->pluck('fullName')->implode(', '),
-                'assignedUsers'    => $assignedUsers,
-                'assignedUsersIds' => $assignedUsers->pluck('EMPLOYID')->values(),
-
-                'installed_by_label' => $this->getUserName(
-                    $hardwareArray['installed_by'] ?? null,
-                    $hardware->installedByUser ?? null
-                ),
-            ]);
-        });
     }
 
 
