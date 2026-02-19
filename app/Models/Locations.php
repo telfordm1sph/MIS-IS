@@ -16,4 +16,8 @@ class Locations extends Model
 
 
     ];
+    public static function getLocationName($locId)
+    {
+        return self::where('id', $locId)->value('location_name');
+    }
 }

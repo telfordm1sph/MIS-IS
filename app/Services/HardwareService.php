@@ -6,16 +6,22 @@ use App\Constants\Status;
 use App\Repositories\HardwareRepository;
 use App\Models\Hardware;
 use App\Models\User;
+use App\Repositories\ReferenceRepository;
+use App\Repositories\UserRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class HardwareService
 {
     protected HardwareRepository $hardwareRepository;
+    protected UserRepository $userRepository;
+    protected ReferenceRepository $referenceRepository;
 
-    public function __construct(HardwareRepository $hardwareRepository)
+    public function __construct(HardwareRepository $hardwareRepository, UserRepository $userRepository, ReferenceRepository $referenceRepository)
     {
         $this->hardwareRepository = $hardwareRepository;
+        $this->userRepository = $userRepository;
+        $this->referenceRepository = $referenceRepository;
     }
 
     /**
@@ -183,66 +189,132 @@ class HardwareService
      */
     protected function formatHardwareData($items)
     {
-        return collect($items)->map(function ($hardware) {
-            $hardwareArray = is_array($hardware) ? $hardware : $hardware->toArray();
+        $items = collect($items);
 
-            // Format parts
-            $hardwareArray['parts'] = collect($hardwareArray['parts'] ?? [])->map(fn($p) => (array) $p);
+        /*
+    |--------------------------------------------------------------------------
+    | STEP 1 — Collect ALL IDs
+    |--------------------------------------------------------------------------
+    */
 
-            // Format software with inventory and license details
-            $hardwareArray['software'] = collect($hardwareArray['software'] ?? [])->map(function ($s) {
-                $s = (array) $s;
+        $departmentIds = $items->pluck('department')->filter()->unique()->toArray();
+        $locationIds   = $items->pluck('location')->filter()->unique()->toArray();
+        $stationIds    = $items->pluck('station')->filter()->unique()->toArray();
+        $prodlineIds   = $items->pluck('prodline')->filter()->unique()->toArray();
 
-                $s['inventory'] = isset($s['software_inventory']) ? (array) $s['software_inventory'] : null;
-                $s['license'] = isset($s['software_license']) ? (array) $s['software_license'] : null;
+        $allUserIds = $items->flatMap(function ($hardware) {
+            return $hardware->users->pluck('user_id');
+        })->unique()->values()->toArray();
 
-                unset($s['software_inventory'], $s['software_license']);
+        /*
+    |--------------------------------------------------------------------------
+    | STEP 2 — Query Once Per Entity
+    |--------------------------------------------------------------------------
+    */
 
-                return $s;
-            });
-            // Fetch assigned users manually (cross-DB safe)
-            $assignedUsers = $hardware->users // hardware_users relationship on mysql
-                ->map(function ($hu) {
-                    $user = User::on('masterlist')->find($hu->user_id);
+        $departments = $this->referenceRepository->getDepartmentsByIds($departmentIds);
+        $locations   = $this->referenceRepository->getLocationsByIds($locationIds);
+        $stations    = $this->referenceRepository->getStationsByIds($stationIds);
+        $prodlines   = $this->referenceRepository->getProdlinesByIds($prodlineIds);
+        $users       = $this->userRepository->getUsersByIds($allUserIds);
+
+        /*
+    |--------------------------------------------------------------------------
+    | STEP 3 — Map Each Hardware
+    |--------------------------------------------------------------------------
+    */
+
+        return $items->map(function ($hardware) use (
+            $departments,
+            $locations,
+            $stations,
+            $prodlines,
+            $users
+        ) {
+
+            $hardwareArray = $hardware->toArray();
+
+            // Format Parts
+            $hardwareArray['parts'] = collect($hardwareArray['parts'] ?? [])
+                ->map(fn($p) => (array) $p);
+
+            // Format Software
+            $hardwareArray['software'] = collect($hardwareArray['software'] ?? [])
+                ->map(function ($s) {
+                    $s = (array) $s;
+
+                    $s['inventory'] = isset($s['software_inventory'])
+                        ? (array) $s['software_inventory']
+                        : null;
+
+                    $s['license'] = isset($s['software_license'])
+                        ? (array) $s['software_license']
+                        : null;
+
+                    unset($s['software_inventory'], $s['software_license']);
+
+                    return $s;
+                });
+
+            /*
+        |--------------------------------------------------------------------------
+        | Resolve Names
+        |--------------------------------------------------------------------------
+        */
+
+            $departmentName = optional($departments[$hardware->department] ?? null)->DEPTNAME;
+            $locationName   = optional($locations[$hardware->location] ?? null)->location_name;
+            $stationName    = optional($stations[$hardware->station] ?? null)->station_name;
+            $prodlineName   = optional($prodlines[$hardware->prodline] ?? null)->pl_name;
+
+            /*
+        |--------------------------------------------------------------------------
+        | Assigned Users
+        |--------------------------------------------------------------------------
+        */
+
+            $assignedUsers = collect($hardware->users)
+                ->map(function ($hu) use ($users) {
+
+                    $user = $users[$hu->user_id] ?? null;
                     if (!$user) return null;
 
-                    // Build full name
-                    $fullNameParts = [
-                        $user->FIRSTNAME,
-                        $user->MIDDLE_INITIAL ? $user->MIDDLE_INITIAL : null,
-                        $user->LASTNAME,
-                    ];
+                    $fullName = trim(implode(' ', array_filter([
+                        $user['FIRSTNAME'] ?? null,
+                        $user['MIDDLE_INITIAL'] ?? null,
+                        $user['LASTNAME'] ?? null,
+                    ])));
 
-                    $fullName = trim(implode(' ', array_filter($fullNameParts)));
-
-                    if (empty($fullName)) return null;
-
-                    // Build initials (F + M + L)
                     $initials = strtoupper(
-                        ($user->FIRSTNAME[0] ?? '') .
-                            ($user->MIDDLE_INITIAL[0] ?? '') .
-                            ($user->LASTNAME[0] ?? '')
+                        ($user['FIRSTNAME'][0] ?? '') .
+                            ($user['MIDDLE_INITIAL'][0] ?? '') .
+                            ($user['LASTNAME'][0] ?? '')
                     );
 
+
                     return [
-                        'EMPLOYID' => $user->EMPLOYID,
+                        'EMPLOYID' => $user['EMPLOYID'],
                         'fullName' => $fullName,
                         'initials' => $initials,
                     ];
                 })
-                ->filter() // remove nulls
+                ->filter()
                 ->values();
 
-            // Build comma-separated string for issued_to_label
-            $issuedToNames = $assignedUsers->pluck('fullName')->implode(', ');
-            $assignedUsersIds = $assignedUsers->pluck('EMPLOYID')->values();
-
             return array_merge($hardwareArray, [
-                'status_label' => Status::getLabel($hardwareArray['status']),
-                'status_color' => Status::getColor($hardwareArray['status']),
-                'issued_to_label' => $issuedToNames,
-                'assignedUsers' => $assignedUsers,
-                'assignedUsersIds' => $assignedUsersIds,
+
+                'department_name' => $departmentName,
+                'location_name'   => $locationName,
+                'station_name'    => $stationName,
+                'prodline_name'   => $prodlineName,
+
+                'status_label'    => Status::getLabel($hardwareArray['status']),
+                'status_color'    => Status::getColor($hardwareArray['status']),
+
+                'issued_to_label'  => $assignedUsers->pluck('fullName')->implode(', '),
+                'assignedUsers'    => $assignedUsers,
+                'assignedUsersIds' => $assignedUsers->pluck('EMPLOYID')->values(),
+
                 'installed_by_label' => $this->getUserName(
                     $hardwareArray['installed_by'] ?? null,
                     $hardware->installedByUser ?? null
@@ -250,7 +322,6 @@ class HardwareService
             ]);
         });
     }
-
 
 
     /**

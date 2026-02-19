@@ -16,4 +16,9 @@ class Stations extends Model
 
 
     ];
+
+    public static function getStationName($stationId)
+    {
+        return self::where('STATIONID', $stationId)->value('STATIONNAME');
+    }
 }

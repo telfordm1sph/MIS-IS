@@ -16,4 +16,8 @@ class Prodlines extends Model
 
 
     ];
+    public static function getPlName($plId)
+    {
+        return self::where('PLID', $plId)->value('PLNAME');
+    }
 }

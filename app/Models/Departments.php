@@ -16,4 +16,9 @@ class Departments extends Model
 
 
     ];
+
+    public static function getDeptName($deptId)
+    {
+        return self::where('DEPTID', $deptId)->value('DEPTNAME');
+    }
 }

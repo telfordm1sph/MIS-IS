@@ -199,8 +199,8 @@ const HardwareTable = () => {
             },
             {
                 title: "Location",
-                dataIndex: "location",
-                key: "location",
+                dataIndex: "location_name",
+                key: "location_name",
             },
             {
                 title: "Issued To",

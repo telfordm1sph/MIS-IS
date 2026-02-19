@@ -184,4 +184,18 @@ class UserRepository
             ])
             ->toArray();
     }
+    public function getUsersByIds(array $userIds): array
+    {
+        return Masterlist::whereIn('EMPLOYID', $userIds)
+            ->select([
+                'EMPLOYID',
+                'FIRSTNAME',
+                'MIDDLE_INITIAL',
+                'LASTNAME',
+                'DEPARTMENT',
+            ])
+            ->get()
+            ->keyBy('EMPLOYID')
+            ->toArray();
+    }
 }

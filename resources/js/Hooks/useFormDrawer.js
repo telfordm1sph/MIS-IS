@@ -26,35 +26,35 @@ export const useFormDrawer = () => {
             setEmployeeOptions(
                 (empRes.data.employees ?? []).map((emp) => ({
                     label: `${emp.empname} - ${emp.emp_id}`,
-                    value: emp.emp_id,
+                    value: String(emp.emp_id), // ← coerce to string
                 })),
             );
 
             setDepartmentOptions(
                 (deptRes.data.departments ?? []).map((dept) => ({
                     label: dept.dept_name,
-                    value: dept.dept_id,
+                    value: String(dept.dept_id), // ← coerce to string
                 })),
             );
 
             setLocationOptions(
                 (locRes.data.locations ?? []).map((loc) => ({
                     label: loc.location_name,
-                    value: loc.id,
+                    value: String(loc.id), // ← coerce to string
                 })),
             );
 
             setProdLineOptions(
                 (prodLineRes.data.prodlines ?? []).map((prod) => ({
                     label: prod.pl_name,
-                    value: prod.pl_id,
+                    value: String(prod.pl_id), // ← coerce to string
                 })),
             );
 
             setStationOptions(
                 (stationRes.data.stations ?? []).map((station) => ({
                     label: station.station_name,
-                    value: station.station_id,
+                    value: String(station.station_id), // ← coerce to string
                 })),
             );
         } catch (error) {
