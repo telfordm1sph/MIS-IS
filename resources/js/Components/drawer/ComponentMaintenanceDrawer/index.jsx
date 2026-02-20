@@ -25,6 +25,7 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
     const [loading, setLoading] = useState(false);
 
     const { emp_data } = usePage().props;
+    console.log("Hardware", hardware);
 
     const {
         partsHooks,

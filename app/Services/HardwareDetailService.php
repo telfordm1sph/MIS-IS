@@ -3,14 +3,17 @@
 namespace App\Services;
 
 use App\Repositories\HardwareDetailRepository;
+use App\Repositories\ReferenceRepository;
 
 class HardwareDetailService
 {
     protected HardwareDetailRepository $repository;
+    protected ReferenceRepository $referenceRepository;
 
-    public function __construct(HardwareDetailRepository $repository)
+    public function __construct(HardwareDetailRepository $repository, ReferenceRepository $referenceRepository)
     {
         $this->repository = $repository;
+        $this->referenceRepository = $referenceRepository;
     }
     /**
      * Get hardware full info for API
@@ -23,12 +26,85 @@ class HardwareDetailService
             throw new \Exception("Hardware not found with ID: $hardwareId");
         }
 
-        // Transform data for frontend if needed
         $hardwareArray = $hardware->toArray();
 
-        // Optional: flatten nested relationships (parts/software) if needed
-        $hardwareArray['parts'] = $hardwareArray['parts'] ?? [];
+        /*
+    |--------------------------------------------------------------------------
+    | Collect Reference IDs
+    |--------------------------------------------------------------------------
+    */
+
+        $departmentId = $hardware->department ?? null;
+        $prodlineId   = $hardware->prodline ?? null;
+        $stationId    = $hardware->station ?? null;
+        $locationId   = $hardware->location ?? null;
+
+        /*
+    |--------------------------------------------------------------------------
+    | Resolve References
+    |--------------------------------------------------------------------------
+    */
+
+        $departmentName = 'N/A';
+        $prodlineName   = 'N/A';
+        $stationName    = 'N/A';
+        $locationName   = 'N/A';
+
+        if ($departmentId) {
+            $departments = $this->referenceRepository->getDepartmentsByIds([$departmentId]);
+            if (isset($departments[$departmentId])) {
+                $departmentName = $departments[$departmentId]->DEPTNAME ?? 'N/A';
+            }
+        }
+
+        if ($prodlineId) {
+            $prodlines = $this->referenceRepository->getProdlinesByIds([$prodlineId]);
+            if (isset($prodlines[$prodlineId])) {
+                $prodlineName = $prodlines[$prodlineId]->PLNAME ?? 'N/A';
+            }
+        }
+
+        if ($stationId) {
+            $stations = $this->referenceRepository->getStationsByIds([$stationId]);
+            if (isset($stations[$stationId])) {
+                $stationName = $stations[$stationId]->STATIONNAME ?? 'N/A';
+            }
+        }
+
+        if ($locationId) {
+            $locations = $this->referenceRepository->getLocationsByIds([$locationId]);
+            if (isset($locations[$locationId])) {
+                $locationName = $locations[$locationId]->location_name ?? 'N/A';
+            }
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Return Both ID + Name (Frontend Safe)
+    |--------------------------------------------------------------------------
+    */
+
+        $hardwareArray['department_id']   = $departmentId;
+        $hardwareArray['department_name'] = $departmentName;
+
+        $hardwareArray['pl_id']     = $prodlineId;
+        $hardwareArray['pl_name']   = $prodlineName;
+
+        $hardwareArray['station_id']      = $stationId;
+        $hardwareArray['station_name']    = $stationName;
+
+        $hardwareArray['location_id']     = $locationId;
+        $hardwareArray['location_name']   = $locationName;
+
+        /*
+    |--------------------------------------------------------------------------
+    | Ensure Relationships Always Arrays
+    |--------------------------------------------------------------------------
+    */
+
+        $hardwareArray['parts']    = $hardwareArray['parts'] ?? [];
         $hardwareArray['software'] = $hardwareArray['software'] ?? [];
+        $hardwareArray['hardware_users'] = $hardwareArray['hardware_users'] ?? [];
 
         return $hardwareArray;
     }

@@ -45,6 +45,7 @@ import ComponentMaintenanceDrawer from "@/Components/drawer/ComponentMaintenance
 const HardwareTable = () => {
     const { hardware, pagination, categoryCounts, filters, emp_data } =
         usePage().props;
+    console.log(usePage().props);
 
     const { drawerOpen, selectedItem, openDrawer, closeDrawer } = useDrawer();
 
@@ -330,8 +331,10 @@ const HardwareTable = () => {
             { label: "IP Address", value: item.ip_address || "-" },
             { label: "Wifi MAC", value: item.wifi_mac || "-" },
             { label: "LAN MAC", value: item.lan_mac || "-" },
-            { label: "Issued To", value: item.issued_to_label || "-" },
-            { label: "Department", value: item.department || "-" },
+            { label: "Department", value: item.department_name || "-" },
+            { label: "Location", value: item.location_name || "-" },
+            { label: "Product Line", value: item.prodline_name || "-" },
+            { label: "Station", value: item.station_name || "-" },
             { label: "Installed By", value: item.installed_by || "-" },
             {
                 label: "Status",
@@ -340,6 +343,7 @@ const HardwareTable = () => {
                     color: item.status_color || "default",
                 },
             },
+            { label: "Issued To", value: item.issued_to_label || "-" },
         ];
 
         // Group parts by part_type

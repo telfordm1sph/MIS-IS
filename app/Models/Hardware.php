@@ -77,16 +77,14 @@ class Hardware extends Model
         return $this->hasMany(HardwareUsers::class, 'hardware_id');
     }
 
-    // Optional helper to get actual user objects
+
+    public function hardwareUsers()
+    {
+        return $this->hasMany(HardwareUsers::class, 'hardware_id');
+    }
+
     public function assignedUsers()
     {
-        return $this->hasManyThrough(
-            User::class,
-            HardwareUsers::class,
-            'hardware_id', // Foreign key on HardwareUsers
-            'EMPLOYID',    // Foreign key on User
-            'id',          // Local key on Hardware
-            'user_id'      // Local key on HardwareUsers
-        )->select('EMPLOYID', 'EMPNAME');
+        return $this->hardwareUsers()->with('user');
     }
 }

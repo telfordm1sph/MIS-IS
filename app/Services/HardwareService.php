@@ -85,8 +85,8 @@ class HardwareService
         $items->each(function ($hardware) use ($departments, $locations, $stations, $prodlines, $users) {
             $hardware->department_name = optional($departments[$hardware->department] ?? null)->DEPTNAME;
             $hardware->location_name   = optional($locations[$hardware->location] ?? null)->location_name;
-            $hardware->station_name    = optional($stations[$hardware->station] ?? null)->station_name;
-            $hardware->prodline_name   = optional($prodlines[$hardware->prodline] ?? null)->pl_name;
+            $hardware->station_name    = optional($stations[$hardware->station] ?? null)->STATIONNAME;
+            $hardware->prodline_name   = optional($prodlines[$hardware->prodline] ?? null)->PLNAME;
 
             // Attach resolved user details onto each HardwareUsers pivot record
             $hardware->users->each(function ($hu) use ($users) {

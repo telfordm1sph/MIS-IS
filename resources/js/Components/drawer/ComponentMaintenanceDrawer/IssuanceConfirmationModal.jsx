@@ -38,6 +38,7 @@ const IssuanceConfirmationModal = ({
     const handleConfirm = () => {
         onConfirm(employeeData?.emp_id || employeeData);
     };
+    console.log("Hardware MOdal", hardware);
 
     const getOperationsArray = () => {
         if (!operations) return [];
@@ -266,7 +267,10 @@ const IssuanceConfirmationModal = ({
                 >
                     <Descriptions column={2} size="small" layout="vertical">
                         <Descriptions.Item label="Issued To" span={2}>
-                            <Text strong>{hardware?.issued_to || "N/A"}</Text>
+                            <Text strong>
+                                {hardware?.assignedUsers?.[0]?.fullName ||
+                                    "N/A"}
+                            </Text>
                         </Descriptions.Item>
                         <Descriptions.Item label="Issuance Date">
                             {new Date().toLocaleDateString()}

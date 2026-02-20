@@ -16,10 +16,9 @@ class IssuanceController extends Controller
         $this->issuanceService = $issuanceService;
     }
 
-    /**
-     * Get whole unit issuances table
-     */
-    public function getWholeUnitIssuanceTable(Request $request)
+
+
+    public function getIssuanceTable(Request $request)
     {
         $employeeId = $this->getEmployeeId($request);
 
@@ -33,44 +32,23 @@ class IssuanceController extends Controller
         $filters = $this->decodeFilters($request->input('f', ''));
 
         $filters = [
-            'page' => (int) ($filters['page'] ?? 1),
-            'pageSize' => (int) ($filters['pageSize'] ?? 10),
-            'search' => trim($filters['search'] ?? ''),
-            'sortField' => $filters['sortField'] ?? 'created_at',
-            'sortOrder' => $filters['sortOrder'] ?? 'desc',
-            'status' => $filters['status'] ?? '',
-            'dateFrom' => $filters['dateFrom'] ?? '',
-            'dateTo' => $filters['dateTo'] ?? '',
-            'employee_id' => $employeeId,
+            'page'          => (int)($filters['page'] ?? 1),
+            'pageSize'      => (int)($filters['pageSize'] ?? 10),
+            'search'        => trim($filters['search'] ?? ''),
+            'sortField'     => $filters['sortField'] ?? 'created_at',
+            'sortOrder'     => $filters['sortOrder'] ?? 'desc',
+            'status'        => $filters['status'] ?? '',
+            'issuance_type' => $filters['issuance_type'] ?? '',
+            'dateFrom'      => $filters['dateFrom'] ?? '',
+            'dateTo'        => $filters['dateTo'] ?? '',
+            'employee_id'   => $employeeId,
         ];
 
-        $result = $this->issuanceService->getWholeUnitIssuanceTable($filters);
+        $result = $this->issuanceService->getIssuanceTable($filters);
 
         return response()->json($result);
     }
 
-    /**
-     * Get component maintenance issuances table
-     */
-    public function getComponentMaintenanceIssuanceTable(Request $request)
-    {
-        $filters = $this->decodeFilters($request->input('f', ''));
-
-        $filters = [
-            'page' => (int) ($filters['page'] ?? 1),
-            'pageSize' => (int) ($filters['pageSize'] ?? 10),
-            'search' => trim($filters['search'] ?? ''),
-            'sortField' => $filters['sortField'] ?? 'created_at',
-            'sortOrder' => $filters['sortOrder'] ?? 'desc',
-            'status' => $filters['status'] ?? '',
-            'dateFrom' => $filters['dateFrom'] ?? '',
-            'dateTo' => $filters['dateTo'] ?? '',
-        ];
-
-        $result = $this->issuanceService->getComponentMaintenanceIssuanceTable($filters);
-
-        return response()->json($result);
-    }
 
     /**
      * Create component maintenance issuance batch (ADD, REPLACE, REMOVE)
@@ -94,7 +72,7 @@ class IssuanceController extends Controller
                 'operations.*.operation' => 'required|in:add,replace,remove',
                 'operations.*.component_type' => 'required|in:part,software',
                 'operations.*.hardware_id' => 'required|integer',
-                'operations.*.issued_to' => 'required|string',
+                'operations.*.issued_to' => 'nullable|string',
                 'operations.*.reason' => 'nullable|string',
                 'operations.*.remarks' => 'nullable|string',
 
@@ -181,14 +159,7 @@ class IssuanceController extends Controller
         }
     }
 
-    /**
-     * Get acknowledgement details
-     */
-    public function getAcknowledgementDetails($id)
-    {
-        $result = $this->issuanceService->getAcknowledgementDetails($id);
-        return response()->json($result);
-    }
+
 
     /**
      * Create whole unit issuance
@@ -209,7 +180,7 @@ class IssuanceController extends Controller
             'hostnames' => 'required|array',
             'hostnames.*.issued_to' => 'required|string',
             'hostnames.*.hostname' => 'required|string',
-            'hostnames.*.location' => 'nullable|string',
+            'hostnames.*.location' => 'nullable|integer',
             'hostnames.*.remarks' => 'nullable|string',
         ]);
 
@@ -219,5 +190,26 @@ class IssuanceController extends Controller
         );
 
         return response()->json($result, $result['success'] ? 200 : 500);
+    }
+    /**
+     * Acknowledge an issuance
+     */
+    public function acknowledgeIssuance(Request $request, $id)
+    {
+        $employeeId = $this->getEmployeeId($request);
+
+        if (!$employeeId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee identification required.',
+            ], 401);
+        }
+
+        $result = $this->issuanceService->updateAcknowledgementStatus($id, $employeeId);
+
+        return response()->json(
+            $result,
+            $result['status'] ?? 200
+        );
     }
 }

@@ -15,13 +15,13 @@ class HardwareDetailRepository
 {
     /**
      * Get full hardware info using Eloquent relationships
-     * Includes parts, software, issuedToUser, installedByUser
+     * Includes parts, software, assignedUsers, installedByUser
      */
     public function getHardwareInfo(string $hardwareId)
     {
         return Hardware::with([
-            'issuedToUser:EMPLOYID,EMPNAME',
-            'installedByUser:EMPLOYID,EMPNAME',
+            'hardwareUsers.user',         // Users via masterlist connection
+            'installedByUser',
             'parts.sourceInventory',        // Include inventory details for each part
             'software.softwareInventory',   // Include software info
             'software.softwareLicense',     // Include license info
@@ -32,8 +32,8 @@ class HardwareDetailRepository
     public function getHardwareInfoById(int $hardwareId)
     {
         return Hardware::with([
-            'issuedToUser:EMPLOYID,EMPNAME',
-            'installedByUser:EMPLOYID,EMPNAME',
+            'hardwareUsers.user',
+            'installedByUser',
             'parts.sourceInventory',        // Include inventory details for each part
             'software.softwareInventory',   // Include software info
             'software.softwareLicense',     // Include license info

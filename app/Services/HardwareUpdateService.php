@@ -138,7 +138,7 @@ class HardwareUpdateService
      * Sync assigned users for hardware
      * BUSINESS LOGIC: Determine diff and delegate to repo
      */
-    private function syncAssignedUsers(Hardware $hardware, array $userIds, int $employeeId): void
+    public function syncAssignedUsers(Hardware $hardware, array $userIds, int $employeeId): void
     {
         $currentUserIds = $this->hardwareRepository->getAssignedUserIds($hardware->id);
 

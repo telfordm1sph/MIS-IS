@@ -13,7 +13,6 @@ class Issuance extends Model
         'issuance_number',
         'issuance_type',
         'request_number',
-        'issued_to',
         'hostname',
         'hardware_id',
         'location',
@@ -60,13 +59,7 @@ class Issuance extends Model
         return $this->belongsTo(Masterlist::class, 'created_by', 'EMPLOYID');
     }
 
-    /**
-     * Get who this was issued to
-     */
-    public function recipient()
-    {
-        return $this->belongsTo(Masterlist::class, 'issued_to', 'EMPLOYID');
-    }
+
 
     /**
      * Scope for whole unit issuances
