@@ -17,14 +17,8 @@ import {
     EyeOutlined,
     EditOutlined,
     HistoryOutlined,
-    SwapOutlined,
-    UpCircleOutlined,
 } from "@ant-design/icons";
-import {
-    ClipboardPlus,
-    ClipboardPlusIcon,
-    EllipsisVertical,
-} from "lucide-react";
+import { ClipboardPlusIcon, EllipsisVertical } from "lucide-react";
 import dayjs from "dayjs";
 
 import { useInventoryFilters } from "@/Hooks/useInventoryFilters";
