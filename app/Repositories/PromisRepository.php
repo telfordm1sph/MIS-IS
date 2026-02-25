@@ -3,56 +3,62 @@
 namespace App\Repositories;
 
 use App\Models\ActivityLog;
-use App\Models\SoftwareInventory;
-use App\Models\SoftwareLicense;
+use App\Models\Promis;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 
-class SoftwareRepository
+class PromisRepository
 {
     public function query()
     {
-        return SoftwareInventory::query();
+        return Promis::query();
     }
+
     public function create(array $data): object
     {
-        // Use Eloquent create to trigger created event
-        $software = SoftwareInventory::create($data);
+        try {
+            $promis = Promis::create($data);
 
-        return $software;
+            return $promis;
+        } catch (\Exception $e) {
+            throw $e;
+        }
     }
-
     public function update(int $id, array $data): ?object
     {
-        $software = SoftwareInventory::find($id);
+        try {
+            $promis = Promis::find($id);
+            if (!$promis) {
+                return null;
+            }
 
-        if (!$software) {
-            return null;
+            // Only update fields provided in $data
+            $promis->update($data);
+
+            return $promis->fresh();
+        } catch (\Exception $e) {
+            throw $e;
         }
-
-        // Update via version instance to trigger updated event
-        $software->update($data);
-
-        return $software;
     }
-
     public function delete(int $id): bool
     {
-        $software = SoftwareInventory::find($id);
+        try {
+            $promis = Promis::find($id);
+            if (!$promis) {
+                return false;
+            }
 
-        if (!$software) {
-            return false;
+            return $promis->delete();
+        } catch (\Exception $e) {
+            throw $e;
         }
-
-        // Delete via model instance to trigger deleted event
-        return $software->delete();
     }
-    public function getLogsQuery(int $softwareId)
+    public function getLogsQuery(int $promisId)
     {
-        return ActivityLog::where('loggable_type', SoftwareInventory::class)
-            ->where('loggable_id', $softwareId)
+        return ActivityLog::where('loggable_type', Promis::class)
+            ->where('loggable_id', $promisId)
             ->orderBy('action_at', 'desc');
     }
-
     public function formatLogs($logs)
     {
         $userIds = $logs->pluck('action_by')->filter(fn($id) => is_numeric($id))->unique();
@@ -78,6 +84,6 @@ class SoftwareRepository
     }
     public function findById(int $id): ?object
     {
-        return SoftwareInventory::find($id);
+        return Promis::find($id);
     }
 }

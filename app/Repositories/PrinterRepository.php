@@ -21,23 +21,7 @@ class PrinterRepository
                 'data' => $data,
             ]);
 
-            $printer = Printer::create([
-                'printer_name' => $data['printer_name'],
-                'ip_address' => $data['ip_address'] ?? null,
-                'printer_type' => $data['printer_type'] ?? null,
-                'printer_category' => $data['printer_category'] ?? null,
-                'location' => $data['location'] ?? null,
-                'brand' => $data['brand'] ?? null,
-                'model' => $data['model'] ?? null,
-                'serial_number' => $data['serial_number'] ?? null,
-                'dpi' => $data['dpi'] ?? null,
-                'category_status' => $data['category_status'] ?? null,
-                'toner' => $data['toner'] ?? null,
-                'supplier' => $data['supplier'] ?? null,
-                'status' => $data['status'] ?? null,
-                'created_by' => $data['created_by'] ?? null,
-                'updated_by' => $data['updated_by'] ?? null,
-            ]);
+            $printer = Printer::create($data);
 
             Log::debug('Printer created in database', [
                 'printer_id' => $printer->id,
@@ -71,22 +55,7 @@ class PrinterRepository
                 return null;
             }
 
-            $printer->update([
-                'printer_name' => $data['printer_name'] ?? $printer->printer_name,
-                'ip_address' => $data['ip_address'] ?? $printer->ip_address,
-                'printer_type' => $data['printer_type'] ?? $printer->printer_type,
-                'printer_category' => $data['printer_category'] ?? $printer->printer_category,
-                'location' => $data['location'] ?? $printer->location,
-                'brand' => $data['brand'] ?? $printer->brand,
-                'model' => $data['model'] ?? $printer->model,
-                'serial_number' => $data['serial_number'] ?? $printer->serial_number,
-                'dpi' => $data['dpi'] ?? $printer->dpi,
-                'category_status' => $data['category_status'] ?? $printer->category_status,
-                'toner' => $data['toner'] ?? $printer->toner,
-                'supplier' => $data['supplier'] ?? $printer->supplier,
-                'status' => $data['status'] ?? $printer->status,
-                'updated_by' => $data['updated_by'] ?? $printer->updated_by,
-            ]);
+            $printer->update($data);
 
             Log::debug('Printer updated in database', [
                 'printer_id' => $id,

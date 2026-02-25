@@ -63,7 +63,7 @@ const CCTVTable = () => {
         updateSuccessMessage: "CCTV updated successfully!",
         createSuccessMessage: "CCTV created successfully!",
         deleteSuccessMessage: "CCTV deleted successfully!",
-        reloadProps: ["cctv"],
+        reloadProps: ["cctvs"],
     });
 
     // ✅ Wrapper for handleSave to close form on success
@@ -169,7 +169,11 @@ const CCTVTable = () => {
                                 <Popconfirm
                                     title="Delete this CCTV?"
                                     description="This action cannot be undone."
-                                    onConfirm={() => handleDelete(record.id)}
+                                    onConfirm={() =>
+                                        handleDelete(record.id, {
+                                            employee_id: emp_data?.emp_id,
+                                        })
+                                    }
                                     okText="Yes"
                                     cancelText="No"
                                     okButtonProps={{ danger: true }}
@@ -265,7 +269,6 @@ const CCTVTable = () => {
             >
                 <Breadcrumb
                     items={[{ title: "MIS-IS", href: "/" }, { title: "CCTVs" }]}
-                    style={{ marginBottom: 0 }}
                 />
                 <Button
                     type="primary"
@@ -286,16 +289,21 @@ const CCTVTable = () => {
                         }}
                     >
                         <span style={{ fontSize: "18px", fontWeight: 600 }}>
-                            Printers
+                            CCTVs
                         </span>
-                        <Input
-                            placeholder="Search CCTV name, channel, IP..."
-                            allowClear
-                            value={searchText}
-                            prefix={<SearchOutlined />}
-                            onChange={handleSearch}
-                            style={{ flex: 1, maxWidth: "400px" }}
-                        />
+                        <div style={{ marginLeft: "auto" }}>
+                            <Input
+                                placeholder="Search CCTV name, channel, IP..."
+                                allowClear
+                                value={searchText}
+                                prefix={<SearchOutlined />}
+                                onChange={handleSearch}
+                                style={{
+                                    width: "300px",
+                                    borderRadius: 8,
+                                }}
+                            />
+                        </div>
                     </div>
                 }
                 variant="outlined"

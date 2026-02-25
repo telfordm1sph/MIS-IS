@@ -15,47 +15,15 @@ class LicensesRepository
 
     public function create(array $data): object
     {
-        $license = SoftwareLicense::create([
-            'software_inventory_id' => $data['software_inventory_id'],
-            'license_key' => $data['license_key'] ?? null,
-            'account_user' => $data['account_user'] ?? null,
-            'account_password' => $data['account_password'] ?? null,
-            'max_activations' => $data['max_activations'] ?? null,
-            'current_activations' => $data['current_activations'] ?? 0,
-            'subscription_start' => $data['subscription_start'] ?? null,
-            'subscription_end' => $data['subscription_end'] ?? null,
-            'renewal_reminder_days' => $data['renewal_reminder_days'] ?? null,
-            'cost_per_license' => $data['cost_per_license'] ?? null,
-            'remarks' => $data['remarks'] ?? null,
-            'created_by' => $data['created_by'] ?? null,
-            'updated_by' => $data['updated_by'] ?? null,
-        ]);
-
-        return $license;
+        return SoftwareLicense::create($data);
     }
 
     public function update(int $id, array $data): ?object
     {
         $license = SoftwareLicense::find($id);
+        if (!$license) return null;
 
-        if (!$license) {
-            return null;
-        }
-
-        $license->update([
-            'software_inventory_id' => $data['software_inventory_id'],
-            'license_key' => $data['license_key'] ?? null,
-            'account_user' => $data['account_user'] ?? null,
-            'account_password' => $data['account_password'] ?? null,
-            'max_activations' => $data['max_activations'] ?? null,
-            'current_activations' => $data['current_activations'] ?? null,
-            'subscription_start' => $data['subscription_start'] ?? null,
-            'subscription_end' => $data['subscription_end'] ?? null,
-            'renewal_reminder_days' => $data['renewal_reminder_days'] ?? null,
-            'cost_per_license' => $data['cost_per_license'] ?? null,
-            'remarks' => $data['remarks'] ?? null,
-            'updated_by' => $data['updated_by'] ?? null,
-        ]);
+        $license->update($data);
 
         return $license->fresh();
     }

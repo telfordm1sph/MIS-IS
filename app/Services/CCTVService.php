@@ -115,16 +115,26 @@ class CCTVService
     public function create(array $data, int $employeeId)
     {
         try {
-            Log::info('Creating cctv', [
+            Log::info('Creating CCTV', [
                 'employee_id' => $employeeId,
                 'camera_name' => $data['camera_name'] ?? null,
             ]);
 
-            // Add employee tracking
-            $data['created_by'] = $employeeId;
-            $data['updated_by'] = $employeeId;
+            // Prepare data for DB
+            $dbData = [
+                'camera_name' => $data['camera_name'],
+                'channel' => $data['channel'] ?? null,
+                'ip_address' => $data['ip_address'] ?? null,
+                'control_no' => $data['control_no'] ?? null,
+                'location' => $data['location'] ?? null,
+                'location_ip' => $data['location_ip'] ?? null,
+                'status' => $data['status'] ?? '0', // default if not provided
+                'created_by' => $employeeId,
+                'updated_by' => $employeeId,
+            ];
 
-            $cctv = $this->cctvRepository->create($data);
+            // Call repository
+            $cctv = $this->cctvRepository->create($dbData);
 
             Log::info('CCTV created successfully', [
                 'cctv_id' => $cctv->id,
@@ -149,15 +159,24 @@ class CCTVService
     public function update(int $id, array $data, int $employeeId)
     {
         try {
-            Log::info('Updating cctv', [
+            Log::info('Updating CCTV', [
                 'id' => $id,
                 'employee_id' => $employeeId,
             ]);
 
-            // Add employee tracking
-            $data['updated_by'] = $employeeId;
+            // Prepare DB data
+            $dbData = [
+                'camera_name' => $data['camera_name'] ?? null,
+                'channel' => $data['channel'] ?? null,
+                'ip_address' => $data['ip_address'] ?? null,
+                'control_no' => $data['control_no'] ?? null,
+                'location' => $data['location'] ?? null,
+                'location_ip' => $data['location_ip'] ?? null,
+                'status' => $data['status'] ?? '0', // business default
+                'updated_by' => $employeeId,
+            ];
 
-            $cctv = $this->cctvRepository->update($id, $data);
+            $cctv = $this->cctvRepository->update($id, $dbData);
 
             if ($cctv) {
                 Log::info('CCTV updated successfully', [

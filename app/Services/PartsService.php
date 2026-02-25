@@ -97,12 +97,48 @@ class PartsService
     }
     public function create(array $data)
     {
-        return $this->partsRepository->create($data);
+        $parts = [
+            'part_type' => $data['part_type'],
+            'brand'     => $data['brand'],
+            'model'     => $data['model'] ?? null,
+            'specifications' => $data['specifications'] ?? null,
+        ];
+
+        $partsInventory = [
+            'quantity'         => $data['quantity'] ?? 0,
+            'condition'        => $data['condition'] ?? null,
+            'location'         => $data['location'] ?? null,
+            'reorder_level'    => $data['reorder_level'] ?? 0,
+            'reorder_quantity' => $data['reorder_quantity'] ?? 0,
+            'unit_cost'        => $data['unit_cost'] ?? 0,
+            'supplier'         => $data['supplier'] ?? null,
+            'remarks'          => $data['remarks'] ?? null,
+        ];
+
+        return $this->partsRepository->create($parts, $partsInventory);
     }
 
     public function update(int $id, array $data)
     {
-        return $this->partsRepository->update($id, $data);
+        $partData = [
+            'part_type'      => $data['part_type'] ?? null,
+            'brand'          => $data['brand'] ?? null,
+            'model'          => $data['model'] ?? null,
+            'specifications' => $data['specifications'] ?? null,
+        ];
+
+        $inventoryData = [
+            'quantity'         => $data['quantity'] ?? null,
+            'condition'        => $data['condition'] ?? null,
+            'location'         => $data['location'] ?? null,
+            'reorder_level'    => $data['reorder_level'] ?? null,
+            'reorder_quantity' => $data['reorder_quantity'] ?? null,
+            'unit_cost'        => $data['unit_cost'] ?? null,
+            'supplier'         => $data['supplier'] ?? null,
+            'remarks'          => $data['remarks'] ?? null,
+        ];
+
+        return $this->partsRepository->update($id, $partData, $inventoryData);
     }
 
     public function delete(int $id): bool

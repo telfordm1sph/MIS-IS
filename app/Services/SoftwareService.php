@@ -97,12 +97,29 @@ class SoftwareService
     }
     public function create(array $data)
     {
-        return $this->softwareRepository->create($data);
+
+        $dbData = [
+            'software_name'      => $data['software_name'],
+            'software_type'          => $data['software_type'],
+            'version'          => $data['version'] ?? null,
+            'publisher' => $data['publisher'] ?? null,
+            'total_licenses'       => $data['total_licenses'] ?? null,
+        ];
+        $software = $this->softwareRepository->create($dbData);
+        return $software;
     }
 
     public function update(int $id, array $data)
     {
-        return $this->softwareRepository->update($id, $data);
+        $dbData = [
+            'software_name'      => $data['software_name'],
+            'software_type'          => $data['software_type'],
+            'version'          => $data['version'] ?? null,
+            'publisher' => $data['publisher'] ?? null,
+            'total_licenses'       => $data['total_licenses'] ?? null,
+        ];
+        $software = $this->softwareRepository->update($id, $dbData);
+        return $software;
     }
 
 

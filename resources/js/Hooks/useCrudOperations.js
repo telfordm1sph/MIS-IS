@@ -39,14 +39,15 @@ export const useCrudOperations = ({
         }
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (id, extraData = {}) => {
         try {
-            const response = await axios.delete(route(deleteRoute, id));
+            const response = await axios.delete(route(deleteRoute, id), {
+                data: extraData, // 👈 this sends request body
+            });
 
             if (response.data.success) {
                 message.success(deleteSuccessMessage);
 
-                // 🔹 reload Inertia props if provided
                 if (reloadProps) {
                     router.reload({ only: reloadProps });
                 }

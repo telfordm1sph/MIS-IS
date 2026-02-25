@@ -176,7 +176,11 @@ const PrinterTable = () => {
                                 <Popconfirm
                                     title="Delete this printer?"
                                     description="This action cannot be undone."
-                                    onConfirm={() => handleDelete(record.id)}
+                                    onConfirm={() =>
+                                        handleDelete(record.id, {
+                                            employee_id: emp_data?.emp_id,
+                                        })
+                                    }
                                     okText="Yes"
                                     cancelText="No"
                                     okButtonProps={{ danger: true }}
@@ -330,14 +334,19 @@ const PrinterTable = () => {
                         <span style={{ fontSize: "18px", fontWeight: 600 }}>
                             Printers
                         </span>
-                        <Input
-                            placeholder="Search printer name, brand, model, IP..."
-                            allowClear
-                            value={searchText}
-                            prefix={<SearchOutlined />}
-                            onChange={handleSearch}
-                            style={{ flex: 1, maxWidth: "400px" }}
-                        />
+                        <div style={{ marginLeft: "auto" }}>
+                            <Input
+                                placeholder="Search printer name, brand, model, IP..."
+                                allowClear
+                                value={searchText}
+                                prefix={<SearchOutlined />}
+                                onChange={handleSearch}
+                                style={{
+                                    width: "300px",
+                                    borderRadius: 8,
+                                }}
+                            />
+                        </div>
                     </div>
                 }
                 variant="outlined"

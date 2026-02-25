@@ -87,23 +87,45 @@ class LicensesService
     }
     public function create(array $data, $empData = null)
     {
-        // Add created_by from employee data
-        if ($empData && isset($empData['emp_id'])) {
-            $data['created_by'] = $empData['emp_id'];
-            $data['updated_by'] = $empData['emp_id'];
-        }
+        $licenseData = [
+            'software_inventory_id' => $data['software_inventory_id'],
+            'license_key'           => $data['license_key'] ?? null,
+            'account_user'          => $data['account_user'] ?? null,
+            'account_password'      => $data['account_password'] ?? null,
+            'max_activations'       => $data['max_activations'] ?? null,
+            'current_activations'   => $data['current_activations'] ?? 0,
+            'subscription_start'    => $data['subscription_start'] ?? null,
+            'subscription_end'      => $data['subscription_end'] ?? null,
+            'renewal_reminder_days' => $data['renewal_reminder_days'] ?? null,
+            'cost_per_license'      => $data['cost_per_license'] ?? null,
+            'remarks'               => $data['remarks'] ?? null,
+            'created_by'            => $empData['emp_id'] ?? null,
+            'updated_by'            => $empData['emp_id'] ?? null,
+        ];
 
-        return $this->licensesRepository->create($data);
+        $licenses = $this->licensesRepository->create($licenseData);
+        return $licenses;
     }
 
     public function update(int $id, array $data, $empData = null)
     {
-        // Add updated_by from employee data
-        if ($empData && isset($empData['emp_id'])) {
-            $data['updated_by'] = $empData['emp_id'];
-        }
+        $licenseData = [
+            'software_inventory_id' => $data['software_inventory_id'],
+            'license_key'           => $data['license_key'] ?? null,
+            'account_user'          => $data['account_user'] ?? null,
+            'account_password'      => $data['account_password'] ?? null,
+            'max_activations'       => $data['max_activations'] ?? null,
+            'current_activations'   => $data['current_activations'] ?? null,
+            'subscription_start'    => $data['subscription_start'] ?? null,
+            'subscription_end'      => $data['subscription_end'] ?? null,
+            'renewal_reminder_days' => $data['renewal_reminder_days'] ?? null,
+            'cost_per_license'      => $data['cost_per_license'] ?? null,
+            'remarks'               => $data['remarks'] ?? null,
+            'updated_by'            => $empData['emp_id'] ?? null,
+        ];
 
-        return $this->licensesRepository->update($id, $data);
+        $licenses = $this->licensesRepository->update($id, $licenseData);
+        return $licenses;
     }
 
     public function delete(int $id): bool

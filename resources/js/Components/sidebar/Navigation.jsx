@@ -9,7 +9,7 @@ import {
     Printer,
     ToolCase,
 } from "lucide-react";
-import { WindowsOutlined } from "@ant-design/icons";
+import { CodeOutlined, WindowsOutlined } from "@ant-design/icons";
 
 export default function NavLinks({ isSidebarOpen }) {
     return (
@@ -51,6 +51,12 @@ export default function NavLinks({ isSidebarOpen }) {
                 href={route("cctv.table")}
                 icon={<CctvIcon className="w-5 h-5" />}
                 label="CCTVs"
+                isSidebarOpen={isSidebarOpen}
+            />
+            <SidebarLink
+                href={route("promis.table")}
+                icon={<CodeOutlined className="w-5 h-5" />}
+                label="Promis Terminal"
                 isSidebarOpen={isSidebarOpen}
             />
         </nav>

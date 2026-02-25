@@ -310,7 +310,11 @@ const SoftwareLicense = () => {
                                 <Popconfirm
                                     title="Delete this license?"
                                     description="This action cannot be undone."
-                                    onConfirm={() => handleDelete(record.id)}
+                                    onConfirm={() =>
+                                        handleDelete(record.id, {
+                                            employee_id: emp_data?.emp_id,
+                                        })
+                                    }
                                     okText="Yes"
                                     cancelText="No"
                                     okButtonProps={{ danger: true }}
@@ -467,14 +471,19 @@ const SoftwareLicense = () => {
                         <span style={{ fontSize: "18px", fontWeight: 600 }}>
                             Software Licenses
                         </span>
-                        <Input
-                            placeholder="Search software, license key, account..."
-                            allowClear
-                            value={searchText}
-                            prefix={<SearchOutlined />}
-                            onChange={handleSearch}
-                            style={{ flex: 1, maxWidth: "400px" }}
-                        />
+                        <div style={{ marginLeft: "auto" }}>
+                            <Input
+                                placeholder="Search software, license key, account..."
+                                allowClear
+                                value={searchText}
+                                prefix={<SearchOutlined />}
+                                onChange={handleSearch}
+                                style={{
+                                    width: "300px",
+                                    borderRadius: 8,
+                                }}
+                            />
+                        </div>
                     </div>
                 }
                 variant="outlined"

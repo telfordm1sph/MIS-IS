@@ -2,23 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\CCTVService;
+use App\Services\PromisService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
-class CCTVController extends Controller
+class PromisController extends Controller
 {
-    protected CCTVService $cctvService;
+    protected PromisService $promisService;
 
-    public function __construct(CCTVService $cctvService)
+    public function __construct(PromisService $promisService)
     {
-        $this->cctvService = $cctvService;
+        $this->promisService = $promisService;
     }
 
-
-    public function getCCTVTable(Request $request)
+    public function getPromisTable(Request $request)
     {
         // Decode base64 filters
         $filters = $this->decodeFilters($request->input('f', ''));
@@ -34,7 +32,7 @@ class CCTVController extends Controller
         ];
 
         // BUSINESS LOGIC: Delegate to service
-        $result = $this->cctvService->getCCTVTable($filters);
+        $result = $this->promisService->getPromisTable($filters);
 
         // Check if request wants JSON (API call) or Inertia (web)
         if ($request->wantsJson()) {
@@ -47,29 +45,24 @@ class CCTVController extends Controller
         }
 
         // Return Inertia view for web interface
-        return Inertia::render('Inventory/CCTVTable', [
-            'cctvs' => $result['data'],
+        return Inertia::render('Inventory/PromisTable', [
+            'promis' => $result['data'],
             'pagination' => $result['pagination'],
             'filters' => $result['filters'],
         ]);
     }
-
-
-    public function getLogs(Request $request, $cctvId)
+    public function getLogs(Request $request, $promisId)
     {
         try {
             $page = (int) $request->input('page', 1);
             $perPage = (int) $request->input('per_page', 10);
 
             // BUSINESS LOGIC: Delegate to service
-            $logs = $this->cctvService->getCCTVLogs($cctvId, $page, $perPage);
+            $logs = $this->promisService->getPromisLogs($promisId, $page, $perPage);
 
             return response()->json($logs);
         } catch (\Exception $e) {
-            Log::error('Failed to fetch cctv logs', [
-                'cctv_id' => $cctvId,
-                'error' => $e->getMessage(),
-            ]);
+
 
             return response()->json([
                 'error' => 'Failed to fetch logs',
@@ -77,12 +70,6 @@ class CCTVController extends Controller
             ], 500);
         }
     }
-
-    /**
-     * Create new cctv
-     * REQUEST: Handle HTTP request, validate input
-     * WORKS FOR: Both session-based (web) and API requests
-     */
     public function store(Request $request)
     {
         try {
@@ -97,16 +84,16 @@ class CCTVController extends Controller
             }
 
             // Validate the request
-            $validated = $this->validateCCTVCreate($request);
+            $validated = $this->validatePromisCreate($request);
 
             // BUSINESS LOGIC: Delegate to service
-            $cctv = $this->cctvService->create($validated, $employeeId);
+            $promis = $this->promisService->create($validated, $employeeId);
 
             return response()->json([
                 'success' => true,
-                'message' => 'CCTV created successfully',
-                'id' => $cctv->id,
-                'data' => $cctv
+                'message' => 'Promis created successfully',
+                'id' => $promis->id,
+                'data' => $promis
             ], 201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -115,23 +102,15 @@ class CCTVController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            Log::error('CCTV creation failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create cctv: ' . $e->getMessage()
+                'message' => 'Failed to create promis: ' . $e->getMessage()
             ], 500);
         }
     }
 
-    /**
-     * Update cctv
-     * REQUEST: Handle HTTP request, validate input
-     * WORKS FOR: Both session-based (web) and API requests
-     */
     public function update(Request $request, $id)
     {
         try {
@@ -146,22 +125,22 @@ class CCTVController extends Controller
             }
 
             // Validate the request
-            $validated = $this->validateCCTVUpdate($request);
+            $validated = $this->validatePromisUpdate($request);
 
             // BUSINESS LOGIC: Delegate to service
-            $cctv = $this->cctvService->update($id, $validated, $employeeId);
+            $promis = $this->promisService->update($id, $validated, $employeeId);
 
-            if (!$cctv) {
+            if (!$promis) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'cctv not found'
+                    'message' => 'promis not found'
                 ], 404);
             }
 
             return response()->json([
                 'success' => true,
-                'message' => 'cctv updated successfully',
-                'data' => $cctv
+                'message' => 'promis updated successfully',
+                'data' => $promis
             ], 200);
         } catch (ValidationException $e) {
             return response()->json([
@@ -170,24 +149,14 @@ class CCTVController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            Log::error('cctv update failed', [
-                'cctv_id' => $id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update cctv: ' . $e->getMessage()
+                'message' => 'Failed to update promis: ' . $e->getMessage()
             ], 500);
         }
     }
 
-    /**
-     * Delete cctv
-     * REQUEST: Handle HTTP request
-     * WORKS FOR: Both session-based (web) and API requests
-     */
     public function destroy(Request $request, $id)
     {
         try {
@@ -201,82 +170,85 @@ class CCTVController extends Controller
                 ], 401);
             }
 
-            // Check if cctv exists
-            $cctv = $this->cctvService->findById($id);
+            // Check if promis exists
+            $promis = $this->promisService->findById($id);
 
-            if (!$cctv) {
+            if (!$promis) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'CCTV not found'
+                    'message' => 'Promis not found'
                 ], 404);
             }
 
             // BUSINESS LOGIC: Delegate to service
-            $deleted = $this->cctvService->delete($id, $employeeId);
+            $deleted = $this->promisService->delete($id, $employeeId);
 
             if ($deleted) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'CCTV deleted successfully'
+                    'message' => 'Promis deleted successfully'
                 ], 200);
             }
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete CCTV'
+                'message' => 'Failed to delete Promis'
             ], 500);
         } catch (\Exception $e) {
-            Log::error('CCTV deletion failed', [
-                'cctv_id' => $id,
-                'error' => $e->getMessage(),
-            ]);
+
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete CCTV: ' . $e->getMessage()
+                'message' => 'Failed to delete Promis: ' . $e->getMessage()
             ], 500);
         }
     }
 
-    /**
-     * Validate cctv creation request
-     * REQUEST LAYER: Input validation
-     * NOTE: employee_id is nullable because session users don't need to send it
-     */
-    protected function validateCCTVCreate(Request $request): array
+
+
+
+
+
+
+
+
+
+    protected function validatePromisCreate(Request $request): array
     {
         return $request->validate([
             // Employee ID (optional - only for API requests without session)
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
 
-            // CCTV fields
-            'camera_name' => 'required|string|max:250',
-            'channel' => 'nullable|string|max:150',
+            // Promis fields
+            'promis_name' => 'required|string|max:150',
             'ip_address' => 'nullable|string|max:100',
-            'control_no' => 'nullable|string|max:100',
-            'location' => 'nullable|string|max:255',
-            'location_ip' => 'nullable|string|max:255',
+            'location' => 'nullable|integer',
+            'model_name' => 'nullable|string|max:250',
+            'monitor' => 'nullable|string|max:100',
+            'mouse' => 'nullable|string|max:100',
+            'keyboard' => 'nullable|string|max:100',
+            'scanner' => 'nullable|string|max:100',
+            'badge_no' => 'nullable|integer',
             'status' => 'nullable|integer',
         ]);
     }
 
-    /**
-     * Validate cctv update request
-     * REQUEST LAYER: Input validation
-     * NOTE: employee_id is nullable because session users don't need to send it
-     */
-    protected function validateCCTVUpdate(Request $request): array
+    protected function validatePromiseUpdate(Request $request): array
     {
         return $request->validate([
             // Employee ID (optional - only for API requests without session)
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
 
-            'camera_name' => 'required|string|max:250',
-            'channel' => 'nullable|string|max:150',
+            // Promis fields
+            'promis_name' => 'required|string|max:150',
             'ip_address' => 'nullable|string|max:100',
-            'control_no' => 'nullable|string|max:100',
-            'location' => 'nullable|string|max:255',
-            'location_ip' => 'nullable|string|max:255',
+            'location' => 'nullable|integer',
+            'model_name' => 'nullable|string|max:250',
+            'monitor' => 'nullable|string|max:100',
+            'mouse' => 'nullable|string|max:100',
+            'keyboard' => 'nullable|string|max:100',
+            'scanner' => 'nullable|string|max:100',
+            'badge_no' => 'nullable|integer',
             'status' => 'nullable|integer',
         ]);
     }

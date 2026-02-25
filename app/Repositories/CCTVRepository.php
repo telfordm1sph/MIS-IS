@@ -17,25 +17,12 @@ class CCTVRepository
     public function create(array $data): object
     {
         try {
-            Log::debug('Creating CCTV in repository', [
-                'data' => $data,
-            ]);
+            Log::debug('Inserting CCTV into DB', ['data' => $data]);
 
-            $cctv = CCTV::create([
-                'camera_name' => $data['camera_name'],
-                'channel' => $data['channel'] ?? null,
-                'ip_address' => $data['ip_address'] ?? null,
-                'control_no' => $data['control_no'] ?? null,
-                'location' => $data['location'] ?? null,
-                'location_ip' => $data['location_ip'] ?? null,
-                'status' => $data['status'] ?? null,
-                'created_by' => $data['created_by'] ?? null,
-                'updated_by' => $data['updated_by'] ?? null,
-            ]);
+            // Only responsibility: save to DB
+            $cctv = CCTV::create($data);
 
-            Log::debug('CCTV created in database', [
-                'cctv_id' => $cctv->id,
-            ]);
+            Log::debug('CCTV created in DB', ['cctv_id' => $cctv->id]);
 
             return $cctv;
         } catch (\Exception $e) {
@@ -51,35 +38,16 @@ class CCTVRepository
     public function update(int $id, array $data): ?object
     {
         try {
-            Log::debug('Updating CCTV in repository', [
-                'cctv_id' => $id,
-                'data' => $data,
-            ]);
-
             $cctv = CCTV::find($id);
             if (!$cctv) {
-                Log::warning('CCTV not found for update', [
-                    'cctv_id' => $id,
-                ]);
+                Log::warning('CCTV not found for update', ['cctv_id' => $id]);
                 return null;
             }
 
-            $cctv->update([
-                'camera_name' => $data['camera_name'] ?? $cctv->camera_name,
-                'channel' => $data['channel'] ?? $cctv->channel,
-                'ip_address' => $data['ip_address'] ?? $cctv->ip_address,
-                'control_no' => $data['control_no'] ?? $cctv->control_no,
-                'location' => $data['location'] ?? $cctv->location,
-                'location_ip' => $data['location_ip'] ?? $cctv->location_ip,
-                'status' => $data['status'] ?? $cctv->status,
-                'updated_by' => $data['updated_by'] ?? $cctv->updated_by,
-                'updated_at' => now(),
+            // Only update fields provided in $data
+            $cctv->update($data);
 
-            ]);
-
-            Log::debug('CCTV updated in database', [
-                'cctv_id' => $id,
-            ]);
+            Log::debug('CCTV updated in DB', ['cctv_id' => $id]);
 
             return $cctv->fresh();
         } catch (\Exception $e) {
@@ -125,10 +93,10 @@ class CCTVRepository
             throw $e;
         }
     }
-    public function getLogsQuery(int $printerId)
+    public function getLogsQuery(int $cctvId)
     {
         return ActivityLog::where('loggable_type', CCTV::class)
-            ->where('loggable_id', $printerId)
+            ->where('loggable_id', $cctvId)
             ->orderBy('action_at', 'desc');
     }
 

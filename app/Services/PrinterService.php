@@ -117,17 +117,33 @@ class PrinterService
      */
     public function create(array $data, int $employeeId)
     {
+
         try {
             Log::info('Creating printer', [
                 'employee_id' => $employeeId,
                 'printer_name' => $data['printer_name'] ?? null,
             ]);
 
-            // Add employee tracking
-            $data['created_by'] = $employeeId;
-            $data['updated_by'] = $employeeId;
+            $dbData = [
+                'printer_name' => $data['printer_name'],
+                'ip_address' => $data['ip_address'] ?? null,
+                'printer_type' => $data['printer_type'] ?? null,
+                'printer_category' => $data['printer_category'] ?? null,
+                'location' => $data['location'] ?? null,
+                'brand' => $data['brand'] ?? null,
+                'model' => $data['model'] ?? null,
+                'serial_number' => $data['serial_number'] ?? null,
+                'dpi' => $data['dpi'] ?? null,
+                'category_status' => $data['category_status'] ?? null,
+                'toner' => $data['toner'] ?? null,
+                'supplier' => $data['supplier'] ?? null,
+                'status' => $data['status'] ?? null,
+                'created_by' => $employeeId ?? null,
+                'updated_by' => $employeeId  ?? null,
+            ];
 
-            $printer = $this->printerRepository->create($data);
+
+            $printer = $this->printerRepository->create($dbData);
 
             Log::info('Printer created successfully', [
                 'printer_id' => $printer->id,
@@ -156,11 +172,25 @@ class PrinterService
                 'printer_id' => $id,
                 'employee_id' => $employeeId,
             ]);
+            $dbData = [
+                'printer_name' => $data['printer_name'],
+                'ip_address' => $data['ip_address'] ?? null,
+                'printer_type' => $data['printer_type'] ?? null,
+                'printer_category' => $data['printer_category'] ?? null,
+                'location' => $data['location'] ?? null,
+                'brand' => $data['brand'] ?? null,
+                'model' => $data['model'] ?? null,
+                'serial_number' => $data['serial_number'] ?? null,
+                'dpi' => $data['dpi'] ?? null,
+                'category_status' => $data['category_status'] ?? null,
+                'toner' => $data['toner'] ?? null,
+                'supplier' => $data['supplier'] ?? null,
+                'status' => $data['status'] ?? null,
+                'created_by' => $employeeId ?? null,
+                'updated_by' => $employeeId  ?? null,
+            ];
 
-            // Add employee tracking
-            $data['updated_by'] = $employeeId;
-
-            $printer = $this->printerRepository->update($id, $data);
+            $printer = $this->printerRepository->update($id, $dbData);
 
             if ($printer) {
                 Log::info('Printer updated successfully', [

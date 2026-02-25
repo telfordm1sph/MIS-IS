@@ -10,6 +10,8 @@ import {
     Space,
     Popconfirm,
     Input,
+    Tag,
+    Typography,
 } from "antd";
 import {
     PlusCircleOutlined,
@@ -27,9 +29,10 @@ import { useCrudOperations } from "@/Hooks/useCrudOperations";
 import { useTableConfig } from "@/Hooks/useTableConfig";
 import FormDrawer from "@/Components/Drawer/FormDrawer";
 import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
-
-const SoftwareTable = () => {
-    const { softwares, pagination, filters } = usePage().props;
+const { Text } = Typography;
+const PromisTable = () => {
+    const { promis, pagination, filters, emp_data } = usePage().props;
+    console.log(usePage().props);
 
     const {
         isOpen: formDrawerOpen,
@@ -50,24 +53,29 @@ const SoftwareTable = () => {
         useInventoryFilters({
             filters,
             pagination,
-            routeName: "software.table",
+            routeName: "promis.index",
         });
 
     const { handleSave, handleDelete } = useCrudOperations({
-        updateRoute: "software.update",
-        storeRoute: "software.store",
-        deleteRoute: "software.destroy",
-        updateSuccessMessage: "Software updated successfully!",
-        createSuccessMessage: "Software created successfully!",
-        deleteSuccessMessage: "Software deleted successfully!",
-        reloadProps: ["softwares"],
+        updateRoute: "promis.update",
+        storeRoute: "promis.store",
+        deleteRoute: "promis.destroy",
+        updateSuccessMessage: "Promis updated successfully!",
+        createSuccessMessage: "Promis created successfully!",
+        deleteSuccessMessage: "Promis deleted successfully!",
+        reloadProps: ["promis"],
     });
 
     // ✅ Wrapper for handleSave to close form on success
     const handleFormSave = async (values) => {
-        const id = values.id || null; // extract id from form values
+        const id = values.id || null;
 
-        const result = await handleSave(values, id); // call your CRUD hook
+        const payload = {
+            ...values,
+            employee_id: emp_data?.emp_id,
+        };
+
+        const result = await handleSave(payload, id);
         if (result?.success) {
             closeForm();
         }
@@ -84,35 +92,48 @@ const SoftwareTable = () => {
                 sorter: true,
             },
             {
-                title: "Software Name",
-                dataIndex: "software_name",
-                key: "software_name",
+                title: "Promis Name",
+                dataIndex: "promis_name",
+                key: "promis_name",
                 sorter: true,
+                render: (text, record) => (
+                    <Space orientation="vertical" size={0}>
+                        <Text strong>{text}</Text>
+                        {record.ip_address && (
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                IP: {record.ip_address}
+                            </Text>
+                        )}
+                    </Space>
+                ),
             },
+
             {
-                title: "Software Type",
-                dataIndex: "software_type",
-                key: "software_type",
-                sorter: true,
-            },
-            {
-                title: "Version",
-                dataIndex: "version",
-                key: "version",
-                sorter: true,
-            },
-            {
-                title: "Publisher",
-                dataIndex: "publisher",
-                key: "publisher",
-                sorter: true,
-            },
-            {
-                title: "Total Licenses",
-                dataIndex: "total_licenses",
-                key: "total_licenses",
-                sorter: true,
+                title: "Location",
+                dataIndex: "location",
+                key: "location",
                 width: 150,
+                sorter: true,
+                render: (value) => (value ? value : "-"),
+            },
+            {
+                title: "Model Name",
+                dataIndex: "model_name",
+                key: "model_name",
+                sorter: true,
+            },
+            {
+                title: "Monitor",
+                dataIndex: "monitor",
+                key: "monitor",
+                sorter: true,
+            },
+            {
+                title: "Status",
+                key: "status",
+                render: (_, record) => (
+                    <Tag color={record.status_color}>{record.status_label}</Tag>
+                ),
             },
             {
                 title: "Actions",
@@ -140,7 +161,7 @@ const SoftwareTable = () => {
                             key: "delete",
                             label: (
                                 <Popconfirm
-                                    title="Delete this software?"
+                                    title="Delete this Promis?"
                                     description="This action cannot be undone."
                                     onConfirm={() =>
                                         handleDelete(record.id, {
@@ -188,27 +209,61 @@ const SoftwareTable = () => {
     const fields = [
         { name: "id", label: "ID", hidden: true },
         {
-            name: "software_name",
-            label: "Software Name",
-            rules: [{ required: true, message: "Software name is required" }],
+            name: "promis_name",
+            label: "Promis Name",
+            rules: [{ required: true, message: "Promis name is required" }],
+            placeholder: "Enter Promis name",
         },
         {
-            name: "software_type",
-            label: "Software Type",
+            name: "ip_address",
+            label: "IP Address",
+            placeholder: "Enter IP address (e.g., 192.168.1.100)",
         },
         {
-            name: "version",
-            label: "Version",
+            name: "location",
+            label: "Location",
+            placeholder: "Enter location",
         },
         {
-            name: "publisher",
-            label: "Publisher",
+            name: "model_name",
+            label: "Model Name",
+            placeholder: "Enter Model Name",
         },
         {
-            name: "total_licenses",
-            label: "Total Licenses",
-            type: "number",
-            rules: [{ required: true, message: "Total licenses is required" }],
+            name: "monitor",
+            label: "Monitor",
+            placeholder: "Enter Monitor",
+        },
+        {
+            name: "mouse",
+            label: "Mouse",
+            placeholder: "Enter Mouse",
+        },
+        {
+            name: "keyboard",
+            label: "Keyboard",
+            placeholder: "Enter Keyboard",
+        },
+        {
+            name: "scanner",
+            label: "Scanner",
+            placeholder: "Enter Scanner",
+        },
+        {
+            name: "badge_no",
+            label: "Badge No",
+            placeholder: "Enter Badge No",
+        },
+        {
+            name: "status",
+            label: "Status",
+            type: "select",
+            options: [
+                { value: 1, label: "Active" },
+                { value: 2, label: "Spare" },
+                { value: 3, label: "Defective" },
+            ],
+            placeholder: "Select status",
         },
     ];
 
@@ -225,7 +280,7 @@ const SoftwareTable = () => {
                 <Breadcrumb
                     items={[
                         { title: "MIS-IS", href: "/" },
-                        { title: "Software Inventory" },
+                        { title: "Promis" },
                     ]}
                     style={{ marginBottom: 0 }}
                 />
@@ -234,7 +289,7 @@ const SoftwareTable = () => {
                     icon={<PlusCircleOutlined />}
                     onClick={openCreate}
                 >
-                    Add Software
+                    Add Promis
                 </Button>
             </div>
 
@@ -248,11 +303,11 @@ const SoftwareTable = () => {
                         }}
                     >
                         <span style={{ fontSize: "18px", fontWeight: 600 }}>
-                            Software Inventory
+                            Promis
                         </span>
                         <div style={{ marginLeft: "auto" }}>
                             <Input
-                                placeholder="Search software name, type, version..."
+                                placeholder="Search Promis name, model name, IP..."
                                 allowClear
                                 value={searchText}
                                 prefix={<SearchOutlined />}
@@ -274,7 +329,7 @@ const SoftwareTable = () => {
             >
                 <Table
                     columns={columns}
-                    dataSource={softwares}
+                    dataSource={promis}
                     rowKey="id"
                     pagination={paginationConfig}
                     onChange={handleTableChange}
@@ -287,7 +342,7 @@ const SoftwareTable = () => {
                 <FormDrawer
                     open={formDrawerOpen}
                     onClose={closeForm}
-                    title={editingItem ? "Edit Software" : "Add Software"}
+                    title={editingItem ? "Edit Promis" : "Add Promis"}
                     mode={editingItem ? "edit" : "create"}
                     initialValues={editingItem}
                     fields={fields}
@@ -299,19 +354,19 @@ const SoftwareTable = () => {
                     visible={logsModalVisible}
                     onClose={closeLogs}
                     entityId={entityId}
-                    entityType="Software"
-                    apiRoute="software.logs"
-                    title="Software Changes"
+                    entityType="Promis"
+                    apiRoute="promis.logs"
+                    title="Promis Changes"
                     actionColors={{
                         created: "green",
                         updated: "blue",
                         deleted: "red",
                     }}
-                    perPage={5}
+                    perPage={10}
                 />
             </Card>
         </AuthenticatedLayout>
     );
 };
 
-export default SoftwareTable;
+export default PromisTable;

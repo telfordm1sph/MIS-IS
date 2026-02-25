@@ -46,14 +46,14 @@ const InventoryHeaderWithFilters = ({
 }) => {
     const totalCount = Object.values(categoryCounts).reduce(
         (sum, count) => sum + count,
-        0
+        0,
     );
 
     const statusCategories = ["New", "Inactive", "Defective"];
     const showSubCategory = statusCategories.includes(category);
 
     const hardwareCategories = Object.keys(categoryCounts).filter(
-        (cat) => !statusCategories.includes(cat)
+        (cat) => !statusCategories.includes(cat),
     );
 
     return (
@@ -63,8 +63,10 @@ const InventoryHeaderWithFilters = ({
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     <Tag color="default">Total: {totalCount}</Tag>
                     {Object.entries(categoryCounts).map(([cat, count]) => {
-                      const config =
-    categoryConfig[cat?.toLowerCase()] || categoryConfig.default || {};
+                        const config =
+                            categoryConfig[cat?.toLowerCase()] ||
+                            categoryConfig.default ||
+                            {};
                         return (
                             <Tag key={cat} color={config.color || "blue"}>
                                 {config.icon && (
