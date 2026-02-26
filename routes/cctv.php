@@ -9,6 +9,4 @@ Route::prefix($app_name)
     ->group(function () {
 
         Route::get('/cctv', [CCTVController::class, 'getCCTVTable'])->name('cctv.table');
-
-        Route::get('/cctv/{id}/logs', [CCTVController::class, 'getLogs'])->name('cctv.logs');
     });

@@ -38,7 +38,7 @@ Route::prefix('hardware')->middleware('api.token')->group(function () {
     Route::post('remove-component', [HardwareController::class, 'removeComponent'])
         ->name('hardware.component.remove');
 
-
+    Route::get('/{id}/logs', [HardwareController::class, 'getLogs'])->name('hardware.logs');
 
     Route::get('/parts/available', [HardwareDetailController::class, 'availableParts']);
     Route::get('/parts/all-available', [HardwareDetailController::class, 'allAvailableParts'])->name('inventory.parts.available');

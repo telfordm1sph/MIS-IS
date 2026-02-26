@@ -9,6 +9,4 @@ Route::prefix($app_name)
     ->group(function () {
 
         Route::get('/hardware', [HardwareController::class, 'getHardwareTable'])->name('hardware.table');
-
-        Route::get('/hardware/{id}/logs', [HardwareController::class, 'getLogs'])->name('hardware.logs');
     });

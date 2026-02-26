@@ -9,6 +9,4 @@ Route::prefix($app_name)
     ->group(function () {
 
         Route::get('/promis', [PromisController::class, 'getPromisTable'])->name('promis.table');
-
-        Route::get('/promis/{id}/logs', [PromisController::class, 'getLogs'])->name('promis.logs');
     });

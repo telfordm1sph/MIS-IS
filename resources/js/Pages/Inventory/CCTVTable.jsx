@@ -212,54 +212,50 @@ const CCTVTable = () => {
     });
 
     /** 🔹 Form Fields */
-    const fields = useMemo(
-        () => [
-            { name: "id", label: "ID", hidden: true },
-            {
-                name: "camera_name",
-                label: "CCTV Name",
-                rules: [{ required: true, message: "CCTV name is required" }],
-                placeholder: "Enter CCTV name",
-            },
-            {
-                name: "channel",
-                label: "Channel",
-                placeholder: "Enter channel",
-            },
-            {
-                name: "ip_address",
-                label: "IP Address",
-                placeholder: "Enter IP address (e.g., 192.168.1.100)",
-            },
-            {
-                name: "location",
-                label: "Location",
-                placeholder: "Enter location",
-            },
-            {
-                name: "location_ip",
-                label: "Location IP",
-                placeholder: "Enter location IP",
-            },
-            {
-                name: "control_no",
-                label: "Control No",
-                placeholder: "Enter control number",
-            },
-            {
-                name: "status",
-                label: "Status",
-                type: "select",
-                options: [
-                    { value: 1, label: "Active" },
-                    { value: 2, label: "Inactive" },
-                ],
-                placeholder: "Select status",
-            },
-            0,
-        ],
-        [],
-    );
+    const fields = useMemo(() => [
+        { name: "id", label: "ID", hidden: true },
+        {
+            name: "camera_name",
+            label: "CCTV Name",
+            rules: [{ required: true, message: "CCTV name is required" }],
+            placeholder: "Enter CCTV name",
+        },
+        {
+            name: "channel",
+            label: "Channel",
+            placeholder: "Enter channel",
+        },
+        {
+            name: "ip_address",
+            label: "IP Address",
+            placeholder: "Enter IP address (e.g., 192.168.1.100)",
+        },
+        {
+            name: "location",
+            label: "Location",
+            placeholder: "Enter location",
+        },
+        {
+            name: "location_ip",
+            label: "Location IP",
+            placeholder: "Enter location IP",
+        },
+        {
+            name: "control_no",
+            label: "Control No",
+            placeholder: "Enter control number",
+        },
+        {
+            name: "status",
+            label: "Status",
+            type: "select",
+            options: [
+                { value: 1, label: "Active" },
+                { value: 2, label: "Inactive" },
+            ],
+            placeholder: "Select status",
+        },
+    ]);
     const onRow = useCallback(() => ({ style: { cursor: "default" } }), []);
     return (
         <AuthenticatedLayout>
