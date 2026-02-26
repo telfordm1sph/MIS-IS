@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
 
 
 class AuthMiddleware
@@ -61,7 +62,18 @@ class AuthMiddleware
             setcookie('sso_token', '', time() - 3600, '/');
             return $this->redirectToLogin($request);
         }
-
+        // dd($currentUser);
+        $canAccess = $currentUser->emp_from == NULL;
+        if (!$canAccess) {
+            session()->forget('emp_data');
+            session()->flush();
+            $redirectUrl = urlencode(route('dashboard'));
+            $authifyUrl = "http://192.168.1.27:8080/authify/public/logout?redirect={$redirectUrl}";
+            return Inertia::render('Unauthorized', [
+                'logoutUrl' => $authifyUrl,
+                'message' => 'Access Restricted: You do not have permission to access this app.',
+            ])->toResponse($request)->setStatusCode(403);
+        }
         // 🔹 Get user roles (now returns array)
         $userId = $currentUser->emp_id;
         // $userRoles = $this->userRoleService->getRole($userId);
