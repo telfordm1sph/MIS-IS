@@ -39,7 +39,6 @@ import ComponentMaintenanceDrawer from "@/Components/drawer/ComponentMaintenance
 const HardwareTable = () => {
     const { hardware, pagination, categoryCounts, filters, emp_data } =
         usePage().props;
-    console.log(usePage().props);
 
     const { drawerOpen, selectedItem, openDrawer, closeDrawer } = useDrawer();
 
@@ -63,8 +62,10 @@ const HardwareTable = () => {
         open: openLogs,
         close: closeLogs,
     } = useLogsModal();
+
     const [maintenanceDrawerOpen, setMaintenanceDrawerOpen] = useState(false);
     const [selectedHardware, setSelectedHardware] = useState(null);
+
     const {
         searchText,
         category,
@@ -90,12 +91,10 @@ const HardwareTable = () => {
 
     const handleFormSave = async (values) => {
         const id = values.id || null;
-
         const payload = {
             ...values,
             employee_id: emp_data?.emp_id,
         };
-        console.log("payload", payload, id);
 
         const result = await handleSave(payload, id);
         if (result?.success) {
@@ -103,14 +102,13 @@ const HardwareTable = () => {
         }
     };
 
-    // Helper function to fetch hardware details
+    // ─── Shared helper: fetch parts + software for a given hardware id ────────
     const fetchHardwareDetails = async (id) => {
         try {
             const [partsRes, softwareRes] = await Promise.all([
                 axios.get(route("hardware.parts.list", id)),
                 axios.get(route("hardware.software.list", id)),
             ]);
-
             return {
                 parts: partsRes.data ?? [],
                 software: softwareRes.data ?? [],
@@ -121,18 +119,30 @@ const HardwareTable = () => {
         }
     };
 
-    // ✅ Custom handleView to fetch parts and software
+    // ─── View: fetch then open details drawer ─────────────────────────────────
     const handleView = async (record) => {
         const partsSoftware = await fetchHardwareDetails(record.id);
-        const item = {
+        openDrawer({
             ...record,
             parts: partsSoftware.parts,
             software: partsSoftware.software,
-        };
-        openDrawer(item);
+        });
     };
 
-    // ✅ Open maintenance drawer to choose action
+    // ─── Edit: fetch parts/software FIRST, then open the form drawer ──────────
+    //    Previously `openEdit(record)` was called directly, so the form
+    //    received a record with no `parts` or `software` arrays → they never
+    //    appeared in the Parts / Software tabs.
+    const handleEdit = async (record) => {
+        const partsSoftware = await fetchHardwareDetails(record.id);
+        openEdit({
+            ...record,
+            parts: partsSoftware.parts,
+            software: partsSoftware.software,
+        });
+    };
+
+    // ─── Maintenance drawer ───────────────────────────────────────────────────
     const handleOpenMaintenance = async (record) => {
         const partsSoftware = await fetchHardwareDetails(record.id);
         setSelectedHardware({
@@ -143,10 +153,9 @@ const HardwareTable = () => {
         setMaintenanceDrawerOpen(true);
     };
 
-    // ✅ Category renderer
+    // ─── Category renderer ────────────────────────────────────────────────────
     const renderCategory = useCallback((value, uppercase = false) => {
         const config = ITEM_CONFIG[value?.toLowerCase()] || ITEM_CONFIG.default;
-
         return (
             <CategoryBadge
                 value={value}
@@ -156,18 +165,16 @@ const HardwareTable = () => {
         );
     }, []);
 
-    // Simple function to generate a consistent color from a string
     const stringToColor = (str) => {
         if (!str) return "#999";
-
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
             hash = str.charCodeAt(i) + ((hash << 5) - hash);
         }
-
         return `hsl(${Math.abs(hash) % 360}, 70%, 60%)`;
     };
-    // ✅ Column definitions (page-specific)
+
+    // ─── Column definitions ───────────────────────────────────────────────────
     const columnDefinitions = useMemo(
         () => [
             {
@@ -203,7 +210,6 @@ const HardwareTable = () => {
                 key: "issued_to",
                 render: (assignedUsers) => {
                     if (!assignedUsers?.length) return null;
-
                     return (
                         <Avatar.Group
                             max={{
@@ -266,7 +272,9 @@ const HardwareTable = () => {
                         {
                             key: "edit",
                             label: "Edit Hardware",
-                            onClick: () => openEdit(record),
+                            // ✅ FIX: use handleEdit (fetches parts+software)
+                            //    instead of openEdit (used raw record with no parts/software)
+                            onClick: () => handleEdit(record),
                             icon: <EditOutlined style={{ color: "#52c41a" }} />,
                         },
                         record.status == "1"
@@ -282,7 +290,7 @@ const HardwareTable = () => {
                                   ),
                               }
                             : null,
-                    ].filter(Boolean); // remove null entries
+                    ].filter(Boolean);
 
                     return (
                         <Dropdown
@@ -299,10 +307,11 @@ const HardwareTable = () => {
                 },
             },
         ],
-        [handleView, openLogs, openEdit, handleOpenMaintenance], // updated dependencies
+        // ✅ handleEdit replaces openEdit in dependencies
+        [handleView, handleEdit, openLogs, handleOpenMaintenance],
     );
 
-    // ✅ Table configuration from hook
+    // ─── Table config ─────────────────────────────────────────────────────────
     const { columns, paginationConfig } = useTableConfig({
         filters,
         pagination,
@@ -310,7 +319,7 @@ const HardwareTable = () => {
         columnDefinitions,
     });
 
-    // ✅ Generate drawer field groups dynamically
+    // ─── View drawer field groups ─────────────────────────────────────────────
     const getFieldGroups = (item) => {
         if (!item) return [];
 
@@ -340,7 +349,6 @@ const HardwareTable = () => {
             { label: "Issued To", value: item.issued_to_label || "-" },
         ];
 
-        // Group parts by part_type
         const partsByType = {};
         item.parts?.forEach((p) => {
             const type = p.part_info?.part_type || "Part";
@@ -348,19 +356,17 @@ const HardwareTable = () => {
             partsByType[type].push(p);
         });
 
-        const partsSubGroups = Object.keys(partsByType).map((type) => {
-            return {
-                title: type,
-                column: 2,
-                fields: partsByType[type].map((p, idx) => ({
-                    Brand: p.part_info?.brand || "-",
-                    Model: p.part_info?.model || "N/A",
-                    "Serial No.": p.serial_number || "-",
-                    Details:
-                        `${p.part_info?.specifications || ""} ${p.status ? `[${p.status}]` : ""}`.trim(),
-                })),
-            };
-        });
+        const partsSubGroups = Object.keys(partsByType).map((type) => ({
+            title: type,
+            column: 2,
+            fields: partsByType[type].map((p) => ({
+                Brand: p.part_info?.brand || "-",
+                Model: p.part_info?.model || "N/A",
+                "Serial No.": p.serial_number || "-",
+                Details:
+                    `${p.part_info?.specifications || ""} ${p.status ? `[${p.status}]` : ""}`.trim(),
+            })),
+        }));
 
         const softwareSubGroups =
             item.software?.map((s) => ({
@@ -396,18 +402,14 @@ const HardwareTable = () => {
         ];
     };
 
-    // ✅ Form field groups (page-specific)
+    // ─── Form field groups ────────────────────────────────────────────────────
     const formFieldGroups = useMemo(
         () => [
             {
                 title: "Hardware Specifications",
                 column: 2,
                 fields: [
-                    {
-                        key: "id",
-                        dataIndex: "id",
-                        type: "hidden",
-                    },
+                    { key: "id", dataIndex: "id", type: "hidden" },
                     {
                         key: "status",
                         label: "Status",
@@ -490,7 +492,6 @@ const HardwareTable = () => {
                         dataIndex: "lan_mac",
                         type: "input",
                     },
-
                     {
                         key: "department",
                         label: "Department",
@@ -543,11 +544,7 @@ const HardwareTable = () => {
                         type: "dynamicList",
                         dataIndex: "parts",
                         subFields: [
-                            {
-                                key: "id",
-                                dataIndex: "id",
-                                type: "hidden",
-                            },
+                            { key: "id", dataIndex: "id", type: "hidden" },
                             {
                                 key: "condition",
                                 dataIndex: "condition",
@@ -591,11 +588,7 @@ const HardwareTable = () => {
                 title: "Installed Software",
                 column: 1,
                 fields: [
-                    {
-                        key: "id",
-                        dataIndex: "id",
-                        type: "hidden",
-                    },
+                    { key: "id", dataIndex: "id", type: "hidden" },
                     {
                         key: "software",
                         label: "Software",
@@ -640,14 +633,16 @@ const HardwareTable = () => {
             loadingOptions,
         ],
     );
+
     const handleMaintenanceClose = () => {
         setMaintenanceDrawerOpen(false);
         setSelectedHardware(null);
     };
 
-    const handleMaintenanceSave = (data) => {
+    const handleMaintenanceSave = () => {
         router.reload({ only: ["hardware"] });
     };
+
     return (
         <AuthenticatedLayout>
             <div
@@ -710,7 +705,6 @@ const HardwareTable = () => {
                     scroll={{ y: "70vh" }}
                 />
 
-                {/* View Drawer */}
                 <DetailsDrawer
                     visible={drawerOpen}
                     fieldGroups={getFieldGroups(selectedItem)}
@@ -718,7 +712,6 @@ const HardwareTable = () => {
                     onClose={closeDrawer}
                 />
 
-                {/* Form Drawer */}
                 <HardwareFormDrawer
                     open={formDrawerOpen}
                     onClose={closeForm}
@@ -726,13 +719,14 @@ const HardwareTable = () => {
                     onSave={handleFormSave}
                     fieldGroups={formFieldGroups}
                 />
+
                 <ComponentMaintenanceDrawer
                     open={maintenanceDrawerOpen}
                     onClose={handleMaintenanceClose}
                     hardware={selectedHardware}
                     onSave={handleMaintenanceSave}
                 />
-                {/* Activity Logs Modal */}
+
                 <ActivityLogsModal
                     visible={logsModalVisible}
                     onClose={closeLogs}

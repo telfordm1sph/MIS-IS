@@ -6,17 +6,19 @@ const CascadingPartFields = ({
     form,
     initialValues = {},
     disabled = {},
-    layout = "vertical", // "vertical" | "horizontal" | "inline"
+    layout = "vertical",
     showLabels = true,
     onFieldChange,
     partsHooks,
-    isFormList = false, // NEW: true when used inside Form.List
-    rowIndex = null, // NEW: row index in Form.List
+    isFormList = false,
+    rowIndex = null,
+    // ✅ NEW: the raw part object for this row, passed directly from the
+    //    Form.List render so we don't race against form.setFieldsValue timing
+    rowData = null,
 }) => {
     const { partsOptions, loadBrands, loadModels, loadSpecifications } =
         partsHooks;
 
-    // Helper to work with both flat names and Form.List array notation
     const getFieldValue = (fieldKey) => {
         if (isFormList) {
             const allParts = form.getFieldValue("parts") || [];
@@ -38,6 +40,35 @@ const CascadingPartFields = ({
             form.setFieldsValue(flatUpdates);
         }
     };
+
+    // ✅ FIX: Use rowData prop (passed directly from Form.List) instead of
+    //    reading from form. The previous approach read from form on mount,
+    //    but mount fires BEFORE the parent's useEffect calls setFieldsValue —
+    //    so form values were always undefined at that point.
+    //    rowData is the raw item object already available synchronously.
+    useEffect(() => {
+        const partType = rowData?.part_type;
+        const brand = rowData?.brand;
+        const model = rowData?.model;
+
+        if (partType) {
+            loadBrands(partType, fieldPrefix);
+        }
+        if (partType && brand) {
+            loadModels(partType, brand, fieldPrefix);
+        }
+        if (partType && brand && model) {
+            loadSpecifications(
+                partType,
+                brand,
+                model,
+                fieldPrefix,
+                rowIndex || 0,
+            );
+        }
+        // Re-run whenever rowData changes (drawer re-opened with different item)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rowData?.part_type, rowData?.brand, rowData?.model]);
 
     const handlePartTypeChange = (val) => {
         setFieldValues({
@@ -101,9 +132,7 @@ const CascadingPartFields = ({
             disabled: disabled.brand || false,
             onFocus: async () => {
                 const partType = getFieldValue("part_type");
-                if (partType) {
-                    await loadBrands(partType, fieldPrefix);
-                }
+                if (partType) await loadBrands(partType, fieldPrefix);
             },
             onChange: handleBrandChange,
             span: layout === "horizontal" ? 8 : 24,
@@ -116,9 +145,8 @@ const CascadingPartFields = ({
             onFocus: async () => {
                 const partType = getFieldValue("part_type");
                 const brand = getFieldValue("brand");
-                if (partType && brand) {
+                if (partType && brand)
                     await loadModels(partType, brand, fieldPrefix);
-                }
             },
             onChange: handleModelChange,
             span: layout === "horizontal" ? 8 : 24,
@@ -154,7 +182,6 @@ const CascadingPartFields = ({
     ];
 
     if (layout === "inline" && isFormList) {
-        // Inline layout for Form.List (HardwareFormDrawer)
         return (
             <>
                 {fields.slice(0, 4).map((field) => (
@@ -200,7 +227,6 @@ const CascadingPartFields = ({
             </>
         );
     } else if (layout === "inline") {
-        // Inline layout for non-FormList
         return (
             <>
                 {fields.map((field) => (
@@ -240,7 +266,6 @@ const CascadingPartFields = ({
         );
     }
 
-    // Vertical or Horizontal layout
     return (
         <Row gutter={16}>
             {fields.map((field) => (

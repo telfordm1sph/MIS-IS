@@ -1,22 +1,20 @@
 import React, { useEffect } from "react";
 import { Form, Select, Row, Col } from "antd";
 
-/**
- * Reusable cascading software fields component
- * Handles Name → Type → Version → License cascade
- * Supports both flat field names and Form.List array notation
- */
 const CascadingSoftwareFields = ({
     fieldPrefix,
     form,
     initialValues = {},
     disabled = {},
-    layout = "vertical", // "vertical" | "horizontal" | "inline"
+    layout = "vertical",
     showLabels = true,
     onFieldChange,
     softwareHooks,
-    isFormList = false, // NEW: true when used inside Form.List
-    rowIndex = null, // NEW: row index in Form.List
+    isFormList = false,
+    rowIndex = null,
+    // ✅ NEW: the raw software object for this row, passed directly from
+    //    Form.List so we don't race against form.setFieldsValue timing
+    rowData = null,
 }) => {
     const {
         softwareOptions,
@@ -25,7 +23,6 @@ const CascadingSoftwareFields = ({
         loadSoftwareLicenses,
     } = softwareHooks;
 
-    // Helper to work with both flat names and Form.List array notation
     const getFieldValue = (fieldKey) => {
         if (isFormList) {
             const allSoftware = form.getFieldValue("software") || [];
@@ -47,6 +44,34 @@ const CascadingSoftwareFields = ({
             form.setFieldsValue(flatUpdates);
         }
     };
+
+    // ✅ FIX: Use rowData prop instead of reading from form on mount.
+    //    Child component mounts before parent's useEffect runs setFieldsValue,
+    //    so form values are always undefined when read at mount time.
+    //    rowData comes directly from the Form.List render — always in sync.
+    useEffect(() => {
+        const name = rowData?.software_name;
+        const type = rowData?.software_type;
+        const version = rowData?.version;
+
+        if (name) {
+            loadSoftwareTypes(name, fieldPrefix);
+        }
+        if (name && type) {
+            loadSoftwareVersions(name, type, fieldPrefix);
+        }
+        if (name && type && version) {
+            loadSoftwareLicenses(
+                name,
+                type,
+                version,
+                fieldPrefix,
+                rowIndex || 0,
+            );
+        }
+        // Re-run when the row's key values change
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rowData?.software_name, rowData?.software_type, rowData?.version]);
 
     const handleNameChange = (val) => {
         setFieldValues({
@@ -103,9 +128,7 @@ const CascadingSoftwareFields = ({
             disabled: disabled.software_type || false,
             onFocus: async () => {
                 const name = getFieldValue("software_name");
-                if (name) {
-                    await loadSoftwareTypes(name, fieldPrefix);
-                }
+                if (name) await loadSoftwareTypes(name, fieldPrefix);
             },
             onChange: handleTypeChange,
             span: layout === "horizontal" ? 12 : 24,
@@ -118,9 +141,8 @@ const CascadingSoftwareFields = ({
             onFocus: async () => {
                 const name = getFieldValue("software_name");
                 const type = getFieldValue("software_type");
-                if (name && type) {
+                if (name && type)
                     await loadSoftwareVersions(name, type, fieldPrefix);
-                }
             },
             onChange: handleVersionChange,
             span: layout === "horizontal" ? 12 : 24,
@@ -149,7 +171,6 @@ const CascadingSoftwareFields = ({
     ];
 
     if (layout === "inline" && isFormList) {
-        // Inline layout for Form.List (HardwareFormDrawer)
         return (
             <>
                 {fields.slice(0, 3).map((field) => (
@@ -199,7 +220,6 @@ const CascadingSoftwareFields = ({
             </>
         );
     } else if (layout === "inline") {
-        // Inline layout for non-FormList
         return (
             <>
                 {fields.map((field) => (
@@ -230,7 +250,6 @@ const CascadingSoftwareFields = ({
         );
     }
 
-    // Vertical or Horizontal layout
     return (
         <Row gutter={16}>
             {fields.map((field) => (

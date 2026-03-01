@@ -62,8 +62,10 @@ class AuthMiddleware
             setcookie('sso_token', '', time() - 3600, '/');
             return $this->redirectToLogin($request);
         }
+        $isFromAllowed = $currentUser->emp_from === NULL;
+        $hasRoleAccess = stripos($currentUser->emp_dept, 'MIS') !== false;
         // dd($currentUser);
-        $canAccess = $currentUser->emp_from == NULL;
+        $canAccess = $isFromAllowed && $hasRoleAccess;
         if (!$canAccess) {
             session()->forget('emp_data');
             session()->flush();

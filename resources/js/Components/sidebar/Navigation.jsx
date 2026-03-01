@@ -5,6 +5,7 @@ import SidebarLink from "@/Components/sidebar/SidebarLink";
 import {
     CctvIcon,
     Copyright,
+    LayoutDashboard,
     PackageSearch,
     Printer,
     ToolCase,
@@ -17,6 +18,12 @@ export default function NavLinks({ isSidebarOpen }) {
             className="flex flex-col flex-grow space-y-1 overflow-y-auto"
             style={{ scrollbarWidth: "none" }}
         >
+            <SidebarLink
+                href={route("dashboard")}
+                label="Dashboard"
+                icon={<LayoutDashboard className="w-5 h-5" />}
+                isSidebarOpen={isSidebarOpen}
+            />
             <SidebarLink
                 href={route("hardware.table")}
                 icon={<PackageSearch className="w-5 h-5" />}
