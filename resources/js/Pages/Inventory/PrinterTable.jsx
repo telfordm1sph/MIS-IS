@@ -1,38 +1,67 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useState } from "react";
 import { usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
     Breadcrumb,
-    Card,
-    Table,
-    Button,
-    Dropdown,
-    Space,
-    Popconfirm,
-    Input,
-    Tag,
-    Typography,
-} from "antd";
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Badge } from "@/components/ui/badge";
+
 import {
-    PlusCircleOutlined,
-    EditOutlined,
-    DeleteOutlined,
-    HistoryOutlined,
-    SearchOutlined,
-} from "@ant-design/icons";
-import { EllipsisVertical } from "lucide-react";
+    Plus,
+    Pencil,
+    Trash2,
+    History,
+    EllipsisVertical,
+    Search,
+} from "lucide-react";
 
 import { useInventoryFilters } from "@/Hooks/useInventoryFilters";
 import { useFormDrawer } from "@/Hooks/useFormDrawer";
 import { useLogsModal } from "@/Hooks/useLogsModal";
 import { useCrudOperations } from "@/Hooks/useCrudOperations";
-import { useTableConfig } from "@/Hooks/useTableConfig";
+
 import FormDrawer from "@/Components/Drawer/FormDrawer";
 import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
-const { Text } = Typography;
+import { DeleteConfirm } from "@/Components/DeleteConfirm";
+import TablePagination from "@/Components/TablePagination";
+const COLUMNS = [
+    "ID",
+    "Printer Name",
+    "Type",
+    "Brand & Model",
+    "Serial Number",
+    "Location",
+    "Status",
+];
+
 const PrinterTable = () => {
     const { printers, pagination, filters, emp_data } = usePage().props;
-    console.log(usePage().props);
+
+    const [deleteTarget, setDeleteTarget] = useState(null);
 
     const {
         isOpen: formDrawerOpen,
@@ -49,12 +78,13 @@ const PrinterTable = () => {
         close: closeLogs,
     } = useLogsModal();
 
-    const { searchText, handleSearch, handleResetFilters, handleTableChange } =
-        useInventoryFilters({
+    const { searchText, handleSearch, handleTableChange } = useInventoryFilters(
+        {
             filters,
             pagination,
             routeName: "printers.index",
-        });
+        },
+    );
 
     const { handleSave, handleDelete } = useCrudOperations({
         updateRoute: "printers.update",
@@ -66,224 +96,40 @@ const PrinterTable = () => {
         reloadProps: ["printers"],
     });
 
-    // ✅ Wrapper for handleSave to close form on success
     const handleFormSave = async (values) => {
-        const id = values.id || null;
-
         const payload = {
             ...values,
             employee_id: emp_data?.emp_id,
         };
 
-        const result = await handleSave(payload, id);
-        if (result?.success) {
-            closeForm();
-        }
+        const result = await handleSave(payload, values.id || null);
+        if (result?.success) closeForm();
     };
 
-    // ✅ Column definitions (page-specific)
-    const columnDefinitions = useMemo(
-        () => [
-            {
-                title: "ID",
-                dataIndex: "id",
-                key: "id",
-                width: 80,
-                sorter: true,
-            },
-            {
-                title: "Printer Name",
-                dataIndex: "printer_name",
-                key: "printer_name",
-                sorter: true,
-                render: (text, record) => (
-                    <Space orientation="vertical" size={0}>
-                        <Text strong>{text}</Text>
-                        {record.ip_address && (
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                                IP: {record.ip_address}
-                            </Text>
-                        )}
-                    </Space>
-                ),
-            },
-            {
-                title: "Type",
-                dataIndex: "printer_type",
-                key: "printer_type",
-                width: 120,
-                sorter: true,
-            },
-            {
-                title: "Brand & Model",
-                key: "brand_model",
-                render: (_, record) => (
-                    <Space orientation="vertical" size={0}>
-                        <Text strong>{record.brand || "N/A"}</Text>
-                        {record.model && (
-                            <Text type="secondary" style={{ fontSize: 12 }}>
-                                {record.model}
-                            </Text>
-                        )}
-                    </Space>
-                ),
-            },
-            {
-                title: "Serial Number",
-                dataIndex: "serial_number",
-                key: "serial_number",
-                ellipsis: true,
-                sorter: true,
-            },
-            {
-                title: "Location",
-                dataIndex: "location",
-                key: "location",
-                sorter: true,
-            },
-            {
-                title: "Status",
-                key: "status",
-                render: (_, record) => (
-                    <Tag color={record.status_color}>{record.status_label}</Tag>
-                ),
-            },
-            {
-                title: "Actions",
-                key: "actions",
-                width: 100,
-                align: "center",
-                render: (_, record) => {
-                    const items = [
-                        {
-                            key: "edit",
-                            label: "Edit",
-                            onClick: () => openEdit(record),
-                            icon: <EditOutlined />,
-                        },
-                        {
-                            key: "logs",
-                            label: "View Logs",
-                            onClick: () => openLogs(record.id),
-                            icon: <HistoryOutlined />,
-                        },
-                        {
-                            type: "divider",
-                        },
-                        {
-                            key: "delete",
-                            label: (
-                                <Popconfirm
-                                    title="Delete this printer?"
-                                    description="This action cannot be undone."
-                                    onConfirm={() =>
-                                        handleDelete(record.id, {
-                                            employee_id: emp_data?.emp_id,
-                                        })
-                                    }
-                                    okText="Yes"
-                                    cancelText="No"
-                                    okButtonProps={{ danger: true }}
-                                >
-                                    <span>Delete</span>
-                                </Popconfirm>
-                            ),
-                            icon: <DeleteOutlined />,
-                            danger: true,
-                        },
-                    ];
+    const getStatusVariant = (status) => {
+        if (status === 1) return "default";
+        if (status === 2) return "secondary";
+        return "outline";
+    };
 
-                    return (
-                        <Dropdown
-                            menu={{ items }}
-                            trigger={["click"]}
-                            placement="bottomRight"
-                        >
-                            <Button
-                                type="text"
-                                icon={<EllipsisVertical className="w-5 h-5" />}
-                            />
-                        </Dropdown>
-                    );
-                },
-            },
-        ],
-        [openEdit, openLogs, handleDelete],
-    );
-
-    // ✅ Table configuration from hook
-    const { columns, paginationConfig } = useTableConfig({
-        filters,
-        pagination,
-        columnDefinitions,
-    });
-
-    /** 🔹 Form Fields */
     const fields = [
         { name: "id", label: "ID", hidden: true },
         {
             name: "printer_name",
             label: "Printer Name",
-            rules: [{ required: true, message: "Printer name is required" }],
-            placeholder: "Enter printer name",
+            rules: [{ required: true }],
         },
-        {
-            name: "ip_address",
-            label: "IP Address",
-            placeholder: "Enter IP address (e.g., 192.168.1.100)",
-        },
-        {
-            name: "printer_type",
-            label: "Printer Type",
-            type: "input",
-            placeholder: "Enter printer type",
-        },
-        {
-            name: "printer_category",
-            label: "Category",
-            type: "input",
-            placeholder: "Enter category",
-        },
-        {
-            name: "location",
-            label: "Location",
-            placeholder: "Enter location",
-        },
-        {
-            name: "brand",
-            label: "Brand",
-            placeholder: "Enter brand (e.g., HP, Canon, Epson)",
-        },
-        {
-            name: "model",
-            label: "Model",
-            placeholder: "Enter model number",
-        },
-        {
-            name: "serial_number",
-            label: "Serial Number",
-            placeholder: "Enter serial number",
-        },
-        {
-            name: "dpi",
-            label: "DPI (Resolution)",
-            placeholder: "Enter DPI (e.g., 1200x1200)",
-        },
-        {
-            name: "category_status",
-            label: "Category Status",
-            placeholder: "Enter category status",
-        },
-        {
-            name: "toner",
-            label: "Toner/Ink Type",
-            placeholder: "Enter toner or ink type",
-        },
-        {
-            name: "supplier",
-            label: "Supplier",
-            placeholder: "Enter supplier name",
-        },
+        { name: "ip_address", label: "IP Address" },
+        { name: "printer_type", label: "Printer Type" },
+        { name: "printer_category", label: "Category" },
+        { name: "location", label: "Location" },
+        { name: "brand", label: "Brand" },
+        { name: "model", label: "Model" },
+        { name: "serial_number", label: "Serial Number" },
+        { name: "dpi", label: "DPI (Resolution)" },
+        { name: "category_status", label: "Category Status" },
+        { name: "toner", label: "Toner/Ink Type" },
+        { name: "supplier", label: "Supplier" },
         {
             name: "status",
             label: "Status",
@@ -292,82 +138,223 @@ const PrinterTable = () => {
                 { value: 1, label: "Active" },
                 { value: 2, label: "Inactive" },
             ],
-            placeholder: "Select status",
         },
     ];
 
     return (
         <AuthenticatedLayout>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "16px",
-                }}
-            >
-                <Breadcrumb
-                    items={[
-                        { title: "MIS-IS", href: "/" },
-                        { title: "Printers" },
-                    ]}
-                    style={{ marginBottom: 0 }}
-                />
-                <Button
-                    type="primary"
-                    icon={<PlusCircleOutlined />}
-                    onClick={openCreate}
-                >
-                    Add Printer
-                </Button>
-            </div>
+            <div className="px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+                {/* Top Bar */}
+                <div className="flex items-center justify-between">
+                    <Breadcrumb>
+                        <BreadcrumbList>
+                            <BreadcrumbItem>
+                                <BreadcrumbLink href="/">MIS-IS</BreadcrumbLink>
+                            </BreadcrumbItem>
+                            <BreadcrumbSeparator />
+                            <BreadcrumbItem>
+                                <BreadcrumbPage>Printers</BreadcrumbPage>
+                            </BreadcrumbItem>
+                        </BreadcrumbList>
+                    </Breadcrumb>
 
-            <Card
-                title={
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "16px",
-                        }}
-                    >
-                        <span style={{ fontSize: "18px", fontWeight: 600 }}>
-                            Printers
-                        </span>
-                        <div style={{ marginLeft: "auto" }}>
-                            <Input
-                                placeholder="Search printer name, brand, model, IP..."
-                                allowClear
-                                value={searchText}
-                                prefix={<SearchOutlined />}
-                                onChange={handleSearch}
-                                style={{
-                                    width: "300px",
-                                    borderRadius: 8,
-                                }}
+                    <Button size="sm" onClick={openCreate} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Add Printer
+                    </Button>
+                </div>
+
+                {/* Main Card */}
+                <Card className="shadow-sm border-border/60 flex flex-col h-[calc(100vh-12rem)]">
+                    <CardHeader className="pb-0 pt-4 px-4 flex-shrink-0">
+                        <div className="flex items-center justify-between gap-4">
+                            <h2 className="text-lg font-semibold">
+                                Printer Inventory
+                            </h2>
+
+                            <div className="relative w-72">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search printer name, brand, model, IP..."
+                                    value={searchText ?? ""}
+                                    onChange={handleSearch}
+                                    className="pl-8 h-9 text-sm"
+                                />
+                            </div>
+                        </div>
+                    </CardHeader>
+
+                    <CardContent className="p-0 mt-3 flex-1 overflow-hidden flex flex-col">
+                        {/* ── Scrollable Table Container ── */}
+                        <div className="flex-1 overflow-auto relative">
+                            <Table className="h-full">
+                                <TableHeader className="sticky top-0 z-30 bg-background">
+                                    <TableRow className="border-border/60 hover:bg-transparent">
+                                        {COLUMNS.map((col) => (
+                                            <TableHead className="bg-background text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                {col}
+                                            </TableHead>
+                                        ))}
+                                        <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-background text-right w-12">
+                                            Actions
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+
+                                <TableBody>
+                                    {!printers?.length ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={8}
+                                                className="h-32 text-center text-muted-foreground"
+                                            >
+                                                No printer records found.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        printers.map((record) => (
+                                            <TableRow key={record.id}>
+                                                <TableCell className="font-mono text-xs">
+                                                    {record.id}
+                                                </TableCell>
+
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium">
+                                                            {
+                                                                record.printer_name
+                                                            }
+                                                        </span>
+                                                        {record.ip_address && (
+                                                            <span className="text-xs text-muted-foreground">
+                                                                IP:{" "}
+                                                                {
+                                                                    record.ip_address
+                                                                }
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+
+                                                <TableCell>
+                                                    {record.printer_type || "-"}
+                                                </TableCell>
+
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium">
+                                                            {record.brand ||
+                                                                "N/A"}
+                                                        </span>
+                                                        {record.model && (
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {record.model}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+
+                                                <TableCell>
+                                                    {record.serial_number ||
+                                                        "-"}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {record.location || "-"}
+                                                </TableCell>
+
+                                                <TableCell>
+                                                    <Badge
+                                                        variant={getStatusVariant(
+                                                            record.status,
+                                                        )}
+                                                    >
+                                                        {record.status == 1
+                                                            ? "Active"
+                                                            : "Inactive"}
+                                                    </Badge>
+                                                </TableCell>
+
+                                                <TableCell className="text-right">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger
+                                                            asChild
+                                                        >
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                            >
+                                                                <EllipsisVertical className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuItem
+                                                                onClick={() =>
+                                                                    openEdit(
+                                                                        record,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Pencil className="h-4 w-4 mr-2" />
+                                                                Edit
+                                                            </DropdownMenuItem>
+
+                                                            <DropdownMenuItem
+                                                                onClick={() =>
+                                                                    openLogs(
+                                                                        record.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <History className="h-4 w-4 mr-2" />
+                                                                View Logs
+                                                            </DropdownMenuItem>
+
+                                                            <DropdownMenuSeparator />
+
+                                                            <DropdownMenuItem
+                                                                className="text-destructive"
+                                                                onClick={() =>
+                                                                    setDeleteTarget(
+                                                                        record.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                                Delete
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+
+                        {/* Pagination */}
+                        <div className="border-t px-4 flex-shrink-0">
+                            <TablePagination
+                                pagination={pagination}
+                                onChange={(page) =>
+                                    handleTableChange({ current: page }, {}, {})
+                                }
                             />
                         </div>
-                    </div>
-                }
-                variant="outlined"
-                style={{
-                    borderRadius: 8,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                    marginBottom: 24,
-                }}
-            >
-                <Table
-                    columns={columns}
-                    dataSource={printers}
-                    rowKey="id"
-                    pagination={paginationConfig}
-                    onChange={handleTableChange}
-                    onRow={() => ({ style: { cursor: "default" } })}
-                    bordered
-                    scroll={{ y: "70vh" }}
+                    </CardContent>
+                </Card>
+
+                <DeleteConfirm
+                    open={!!deleteTarget}
+                    onOpenChange={(v) => !v && setDeleteTarget(null)}
+                    onConfirm={() => {
+                        handleDelete(deleteTarget, {
+                            employee_id: emp_data?.emp_id,
+                        });
+                        setDeleteTarget(null);
+                    }}
                 />
 
-                {/* Form Drawer */}
                 <FormDrawer
                     open={formDrawerOpen}
                     onClose={closeForm}
@@ -378,7 +365,6 @@ const PrinterTable = () => {
                     onSubmit={handleFormSave}
                 />
 
-                {/* Activity Logs Modal */}
                 <ActivityLogsModal
                     visible={logsModalVisible}
                     onClose={closeLogs}
@@ -393,7 +379,7 @@ const PrinterTable = () => {
                     }}
                     perPage={10}
                 />
-            </Card>
+            </div>
         </AuthenticatedLayout>
     );
 };

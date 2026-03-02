@@ -1,5 +1,39 @@
 import React, { useEffect } from "react";
-import { Form, Select, Row, Col } from "antd";
+import { Form } from "antd";
+import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { Combobox } from "@/Components/ui/Combobox";
+
+// ─── Design tokens (must match HardwareFormDrawer) ────────────────────────────
+const LABEL_H = 18;
+const GAP = 5;
+const INPUT_H = 34;
+const BOTTOM = 14;
+
+// ─── Cell primitive ───────────────────────────────────────────────────────────
+
+const Cell = ({ label, showLabel, flex, children }) => (
+    <div className="flex flex-col min-w-0" style={{ flex }}>
+        <div
+            style={{
+                height: LABEL_H,
+                marginBottom: GAP,
+                display: "flex",
+                alignItems: "center",
+            }}
+        >
+            {showLabel && label && (
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 truncate leading-none">
+                    {label}
+                </Label>
+            )}
+        </div>
+        <div style={{ height: INPUT_H }}>{children}</div>
+        <div style={{ height: BOTTOM }} />
+    </div>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const CascadingSoftwareFields = ({
     fieldPrefix,
@@ -12,8 +46,6 @@ const CascadingSoftwareFields = ({
     softwareHooks,
     isFormList = false,
     rowIndex = null,
-    // ✅ NEW: the raw software object for this row, passed directly from
-    //    Form.List so we don't race against form.setFieldsValue timing
     rowData = null,
 }) => {
     const {
@@ -25,42 +57,33 @@ const CascadingSoftwareFields = ({
 
     const getFieldValue = (fieldKey) => {
         if (isFormList) {
-            const allSoftware = form.getFieldValue("software") || [];
-            return allSoftware[rowIndex]?.[fieldKey];
+            const all = form.getFieldValue("software") || [];
+            return all[rowIndex]?.[fieldKey];
         }
         return form.getFieldValue(`${fieldPrefix}_${fieldKey}`);
     };
 
     const setFieldValues = (updates) => {
         if (isFormList) {
-            const allSoftware = form.getFieldValue("software") || [];
-            allSoftware[rowIndex] = { ...allSoftware[rowIndex], ...updates };
-            form.setFieldsValue({ software: allSoftware });
+            const all = form.getFieldValue("software") || [];
+            all[rowIndex] = { ...all[rowIndex], ...updates };
+            form.setFieldsValue({ software: all });
         } else {
-            const flatUpdates = {};
-            Object.entries(updates).forEach(([key, value]) => {
-                flatUpdates[`${fieldPrefix}_${key}`] = value;
+            const flat = {};
+            Object.entries(updates).forEach(([k, v]) => {
+                flat[`${fieldPrefix}_${k}`] = v;
             });
-            form.setFieldsValue(flatUpdates);
+            form.setFieldsValue(flat);
         }
     };
 
-    // ✅ FIX: Use rowData prop instead of reading from form on mount.
-    //    Child component mounts before parent's useEffect runs setFieldsValue,
-    //    so form values are always undefined when read at mount time.
-    //    rowData comes directly from the Form.List render — always in sync.
     useEffect(() => {
         const name = rowData?.software_name;
         const type = rowData?.software_type;
         const version = rowData?.version;
-
-        if (name) {
-            loadSoftwareTypes(name, fieldPrefix);
-        }
-        if (name && type) {
-            loadSoftwareVersions(name, type, fieldPrefix);
-        }
-        if (name && type && version) {
+        if (name) loadSoftwareTypes(name, fieldPrefix);
+        if (name && type) loadSoftwareVersions(name, type, fieldPrefix);
+        if (name && type && version)
             loadSoftwareLicenses(
                 name,
                 type,
@@ -68,8 +91,6 @@ const CascadingSoftwareFields = ({
                 fieldPrefix,
                 rowIndex || 0,
             );
-        }
-        // Re-run when the row's key values change
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [rowData?.software_name, rowData?.software_type, rowData?.version]);
 
@@ -80,10 +101,8 @@ const CascadingSoftwareFields = ({
             version: undefined,
             _license_identifier: undefined,
         });
-        if (val) {
-            loadSoftwareTypes(val, fieldPrefix);
-        }
-        if (onFieldChange) onFieldChange("software_name", val);
+        if (val) loadSoftwareTypes(val, fieldPrefix);
+        onFieldChange?.("software_name", val);
     };
 
     const handleTypeChange = (val) => {
@@ -92,196 +111,308 @@ const CascadingSoftwareFields = ({
             version: undefined,
             _license_identifier: undefined,
         });
-        if (val) {
-            const name = getFieldValue("software_name");
-            loadSoftwareVersions(name, val, fieldPrefix);
-        }
-        if (onFieldChange) onFieldChange("software_type", val);
+        if (val)
+            loadSoftwareVersions(
+                getFieldValue("software_name"),
+                val,
+                fieldPrefix,
+            );
+        onFieldChange?.("software_type", val);
     };
 
     const handleVersionChange = (val) => {
-        setFieldValues({
-            version: val,
-            _license_identifier: undefined,
-        });
-        if (val) {
-            const name = getFieldValue("software_name");
-            const type = getFieldValue("software_type");
-            loadSoftwareLicenses(name, type, val, fieldPrefix, rowIndex || 0);
-        }
-        if (onFieldChange) onFieldChange("version", val);
+        setFieldValues({ version: val, _license_identifier: undefined });
+        if (val)
+            loadSoftwareLicenses(
+                getFieldValue("software_name"),
+                getFieldValue("software_type"),
+                val,
+                fieldPrefix,
+                rowIndex || 0,
+            );
+        onFieldChange?.("version", val);
     };
 
-    const fields = [
+    // ── inline + isFormList mode ── used inside HardwareFormDrawer Form.List
+    if (layout === "inline" && isFormList) {
+        return (
+            <div className="flex gap-2 flex-1 min-w-0">
+                {/* Software Name */}
+                <Cell label="Software Name" showLabel={showLabels} flex={1.6}>
+                    <Form.Item
+                        name={[rowIndex, "software_name"]}
+                        noStyle
+                        rules={[{ required: true, message: "Required" }]}
+                    >
+                        <Combobox
+                            options={softwareOptions.names || []}
+                            placeholder="Software"
+                            disabled={disabled.software_name}
+                            onChange={handleNameChange}
+                            style={{ height: INPUT_H }}
+                        />
+                    </Form.Item>
+                </Cell>
+
+                {/* Software Type */}
+                <Cell label="Type" showLabel={showLabels} flex={1.1}>
+                    <Form.Item
+                        name={[rowIndex, "software_type"]}
+                        noStyle
+                        rules={[{ required: true, message: "Required" }]}
+                    >
+                        <Combobox
+                            options={softwareOptions.types[fieldPrefix] || []}
+                            placeholder="Type"
+                            disabled={disabled.software_type}
+                            onChange={handleTypeChange}
+                            onFocus={async () => {
+                                const n = getFieldValue("software_name");
+                                if (n) await loadSoftwareTypes(n, fieldPrefix);
+                            }}
+                            style={{ height: INPUT_H }}
+                        />
+                    </Form.Item>
+                </Cell>
+
+                {/* Version */}
+                <Cell label="Version" showLabel={showLabels} flex={0.9}>
+                    <Form.Item
+                        name={[rowIndex, "version"]}
+                        noStyle
+                        rules={[{ required: true, message: "Required" }]}
+                    >
+                        <Combobox
+                            options={
+                                softwareOptions.versions[fieldPrefix] || []
+                            }
+                            placeholder="Version"
+                            disabled={disabled.version}
+                            onChange={handleVersionChange}
+                            onFocus={async () => {
+                                const n = getFieldValue("software_name");
+                                const t = getFieldValue("software_type");
+                                if (n && t)
+                                    await loadSoftwareVersions(
+                                        n,
+                                        t,
+                                        fieldPrefix,
+                                    );
+                            }}
+                            style={{ height: INPUT_H }}
+                        />
+                    </Form.Item>
+                </Cell>
+
+                {/* License / Account */}
+                <Cell
+                    label="License / Account"
+                    showLabel={showLabels}
+                    flex={1.8}
+                >
+                    <Form.Item name={[rowIndex, "_license_identifier"]} noStyle>
+                        <Combobox
+                            options={
+                                softwareOptions.licenses[fieldPrefix] || []
+                            }
+                            placeholder="License"
+                            disabled={disabled.license}
+                            onFocus={async () => {
+                                const n = getFieldValue("software_name");
+                                const t = getFieldValue("software_type");
+                                const v = getFieldValue("version");
+                                if (n && t && v)
+                                    await loadSoftwareLicenses(
+                                        n,
+                                        t,
+                                        v,
+                                        fieldPrefix,
+                                        rowIndex || 0,
+                                    );
+                            }}
+                            style={{ height: INPUT_H }}
+                        />
+                    </Form.Item>
+                </Cell>
+            </div>
+        );
+    }
+
+    // ── inline (non-list) mode ────────────────────────────────────────────────
+    if (layout === "inline") {
+        const fieldDefs = [
+            {
+                name: "software_name",
+                label: "Software Name",
+                opts: softwareOptions.names || [],
+                required: true,
+                onChange: handleNameChange,
+            },
+            {
+                name: "software_type",
+                label: "Type",
+                opts: softwareOptions.types[fieldPrefix] || [],
+                required: true,
+                onChange: handleTypeChange,
+                onFocus: async () => {
+                    const n = getFieldValue("software_name");
+                    if (n) await loadSoftwareTypes(n, fieldPrefix);
+                },
+            },
+            {
+                name: "version",
+                label: "Version",
+                opts: softwareOptions.versions[fieldPrefix] || [],
+                required: true,
+                onChange: handleVersionChange,
+                onFocus: async () => {
+                    const n = getFieldValue("software_name");
+                    const t = getFieldValue("software_type");
+                    if (n && t) await loadSoftwareVersions(n, t, fieldPrefix);
+                },
+            },
+            {
+                name: "_license_identifier",
+                label: "License / Account",
+                opts: softwareOptions.licenses[fieldPrefix] || [],
+                required: false,
+                onFocus: async () => {
+                    const n = getFieldValue("software_name");
+                    const t = getFieldValue("software_type");
+                    const v = getFieldValue("version");
+                    if (n && t && v)
+                        await loadSoftwareLicenses(
+                            n,
+                            t,
+                            v,
+                            fieldPrefix,
+                            rowIndex || 0,
+                        );
+                },
+            },
+        ];
+
+        return (
+            <div className="flex gap-2 flex-1 min-w-0">
+                {fieldDefs.map((f) => (
+                    <div key={f.name} className="flex-1 min-w-0">
+                        <Form.Item
+                            name={`${fieldPrefix}_${f.name}`}
+                            noStyle
+                            rules={
+                                f.required
+                                    ? [{ required: true, message: "Required" }]
+                                    : []
+                            }
+                        >
+                            <Combobox
+                                options={f.opts}
+                                placeholder={f.label}
+                                disabled={disabled[f.name]}
+                                onChange={f.onChange}
+                                onFocus={f.onFocus}
+                                style={{ height: INPUT_H }}
+                            />
+                        </Form.Item>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    // ── vertical (default) mode ───────────────────────────────────────────────
+    const vertFields = [
         {
             name: "software_name",
             label: "Software Name",
-            options: softwareOptions.names || [],
-            disabled: disabled.software_name || false,
+            opts: softwareOptions.names || [],
+            required: true,
             onChange: handleNameChange,
-            span: layout === "horizontal" ? 12 : 24,
         },
         {
             name: "software_type",
             label: "Software Type",
-            options: softwareOptions.types[fieldPrefix] || [],
-            disabled: disabled.software_type || false,
-            onFocus: async () => {
-                const name = getFieldValue("software_name");
-                if (name) await loadSoftwareTypes(name, fieldPrefix);
-            },
+            opts: softwareOptions.types[fieldPrefix] || [],
+            required: true,
             onChange: handleTypeChange,
-            span: layout === "horizontal" ? 12 : 24,
+            onFocus: async () => {
+                const n = getFieldValue("software_name");
+                if (n) await loadSoftwareTypes(n, fieldPrefix);
+            },
         },
         {
             name: "version",
             label: "Version",
-            options: softwareOptions.versions[fieldPrefix] || [],
-            disabled: disabled.version || false,
-            onFocus: async () => {
-                const name = getFieldValue("software_name");
-                const type = getFieldValue("software_type");
-                if (name && type)
-                    await loadSoftwareVersions(name, type, fieldPrefix);
-            },
+            opts: softwareOptions.versions[fieldPrefix] || [],
+            required: true,
             onChange: handleVersionChange,
-            span: layout === "horizontal" ? 12 : 24,
+            onFocus: async () => {
+                const n = getFieldValue("software_name");
+                const t = getFieldValue("software_type");
+                if (n && t) await loadSoftwareVersions(n, t, fieldPrefix);
+            },
         },
         {
             name: "_license_identifier",
             label: "License / Account",
-            options: softwareOptions.licenses[fieldPrefix] || [],
-            disabled: disabled.license || false,
+            opts: softwareOptions.licenses[fieldPrefix] || [],
+            required: false,
             onFocus: async () => {
-                const name = getFieldValue("software_name");
-                const type = getFieldValue("software_type");
-                const version = getFieldValue("version");
-                if (name && type && version) {
+                const n = getFieldValue("software_name");
+                const t = getFieldValue("software_type");
+                const v = getFieldValue("version");
+                if (n && t && v)
                     await loadSoftwareLicenses(
-                        name,
-                        type,
-                        version,
+                        n,
+                        t,
+                        v,
                         fieldPrefix,
                         rowIndex || 0,
                     );
-                }
             },
-            span: layout === "horizontal" ? 12 : 24,
         },
     ];
 
-    if (layout === "inline" && isFormList) {
-        return (
-            <>
-                {fields.slice(0, 3).map((field) => (
-                    <Col xs={24} sm={12} md={5} key={field.name}>
-                        <Form.Item
-                            name={[rowIndex, field.name]}
-                            label={rowIndex === 0 ? field.label : ""}
-                            style={{ marginBottom: 0 }}
-                            rules={[
-                                {
-                                    required: !field.disabled,
-                                    message: `Please select ${field.label.toLowerCase()}`,
-                                },
-                            ]}
-                        >
-                            <Select
-                                placeholder={`Select ${field.label}`}
-                                options={field.options}
-                                disabled={field.disabled}
-                                showSearch
-                                optionFilterProp="label"
-                                onFocus={field.onFocus}
-                                onChange={field.onChange}
-                            />
-                        </Form.Item>
-                    </Col>
-                ))}
-                <Col xs={24} sm={12} md={8}>
-                    <Form.Item
-                        name={[rowIndex, "_license_identifier"]}
-                        label={rowIndex === 0 ? "License" : ""}
-                        style={{ marginBottom: 0 }}
-                    >
-                        <Select
-                            placeholder="Select License"
-                            options={
-                                softwareOptions.licenses[fieldPrefix] || []
-                            }
-                            allowClear
-                            showSearch
-                            optionFilterProp="label"
-                            onChange={fields[3].onChange}
-                            onFocus={fields[3].onFocus}
-                        />
-                    </Form.Item>
-                </Col>
-            </>
-        );
-    } else if (layout === "inline") {
-        return (
-            <>
-                {fields.map((field) => (
-                    <Form.Item
-                        key={field.name}
-                        name={`${fieldPrefix}_${field.name}`}
-                        rules={[
-                            {
-                                required: !field.disabled,
-                                message: `Please select ${field.label.toLowerCase()}`,
-                            },
-                        ]}
-                        style={{ margin: 0 }}
-                    >
-                        <Select
-                            placeholder={`Select ${field.label}`}
-                            options={field.options}
-                            disabled={field.disabled}
-                            showSearch
-                            optionFilterProp="label"
-                            onFocus={field.onFocus}
-                            onChange={field.onChange}
-                            style={{ width: "100%", minWidth: 0 }}
-                        />
-                    </Form.Item>
-                ))}
-            </>
-        );
-    }
-
     return (
-        <Row gutter={16}>
-            {fields.map((field) => (
-                <Col span={field.span} key={field.name}>
+        <div
+            className={cn(
+                "grid gap-4",
+                layout === "horizontal" ? "grid-cols-2" : "grid-cols-1",
+            )}
+        >
+            {vertFields.map((f) => (
+                <div key={f.name} className="flex flex-col gap-1.5">
+                    {showLabels && (
+                        <Label className="text-xs font-semibold text-muted-foreground">
+                            {f.label}
+                        </Label>
+                    )}
                     <Form.Item
-                        name={`${fieldPrefix}_${field.name}`}
-                        label={showLabels ? field.label : undefined}
-                        rules={[
-                            {
-                                required: !field.disabled,
-                                message: `Please select ${field.label.toLowerCase()}`,
-                            },
-                        ]}
-                        initialValue={
-                            initialValues[
-                                field.label.toLowerCase().replace(" ", "_")
-                            ]
+                        name={`${fieldPrefix}_${f.name}`}
+                        noStyle
+                        rules={
+                            f.required
+                                ? [
+                                      {
+                                          required: true,
+                                          message: `Please select ${f.label.toLowerCase()}`,
+                                      },
+                                  ]
+                                : []
                         }
+                        initialValue={initialValues[f.name]}
                     >
-                        <Select
-                            placeholder={`Select ${field.label}`}
-                            options={field.options}
-                            disabled={field.disabled}
-                            showSearch
-                            optionFilterProp="label"
-                            onFocus={field.onFocus}
-                            onChange={field.onChange}
+                        <Combobox
+                            options={f.opts}
+                            placeholder={`Select ${f.label}`}
+                            disabled={disabled[f.name]}
+                            onChange={f.onChange}
+                            onFocus={f.onFocus}
                         />
                     </Form.Item>
-                </Col>
+                </div>
             ))}
-        </Row>
+        </div>
     );
 };
 

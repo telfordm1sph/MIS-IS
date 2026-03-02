@@ -1,31 +1,16 @@
 import React from "react";
-import { Input, Select, Tag, Button } from "antd";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
-    SearchOutlined,
-    ReloadOutlined,
-    FilterOutlined,
-} from "@ant-design/icons";
-
-const { Option } = Select;
-
-// Unified icon wrapper for AntD and Lucide
-const IconWrapper = ({ children, size = 16, style = {} }) => (
-    <span
-        style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: size,
-            height: size,
-            fontSize: size, // for font-based icons
-            ...style,
-        }}
-    >
-        {React.isValidElement(children)
-            ? React.cloneElement(children, { width: size, height: size })
-            : children}
-    </span>
-);
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Search, Filter, RotateCcw } from "lucide-react";
 
 const InventoryHeaderWithFilters = ({
     title,
@@ -51,114 +36,137 @@ const InventoryHeaderWithFilters = ({
 
     const statusCategories = ["New", "Inactive", "Defective"];
     const showSubCategory = statusCategories.includes(category);
-
     const hardwareCategories = Object.keys(categoryCounts).filter(
         (cat) => !statusCategories.includes(cat),
     );
 
     return (
-        <div style={{ display: "grid", gap: 16, margin: "16px 0" }}>
-            {/* Top row: Tags */}
+        <div className="grid gap-3 my-2">
+            {/* ── Category tags ── */}
             {showTags && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    <Tag color="default">Total: {totalCount}</Tag>
+                <div className="flex flex-wrap gap-1.5">
+                    {/* Total pill */}
+                    <Badge
+                        variant="secondary"
+                        className="rounded-full text-xs font-medium px-2.5 py-0.5"
+                    >
+                        All: {totalCount}
+                    </Badge>
+
                     {Object.entries(categoryCounts).map(([cat, count]) => {
                         const config =
                             categoryConfig[cat?.toLowerCase()] ||
                             categoryConfig.default ||
                             {};
+
                         return (
-                            <Tag key={cat} color={config.color || "blue"}>
+                            <Badge
+                                key={cat}
+                                variant="outline"
+                                className={cn(
+                                    "rounded-full text-xs font-medium px-2.5 py-0.5 gap-1 cursor-pointer transition-colors",
+                                    category === cat
+                                        ? "bg-primary text-primary-foreground border-primary"
+                                        : "hover:bg-muted",
+                                )}
+                                onClick={() =>
+                                    onCategoryChange(
+                                        category === cat ? undefined : cat,
+                                    )
+                                }
+                            >
                                 {config.icon && (
-                                    <IconWrapper
-                                        size={16}
-                                        style={{ marginRight: 4 }}
-                                    >
-                                        {config.icon}
-                                    </IconWrapper>
+                                    <span className="inline-flex items-center">
+                                        {React.isValidElement(config.icon)
+                                            ? React.cloneElement(config.icon, {
+                                                  width: 11,
+                                                  height: 11,
+                                              })
+                                            : config.icon}
+                                    </span>
                                 )}
                                 {cat}: {count}
-                            </Tag>
+                            </Badge>
                         );
                     })}
                 </div>
             )}
 
-            {/* Bottom row: Controls */}
+            {/* ── Controls row ── */}
             <div
-                style={{
-                    display: "grid",
-                    gap: 8,
-                    gridTemplateColumns: showSubCategory
-                        ? "1fr auto auto auto"
-                        : "1fr auto auto",
-                }}
+                className={cn(
+                    "grid gap-2",
+                    showSubCategory
+                        ? "grid-cols-[1fr_auto_auto_auto]"
+                        : "grid-cols-[1fr_auto_auto]",
+                )}
             >
-                <Input
-                    placeholder={searchPlaceholder}
-                    prefix={
-                        <IconWrapper size={16}>
-                            <SearchOutlined />
-                        </IconWrapper>
-                    }
-                    onChange={onSearchChange}
-                    value={searchText}
-                    allowClear
-                    style={{ width: "100%" }}
-                />
+                {/* Search */}
+                <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    <Input
+                        placeholder={searchPlaceholder}
+                        value={searchText ?? ""}
+                        onChange={onSearchChange}
+                        className="pl-8 h-9 text-sm"
+                    />
+                </div>
 
+                {/* Category select */}
                 <Select
-                    placeholder={categoryPlaceholder}
-                    value={category || undefined}
-                    onChange={onCategoryChange}
-                    allowClear
-                    size="middle"
-                    style={{ minWidth: 150 }}
-                    suffixIcon={
-                        <IconWrapper size={16}>
-                            <FilterOutlined />
-                        </IconWrapper>
+                    value={category || "__all__"}
+                    onValueChange={(val) =>
+                        onCategoryChange(val === "__all__" ? undefined : val)
                     }
                 >
-                    {Object.entries(categoryCounts).map(([cat, count]) => (
-                        <Option key={cat} value={cat}>
-                            {cat} ({count})
-                        </Option>
-                    ))}
+                    <SelectTrigger className="h-9 min-w-[160px] text-sm gap-1.5">
+                        <Filter className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <SelectValue placeholder={categoryPlaceholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="__all__">All Categories</SelectItem>
+                        {Object.entries(categoryCounts).map(([cat, count]) => (
+                            <SelectItem key={cat} value={cat}>
+                                {cat} ({count})
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
                 </Select>
 
+                {/* Sub-category select */}
                 {showSubCategory && (
                     <Select
-                        placeholder={subCategoryPlaceholder}
-                        value={subCategory || undefined}
-                        onChange={onSubCategoryChange}
-                        allowClear
-                        size="middle"
-                        style={{ minWidth: 150 }}
-                        suffixIcon={
-                            <IconWrapper size={16}>
-                                <FilterOutlined />
-                            </IconWrapper>
+                        value={subCategory || "__all__"}
+                        onValueChange={(val) =>
+                            onSubCategoryChange(
+                                val === "__all__" ? undefined : val,
+                            )
                         }
                     >
-                        {hardwareCategories.map((cat) => (
-                            <Option key={cat} value={cat}>
-                                {cat}
-                            </Option>
-                        ))}
+                        <SelectTrigger className="h-9 min-w-[160px] text-sm gap-1.5">
+                            <Filter className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <SelectValue placeholder={subCategoryPlaceholder} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="__all__">All Types</SelectItem>
+                            {hardwareCategories.map((cat) => (
+                                <SelectItem key={cat} value={cat}>
+                                    {cat}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
                     </Select>
                 )}
 
+                {/* Reset button */}
                 {hasActiveFilters && (
                     <Button
-                        type="primary"
-                        icon={
-                            <IconWrapper size={16}>
-                                <ReloadOutlined />
-                            </IconWrapper>
-                        }
+                        size="sm"
+                        variant="default"
+                        className="h-9 gap-1.5 text-sm"
                         onClick={onResetFilters}
                     >
+                        <RotateCcw className="h-3.5 w-3.5" />
                         Reset
                     </Button>
                 )}

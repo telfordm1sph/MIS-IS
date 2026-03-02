@@ -38,7 +38,7 @@ const IssuanceConfirmationModal = ({
     const handleConfirm = () => {
         onConfirm(employeeData?.emp_id || employeeData);
     };
-    console.log("Hardware MOdal", hardware);
+    // console.log("Hardware MOdal", hardware);
 
     const getOperationsArray = () => {
         if (!operations) return [];

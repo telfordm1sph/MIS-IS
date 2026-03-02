@@ -1,17 +1,29 @@
+// ─── FormDrawer.jsx ───────────────────────────────────────────────────────────
 import React, { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { cn } from "@/lib/utils";
 import {
-    Drawer,
-    Form,
-    Input,
-    InputNumber,
-    Button,
-    Space,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
     Select,
-    Row,
-    Col,
-} from "antd";
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-const FormDrawer = ({
+const FieldError = ({ message }) =>
+    message ? <p className="text-xs text-destructive mt-1">{message}</p> : null;
+
+export const FormDrawer = ({
     open,
     onClose,
     onSubmit,
@@ -20,82 +32,234 @@ const FormDrawer = ({
     initialValues = {},
     fields = [],
     loading = false,
-    columns = 2, // 👈 default columns
+    columns = 2,
 }) => {
-    const [form] = Form.useForm();
-    const span = 24 / columns;
+    const {
+        register,
+        handleSubmit,
+        reset,
+        setValue,
+        watch,
+        formState: { errors },
+    } = useForm();
 
     useEffect(() => {
         if (open) {
-            form.resetFields();
-            form.setFieldsValue(initialValues);
+            reset(initialValues ?? {});
         }
     }, [open, initialValues]);
 
-    const handleFinish = (values) => {
-        onSubmit(values);
-    };
+    const onValid = (values) => onSubmit(values);
 
     return (
-        <Drawer title={title} size={850} onClose={onClose} open={open}>
-            <Form layout="vertical" form={form} onFinish={handleFinish}>
-                <Row gutter={16}>
-                    {fields.map((field) => {
-                        if (field.hidden) {
-                            return (
-                                <Form.Item
-                                    key={field.name}
-                                    name={field.name}
-                                    hidden
-                                >
-                                    <Input />
-                                </Form.Item>
-                            );
-                        }
+        <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+            <SheetContent
+                side="right"
+                className="!w-[860px] !max-w-[860px] p-0 flex flex-col gap-0"
+            >
+                {/* ── Header ── */}
+                <SheetHeader className="px-6 py-4 border-b border-border/60 shrink-0">
+                    <SheetTitle className="text-base font-semibold">
+                        {title}
+                    </SheetTitle>
+                </SheetHeader>
 
-                        let Component = Input;
-                        if (field.type === "number") Component = InputNumber;
+                {/* ── Body ── */}
+                <ScrollArea className="flex-1">
+                    <form
+                        id="form-drawer-form"
+                        onSubmit={handleSubmit(onValid)}
+                        className="px-6 py-5"
+                    >
+                        {/* Hidden fields */}
+                        {fields
+                            .filter((f) => f.hidden)
+                            .map((f) => (
+                                <input
+                                    key={f.name}
+                                    type="hidden"
+                                    {...register(f.name)}
+                                />
+                            ))}
 
-                        const colSpan = field.col || span;
+                        {/* Visible fields grid */}
+                        <div
+                            className="grid gap-4"
+                            style={{
+                                gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                            }}
+                        >
+                            {fields
+                                .filter((f) => !f.hidden)
+                                .map((field) => {
+                                    const colSpan = field.col
+                                        ? Math.round(field.col / (24 / columns))
+                                        : 1;
 
-                        return (
-                            <Col span={colSpan} key={field.name}>
-                                <Form.Item
-                                    label={field.label}
-                                    name={field.name}
-                                    rules={field.rules || []}
-                                >
-                                    {field.type === "select" ? (
-                                        <Select
-                                            placeholder={field.placeholder}
-                                            options={field.options}
-                                            allowClear
-                                            disabled={field.disabled}
-                                        />
-                                    ) : (
-                                        <Component
-                                            style={{ width: "100%" }}
-                                            placeholder={field.placeholder}
-                                            disabled={field.disabled}
-                                            {...(field.type !== "number"
-                                                ? { allowClear: true }
-                                                : {})}
-                                        />
-                                    )}
-                                </Form.Item>
-                            </Col>
-                        );
-                    })}
-                </Row>
+                                    const isRequired = field.rules?.some(
+                                        (r) => r.required,
+                                    );
+                                    const errorMsg =
+                                        errors[field.name]?.message;
 
-                <Space style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <Button onClick={onClose}>Cancel</Button>
-                    <Button type="primary" htmlType="submit" loading={loading}>
+                                    return (
+                                        <div
+                                            key={field.name}
+                                            style={
+                                                colSpan > 1
+                                                    ? {
+                                                          gridColumn: `span ${colSpan}`,
+                                                      }
+                                                    : {}
+                                            }
+                                        >
+                                            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5 block">
+                                                {field.label}
+                                                {isRequired && (
+                                                    <span className="text-destructive ml-0.5">
+                                                        *
+                                                    </span>
+                                                )}
+                                            </Label>
+
+                                            {field.type === "select" ? (
+                                                <>
+                                                    <Select
+                                                        value={
+                                                            watch(field.name) ??
+                                                            ""
+                                                        }
+                                                        onValueChange={(val) =>
+                                                            setValue(
+                                                                field.name,
+                                                                val,
+                                                                {
+                                                                    shouldValidate: true,
+                                                                },
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            field.disabled
+                                                        }
+                                                    >
+                                                        <SelectTrigger
+                                                            className={cn(
+                                                                "h-9 text-sm",
+                                                                errorMsg &&
+                                                                    "border-destructive",
+                                                            )}
+                                                        >
+                                                            <SelectValue
+                                                                placeholder={
+                                                                    field.placeholder ??
+                                                                    `Select ${field.label}`
+                                                                }
+                                                            />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {field.options?.map(
+                                                                (opt) => (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            opt.value
+                                                                        }
+                                                                        value={String(
+                                                                            opt.value,
+                                                                        )}
+                                                                    >
+                                                                        {
+                                                                            opt.label
+                                                                        }
+                                                                    </SelectItem>
+                                                                ),
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    {/* Register hidden input for validation */}
+                                                    <input
+                                                        type="hidden"
+                                                        {...register(
+                                                            field.name,
+                                                            {
+                                                                required:
+                                                                    isRequired
+                                                                        ? field.rules.find(
+                                                                              (
+                                                                                  r,
+                                                                              ) =>
+                                                                                  r.required,
+                                                                          )
+                                                                              ?.message ||
+                                                                          "Required"
+                                                                        : false,
+                                                            },
+                                                        )}
+                                                    />
+                                                </>
+                                            ) : (
+                                                <Input
+                                                    type={
+                                                        field.type === "number"
+                                                            ? "number"
+                                                            : "text"
+                                                    }
+                                                    placeholder={
+                                                        field.placeholder ??
+                                                        `Enter ${field.label}`
+                                                    }
+                                                    disabled={field.disabled}
+                                                    className={cn(
+                                                        "h-9 text-sm",
+                                                        errorMsg &&
+                                                            "border-destructive",
+                                                    )}
+                                                    {...register(field.name, {
+                                                        required: isRequired
+                                                            ? field.rules.find(
+                                                                  (r) =>
+                                                                      r.required,
+                                                              )?.message ||
+                                                              "Required"
+                                                            : false,
+                                                        valueAsNumber:
+                                                            field.type ===
+                                                            "number",
+                                                    })}
+                                                />
+                                            )}
+
+                                            <FieldError message={errorMsg} />
+                                        </div>
+                                    );
+                                })}
+                        </div>
+                    </form>
+                </ScrollArea>
+
+                {/* ── Footer ── */}
+                <div className="shrink-0 border-t border-border/60 px-6 py-4 flex items-center justify-end gap-2 bg-card/60">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={onClose}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        form="form-drawer-form"
+                        size="sm"
+                        disabled={loading}
+                    >
+                        {loading && (
+                            <span className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin mr-1.5" />
+                        )}
                         {mode === "create" ? "Create" : "Update"}
                     </Button>
-                </Space>
-            </Form>
-        </Drawer>
+                </div>
+            </SheetContent>
+        </Sheet>
     );
 };
 

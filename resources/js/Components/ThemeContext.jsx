@@ -7,14 +7,21 @@ export const ThemeProvider = ({ children }) => {
 
     useEffect(() => {
         const stored = localStorage.getItem("theme") || "light";
+        applyTheme(stored);
         setTheme(stored);
-        document.documentElement.setAttribute("data-theme", stored);
     }, []);
+
+    const applyTheme = (t) => {
+        // shadcn — needs class on <html>
+        document.documentElement.classList.toggle("dark", t === "dark");
+        // daisyUI — needs data-theme attribute
+        document.documentElement.setAttribute("data-theme", t);
+    };
 
     const toggleTheme = () => {
         const newTheme = theme === "light" ? "dark" : "light";
         setTheme(newTheme);
-        document.documentElement.setAttribute("data-theme", newTheme);
+        applyTheme(newTheme);
         localStorage.setItem("theme", newTheme);
     };
 

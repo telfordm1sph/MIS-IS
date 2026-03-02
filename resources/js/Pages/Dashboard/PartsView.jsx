@@ -1,9 +1,13 @@
-import { Card, Typography } from "antd";
-import { StackedBarChart, PartsTooltip, getConditionColor } from "./Charts";
+import { StackedBarChart, getConditionColor } from "./Charts";
 import { SummaryCard } from "./SummaryCard";
 import { motion } from "framer-motion";
-
-const { Title, Text } = Typography;
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+} from "@/components/ui/card";
 
 const COLORS = [
     "#6366f1",
@@ -45,6 +49,7 @@ export function PartsView({ data, loading }) {
 
     return (
         <>
+            {/* ── Summary Cards ── */}
             <motion.div
                 className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-6"
                 initial="hidden"
@@ -68,31 +73,25 @@ export function PartsView({ data, loading }) {
                 ))}
             </motion.div>
 
-            <Card
-                loading={loading}
-                className="transition-transform transition-shadow duration-300 hover:scale-105 hover:shadow-2xl"
-                styles={{
-                    body: {
-                        padding: 20,
-                        borderRadius: 12,
-                        boxShadow:
-                            "0 4px 6px rgba(0,0,0,0.05), 0 8px 24px rgba(0,0,0,0.1)",
-                        display: "flex",
-                        flexDirection: "column",
-                    },
-                }}
-            >
-                <Title level={5}>Parts by Type & Condition</Title>
-                <Text type="secondary" className="block mb-6">
-                    Each bar shows the condition breakdown within a part type
-                </Text>
-                <StackedBarChart
-                    data={data.chartData}
-                    categoryKey="part_type"
-                    bars={bars}
-                    tooltipContent={PartsTooltip}
-                    loading={loading}
-                />
+            {/* ── Chart Card ── */}
+            <Card className="transition-all duration-300 hover:scale-[1.01] hover:shadow-2xl">
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-base">
+                        Parts by Type &amp; Condition
+                    </CardTitle>
+                    <CardDescription>
+                        Each bar shows the condition breakdown within a part
+                        type
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <StackedBarChart
+                        data={data.chartData}
+                        categoryKey="part_type"
+                        bars={bars}
+                        loading={loading}
+                    />
+                </CardContent>
             </Card>
         </>
     );

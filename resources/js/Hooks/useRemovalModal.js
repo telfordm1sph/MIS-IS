@@ -18,45 +18,38 @@ export const useRemovalModal = (form, setRemovedItems) => {
         }
     };
 
-    const confirmRemoval = () => {
-        removalForm
-            .validateFields()
-            .then((values) => {
-                const { fieldDataIndex, fieldName, row } = pendingRemoval;
+    const confirmRemoval = (values) => {
+        // Guard: if pendingRemoval was already cleared, do nothing
+        if (!pendingRemoval) return;
 
-                setRemovedItems((prev) => ({
-                    ...prev,
-                    [fieldDataIndex]: [
-                        ...(prev[fieldDataIndex] || []),
-                        {
-                            id: row.id,
-                            reason: values.reason,
-                            condition: values.condition,
-                            remarks: values.remarks || null,
-                        },
-                    ],
-                }));
+        // Capture synchronously before any state updates
+        const { fieldDataIndex, fieldName, row } = pendingRemoval;
 
-                const fields = form.getFieldValue(fieldDataIndex) || [];
-                form.setFieldsValue({
-                    [fieldDataIndex]: fields.filter(
-                        (_, idx) => idx !== fieldName,
-                    ),
-                });
+        setRemovedItems((prev) => ({
+            ...prev,
+            [fieldDataIndex]: [
+                ...(prev[fieldDataIndex] || []),
+                {
+                    id: row.id,
+                    reason: values.reason,
+                    condition: values.condition,
+                    remarks: values.remarks || null,
+                },
+            ],
+        }));
 
-                setRemovalModalVisible(false);
-                setPendingRemoval(null);
-                removalForm.resetFields();
-            })
-            .catch((error) => {
-                console.error("Validation failed:", error);
-            });
+        const fields = form.getFieldValue(fieldDataIndex) || [];
+        form.setFieldsValue({
+            [fieldDataIndex]: fields.filter((_, idx) => idx !== fieldName),
+        });
+
+        setRemovalModalVisible(false);
+        setPendingRemoval(null);
     };
 
     const cancelRemoval = () => {
         setRemovalModalVisible(false);
         setPendingRemoval(null);
-        removalForm.resetFields();
     };
 
     return {

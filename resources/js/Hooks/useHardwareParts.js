@@ -9,13 +9,13 @@ export const useHardwareParts = (form) => {
     const loadSpecifications = usePartsStore(
         (state) => state.loadSpecifications,
     );
+    const preloadPartData = usePartsStore((state) => state.preloadPartData);
     const resetBrands = usePartsStore((state) => state.resetBrands);
     const resetModels = usePartsStore((state) => state.resetModels);
     const resetSpecifications = usePartsStore(
         (state) => state.resetSpecifications,
     );
 
-    // Helper function (same as before)
     const getPartsOptions = (fieldName, dataIndex) => {
         if (dataIndex === "part_type") return options.types || [];
         if (dataIndex === "brand") return options.brands[fieldName] || [];
@@ -40,6 +40,7 @@ export const useHardwareParts = (form) => {
                 rowIndex,
                 form,
             ),
+        preloadPartData,
         getPartsOptions,
         resetBrands,
         resetModels,

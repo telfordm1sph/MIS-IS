@@ -1,6 +1,6 @@
-import { message } from "antd";
 import axios from "axios";
-import { router } from "@inertiajs/react"; // Make sure router is imported
+import { router } from "@inertiajs/react";
+import { toast } from "sonner";
 
 export const useCrudOperations = ({
     updateRoute,
@@ -10,20 +10,23 @@ export const useCrudOperations = ({
     createSuccessMessage = "Created successfully!",
     deleteSuccessMessage = "Deleted successfully!",
     errorMessage = "Something went wrong.",
-    reloadProps = null, // optional array of props to reload after success
+    reloadProps = null,
 }) => {
     const handleSave = async (values, id) => {
         try {
             let response;
+
             if (id) {
                 response = await axios.put(route(updateRoute, id), values);
+
                 if (response.data.success) {
-                    message.success(updateSuccessMessage);
+                    toast.success(updateSuccessMessage);
                 }
             } else {
                 response = await axios.post(route(storeRoute), values);
+
                 if (response.data.success) {
-                    message.success(createSuccessMessage);
+                    toast.success(createSuccessMessage);
                 }
             }
 
@@ -33,7 +36,7 @@ export const useCrudOperations = ({
 
             return { success: response.data.success, data: response.data };
         } catch (e) {
-            message.error(errorMessage);
+            toast.error(errorMessage);
             console.error(e);
             return { success: false, error: e };
         }
@@ -42,11 +45,11 @@ export const useCrudOperations = ({
     const handleDelete = async (id, extraData = {}) => {
         try {
             const response = await axios.delete(route(deleteRoute, id), {
-                data: extraData, // 👈 this sends request body
+                data: extraData,
             });
 
             if (response.data.success) {
-                message.success(deleteSuccessMessage);
+                toast.success(deleteSuccessMessage);
 
                 if (reloadProps) {
                     router.reload({ only: reloadProps });
@@ -55,7 +58,7 @@ export const useCrudOperations = ({
 
             return { success: response.data.success, data: response.data };
         } catch (e) {
-            message.error(errorMessage);
+            toast.error(errorMessage);
             console.error(e);
             return { success: false, error: e };
         }

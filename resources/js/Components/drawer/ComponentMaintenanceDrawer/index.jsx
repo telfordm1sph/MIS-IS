@@ -25,7 +25,8 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
     const [loading, setLoading] = useState(false);
 
     const { emp_data } = usePage().props;
-    console.log("Hardware", hardware);
+
+    // REMOVED: console.log("Hardware", hardware); // <-- This was causing continuous logs
 
     const {
         partsHooks,
@@ -53,8 +54,6 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
         const payloads = [];
 
         const addOrReplaceHandler = (item, type) => {
-            console.log("COMPONENT", item);
-
             const qty = item.quantity || 1;
             for (let i = 0; i < qty; i++) {
                 const common = {
@@ -217,8 +216,6 @@ const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
                 employee_id: emp_data?.emp_id,
                 operations: payloads,
             };
-
-            console.log("Final payload:", payload);
 
             const endpoint = route("component.maintenance.batch");
             await axios.post(endpoint, payload);

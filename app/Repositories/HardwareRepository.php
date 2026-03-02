@@ -990,4 +990,86 @@ class HardwareRepository
             'by_category' => $categoryCounts,
         ];
     }
+    /**
+     * Create hardware part WITHOUT touching inventory
+     * DB OPERATION: Insert only, no inventory decrement
+     *
+     * @param Hardware $hardware
+     * @param array    $partData
+     * @param int      $employeeId
+     * @return HardwarePart
+     */
+    public function createHardwarePartManual(Hardware $hardware, array $partData, int $employeeId): HardwarePart
+    {
+        $hardwarePart = HardwarePart::create([
+            'hardware_id'         => $hardware->id,
+            'part_type'           => $partData['part_type'],
+            'brand'               => $partData['brand'],
+            'model'               => $partData['model'],
+            'specifications'      => $partData['specifications'] ?? null,
+            'condition'           => $partData['condition'] ?? null,
+            'serial_number'       => $partData['serial_number'] ?? null,
+            'source_inventory_id' => null,   // ← no inventory source
+            'status'              => 'installed',
+            'installed_date'      => now(),
+            'created_by'          => $employeeId,
+        ]);
+
+        // Still log the change on the hardware timeline
+        $this->logHardwarePartChange(
+            $hardware,
+            $hardwarePart,
+            'part_added',
+            $employeeId,
+            "[Manual] Added {$hardwarePart->part_type} - {$hardwarePart->brand} {$hardwarePart->model}"
+        );
+
+        return $hardwarePart;
+    }
+
+    /**
+     * Create hardware software WITHOUT touching license/inventory
+     * DB OPERATION: Insert only, no license activation
+     *
+     * @param Hardware $hardware
+     * @param array    $softwareData  keys: software_name, software_type, version, license_key?, account_user?
+     * @param int      $employeeId
+     * @return HardwareSoftware
+     */
+    public function createHardwareSoftwareManual(Hardware $hardware, array $softwareData, int $employeeId): HardwareSoftware
+    {
+        // We still need a SoftwareInventory row to satisfy the FK.
+        // Find existing; if not found, create a "manual" stub so we never
+        // break the relationship.
+        $softwareInventory = SoftwareInventory::firstOrCreate(
+            [
+                'software_name' => $softwareData['software_name'],
+                'software_type' => $softwareData['software_type'],
+                'version'       => $softwareData['version'],
+            ],
+            [
+                'requires_key_tracking' => false,
+                'remarks'               => 'Auto-created (manual entry)',
+            ]
+        );
+
+        $hardwareSoftware = HardwareSoftware::create([
+            'hardware_id'            => $hardware->id,
+            'software_inventory_id'  => $softwareInventory->id,
+            'software_license_id'    => null,   // ← no license consumed
+            'installation_date'      => now(),
+            'installed_by'           => $employeeId,
+            'status'                 => 'Active',
+        ]);
+
+        $this->logHardwareSoftwareChange(
+            $hardware,
+            $hardwareSoftware,
+            'software_installed',
+            $employeeId,
+            "[Manual] Installed {$softwareInventory->software_name} ({$softwareInventory->software_type}) v{$softwareInventory->version}"
+        );
+
+        return $hardwareSoftware;
+    }
 }

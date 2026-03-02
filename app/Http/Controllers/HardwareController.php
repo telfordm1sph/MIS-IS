@@ -103,6 +103,7 @@ class HardwareController extends Controller
      */
     public function store(Request $request)
     {
+        dd($request->all());
         try {
             // Get employee ID from either session or request
             $employeeId = $this->getEmployeeId($request);
@@ -277,6 +278,7 @@ class HardwareController extends Controller
             'parts.*.specifications' => 'required|string',
             'parts.*.serial_number' => 'nullable|string|max:100',
             'parts.*.condition' => 'nullable|string|max:100',
+            'parts.*.bypass_inventory' => 'sometimes|boolean',
 
             // Software array
             'software' => 'nullable|array',
@@ -286,6 +288,7 @@ class HardwareController extends Controller
             'software.*.license_key' => 'nullable|string',
             'software.*.account_user' => 'nullable|string',
             'software.*.account_password' => 'nullable|string',
+            'software.*.bypass_inventory' => 'sometimes|boolean',
         ]);
     }
 
@@ -355,7 +358,7 @@ class HardwareController extends Controller
             'required_if:parts.*._delete,true|string|in:working,defective,faulty,unknown',
             'parts.*.removal_remarks' =>
             'nullable|string|max:500',
-
+            'parts.*.bypass_inventory' => 'sometimes|boolean',
             /*
         |--------------------------------------------------------------------------
         | Software array (FIXED)
@@ -385,6 +388,7 @@ class HardwareController extends Controller
             'required_if:software.*._delete,true|string',
             'software.*.removal_remarks' =>
             'nullable|string|max:500',
+            'software.*.bypass_inventory' => 'sometimes|boolean',
         ]);
     }
     /**

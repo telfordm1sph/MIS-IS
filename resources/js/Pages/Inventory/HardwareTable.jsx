@@ -1,24 +1,48 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { usePage } from "@inertiajs/react";
-import { router } from "@inertiajs/react";
+import { usePage, router } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
     Breadcrumb,
-    Card,
-    Table,
-    Tag,
-    Button,
-    Dropdown,
-    Tooltip,
-    Avatar,
-} from "antd";
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import {
-    PlusCircleOutlined,
-    EyeOutlined,
-    EditOutlined,
-    HistoryOutlined,
-} from "@ant-design/icons";
-import { ClipboardPlusIcon, EllipsisVertical } from "lucide-react";
+    Plus,
+    Eye,
+    Pencil,
+    History,
+    ClipboardPlus,
+    EllipsisVertical,
+} from "lucide-react";
 import dayjs from "dayjs";
 
 import { useInventoryFilters } from "@/Hooks/useInventoryFilters";
@@ -33,8 +57,48 @@ import DetailsDrawer from "@/Components/drawer/DetailsDrawer";
 import HardwareFormDrawer from "@/Components/drawer/HardwareFormDrawer";
 import CategoryBadge from "@/Components/inventory/CategoryBadge";
 import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
-import axios from "axios";
 import ComponentMaintenanceDrawer from "@/Components/drawer/ComponentMaintenanceDrawer";
+import axios from "axios";
+import { TablePagination } from "@/Components/TablePagination";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const stringToColor = (str) => {
+    if (!str) return "#999";
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return `hsl(${Math.abs(hash) % 360}, 65%, 55%)`;
+};
+
+// Maps status_color (Ant color name or hex) → shadcn Badge variant classes
+const STATUS_BADGE_CLASSES = {
+    green: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800",
+    blue: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",
+    orange: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800",
+    red: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800",
+    yellow: "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800",
+    purple: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800",
+    cyan: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950 dark:text-cyan-300 dark:border-cyan-800",
+    default:
+        "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700",
+};
+
+const StatusBadge = ({ color, label }) => {
+    const cls = STATUS_BADGE_CLASSES[color] ?? STATUS_BADGE_CLASSES.default;
+    return (
+        <Badge
+            variant="outline"
+            className={cn("gap-1.5 rounded-full text-xs font-medium", cls)}
+        >
+            <span className={cn("h-1.5 w-1.5 rounded-full", `bg-current`)} />
+            {label}
+        </Badge>
+    );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 const HardwareTable = () => {
     const { hardware, pagination, categoryCounts, filters, emp_data } =
@@ -90,19 +154,13 @@ const HardwareTable = () => {
     });
 
     const handleFormSave = async (values) => {
-        const id = values.id || null;
-        const payload = {
-            ...values,
-            employee_id: emp_data?.emp_id,
-        };
-
-        const result = await handleSave(payload, id);
-        if (result?.success) {
-            closeForm();
-        }
+        const result = await handleSave(
+            { ...values, employee_id: emp_data?.emp_id },
+            values.id || null,
+        );
+        if (result?.success) closeForm();
     };
 
-    // ─── Shared helper: fetch parts + software for a given hardware id ────────
     const fetchHardwareDetails = async (id) => {
         try {
             const [partsRes, softwareRes] = await Promise.all([
@@ -113,213 +171,34 @@ const HardwareTable = () => {
                 parts: partsRes.data ?? [],
                 software: softwareRes.data ?? [],
             };
-        } catch (error) {
-            console.error("Error fetching hardware details:", error);
+        } catch {
             return { parts: [], software: [] };
         }
     };
 
-    // ─── View: fetch then open details drawer ─────────────────────────────────
     const handleView = async (record) => {
-        const partsSoftware = await fetchHardwareDetails(record.id);
-        openDrawer({
-            ...record,
-            parts: partsSoftware.parts,
-            software: partsSoftware.software,
-        });
+        const details = await fetchHardwareDetails(record.id);
+        openDrawer({ ...record, ...details });
     };
 
-    // ─── Edit: fetch parts/software FIRST, then open the form drawer ──────────
-    //    Previously `openEdit(record)` was called directly, so the form
-    //    received a record with no `parts` or `software` arrays → they never
-    //    appeared in the Parts / Software tabs.
     const handleEdit = async (record) => {
-        const partsSoftware = await fetchHardwareDetails(record.id);
-        openEdit({
-            ...record,
-            parts: partsSoftware.parts,
-            software: partsSoftware.software,
-        });
+        const details = await fetchHardwareDetails(record.id);
+        openEdit({ ...record, ...details });
     };
 
-    // ─── Maintenance drawer ───────────────────────────────────────────────────
     const handleOpenMaintenance = async (record) => {
-        const partsSoftware = await fetchHardwareDetails(record.id);
-        setSelectedHardware({
-            ...record,
-            parts: partsSoftware.parts,
-            software: partsSoftware.software,
-        });
+        const details = await fetchHardwareDetails(record.id);
+        setSelectedHardware({ ...record, ...details });
         setMaintenanceDrawerOpen(true);
     };
 
-    // ─── Category renderer ────────────────────────────────────────────────────
-    const renderCategory = useCallback((value, uppercase = false) => {
+    const renderCategory = useCallback((value) => {
         const config = ITEM_CONFIG[value?.toLowerCase()] || ITEM_CONFIG.default;
-        return (
-            <CategoryBadge
-                value={value}
-                config={config}
-                uppercase={uppercase}
-            />
-        );
+        return <CategoryBadge value={value} config={config} />;
     }, []);
 
-    const stringToColor = (str) => {
-        if (!str) return "#999";
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        return `hsl(${Math.abs(hash) % 360}, 70%, 60%)`;
-    };
+    // ─── Field groups for details drawer ─────────────────────────────────────
 
-    // ─── Column definitions ───────────────────────────────────────────────────
-    const columnDefinitions = useMemo(
-        () => [
-            {
-                title: "ID",
-                dataIndex: "id",
-                key: "id",
-                width: 80,
-            },
-            {
-                title: "Hostname",
-                dataIndex: "hostname",
-                key: "hostname",
-            },
-            {
-                title: "Brand",
-                dataIndex: "brand",
-                key: "brand",
-            },
-            {
-                title: "Category",
-                dataIndex: "category",
-                key: "category",
-                isCategory: true,
-            },
-            {
-                title: "Location",
-                dataIndex: "location_name",
-                key: "location_name",
-            },
-            {
-                title: "Issued To",
-                dataIndex: "assignedUsers",
-                key: "issued_to",
-                render: (assignedUsers) => {
-                    if (!assignedUsers?.length) return null;
-                    return (
-                        <Avatar.Group
-                            max={{
-                                count: 3,
-                                style: {
-                                    color: "#fff",
-                                    backgroundColor: "#999",
-                                },
-                            }}
-                        >
-                            {assignedUsers.map((user) => (
-                                <Tooltip
-                                    title={user.fullName}
-                                    key={user.EMPLOYID}
-                                >
-                                    <Avatar
-                                        style={{
-                                            backgroundColor: stringToColor(
-                                                user.fullName,
-                                            ),
-                                            color: "#fff",
-                                        }}
-                                    >
-                                        {user.initials}
-                                    </Avatar>
-                                </Tooltip>
-                            ))}
-                        </Avatar.Group>
-                    );
-                },
-            },
-            {
-                title: "Status",
-                key: "status",
-                render: (_, record) => (
-                    <Tag color={record.status_color}>{record.status_label}</Tag>
-                ),
-            },
-            {
-                title: "Actions",
-                key: "actions",
-                width: 120,
-                render: (_, record) => {
-                    const items = [
-                        {
-                            key: "view",
-                            label: "View Details",
-                            onClick: () => handleView(record),
-                            icon: <EyeOutlined style={{ color: "#1890ff" }} />,
-                        },
-                        {
-                            key: "logs",
-                            label: "View Logs",
-                            onClick: () => openLogs(record.id),
-                            icon: (
-                                <HistoryOutlined style={{ color: "#faad14" }} />
-                            ),
-                        },
-                        { type: "divider" },
-                        {
-                            key: "edit",
-                            label: "Edit Hardware",
-                            // ✅ FIX: use handleEdit (fetches parts+software)
-                            //    instead of openEdit (used raw record with no parts/software)
-                            onClick: () => handleEdit(record),
-                            icon: <EditOutlined style={{ color: "#52c41a" }} />,
-                        },
-                        record.status == "1"
-                            ? {
-                                  key: "maintenance",
-                                  label: "Component Issuance",
-                                  onClick: () => handleOpenMaintenance(record),
-                                  icon: (
-                                      <ClipboardPlusIcon
-                                          style={{ color: "#722ed1" }}
-                                          width={10}
-                                      />
-                                  ),
-                              }
-                            : null,
-                    ].filter(Boolean);
-
-                    return (
-                        <Dropdown
-                            menu={{ items }}
-                            trigger={["click"]}
-                            placement="bottomRight"
-                        >
-                            <Button
-                                type="text"
-                                icon={<EllipsisVertical className="w-5 h-5" />}
-                            />
-                        </Dropdown>
-                    );
-                },
-            },
-        ],
-        // ✅ handleEdit replaces openEdit in dependencies
-        [handleView, handleEdit, openLogs, handleOpenMaintenance],
-    );
-
-    // ─── Table config ─────────────────────────────────────────────────────────
-    const { columns, paginationConfig } = useTableConfig({
-        filters,
-        pagination,
-        renderCategory,
-        columnDefinitions,
-    });
-
-    // ─── View drawer field groups ─────────────────────────────────────────────
     const getFieldGroups = (item) => {
         if (!item) return [];
 
@@ -403,6 +282,7 @@ const HardwareTable = () => {
     };
 
     // ─── Form field groups ────────────────────────────────────────────────────
+
     const formFieldGroups = useMemo(
         () => [
             {
@@ -482,13 +362,13 @@ const HardwareTable = () => {
                     },
                     {
                         key: "wifi_mac",
-                        label: "WiFi MAC Address",
+                        label: "WiFi MAC",
                         dataIndex: "wifi_mac",
                         type: "input",
                     },
                     {
                         key: "lan_mac",
-                        label: "LAN MAC Address",
+                        label: "LAN MAC",
                         dataIndex: "lan_mac",
                         type: "input",
                     },
@@ -534,95 +414,6 @@ const HardwareTable = () => {
                     },
                 ],
             },
-            {
-                title: "Hardware Parts",
-                column: 1,
-                fields: [
-                    {
-                        key: "parts",
-                        label: "Hardware Part",
-                        type: "dynamicList",
-                        dataIndex: "parts",
-                        subFields: [
-                            { key: "id", dataIndex: "id", type: "hidden" },
-                            {
-                                key: "condition",
-                                dataIndex: "condition",
-                                type: "hidden",
-                            },
-                            {
-                                key: "part_type",
-                                label: "Part Type",
-                                dataIndex: "part_type",
-                                type: "input",
-                            },
-                            {
-                                key: "brand",
-                                label: "Brand",
-                                dataIndex: "brand",
-                                type: "input",
-                            },
-                            {
-                                key: "model",
-                                label: "Model",
-                                dataIndex: "model",
-                                type: "input",
-                            },
-                            {
-                                key: "specifications",
-                                label: "Specifications",
-                                dataIndex: "specifications",
-                                type: "input",
-                            },
-                            {
-                                key: "serial_number",
-                                label: "Serial Number",
-                                dataIndex: "serial_number",
-                                type: "input",
-                            },
-                        ],
-                    },
-                ],
-            },
-            {
-                title: "Installed Software",
-                column: 1,
-                fields: [
-                    { key: "id", dataIndex: "id", type: "hidden" },
-                    {
-                        key: "software",
-                        label: "Software",
-                        type: "dynamicList",
-                        dataIndex: "software",
-                        subFields: [
-                            {
-                                key: "software_name",
-                                label: "Software Name",
-                                dataIndex: "software_name",
-                                type: "input",
-                            },
-                            {
-                                key: "software_type",
-                                label: "Software Type",
-                                dataIndex: "software_type",
-                                type: "input",
-                            },
-                            {
-                                key: "version",
-                                label: "Version",
-                                dataIndex: "version",
-                                type: "input",
-                            },
-                            {
-                                key: "license_key",
-                                label: "License Key",
-                                dataIndex: "license_key",
-                                type: "input",
-                            },
-                        ],
-                    },
-                ],
-            },
         ],
         [
             departmentOptions,
@@ -634,116 +425,337 @@ const HardwareTable = () => {
         ],
     );
 
-    const handleMaintenanceClose = () => {
-        setMaintenanceDrawerOpen(false);
-        setSelectedHardware(null);
-    };
-
-    const handleMaintenanceSave = () => {
-        router.reload({ only: ["hardware"] });
-    };
-
     return (
         <AuthenticatedLayout>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "16px",
-                }}
-            >
-                <Breadcrumb
-                    items={[
-                        { title: "MIS-IS", href: "/" },
-                        { title: "Hardware Inventory" },
-                    ]}
-                    style={{ marginBottom: 0 }}
-                />
-                <Button
-                    type="primary"
-                    icon={<PlusCircleOutlined />}
-                    onClick={openCreate}
-                >
-                    Add Hardware
-                </Button>
-            </div>
+            <TooltipProvider delayDuration={200}>
+                <div className="px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+                    {/* ── Top bar ── */}
+                    <div className="flex items-center justify-between">
+                        <Breadcrumb>
+                            <BreadcrumbList>
+                                <BreadcrumbItem>
+                                    <BreadcrumbLink href="/">
+                                        MIS-IS
+                                    </BreadcrumbLink>
+                                </BreadcrumbItem>
+                                <BreadcrumbSeparator />
+                                <BreadcrumbItem>
+                                    <BreadcrumbPage>
+                                        Hardware Inventory
+                                    </BreadcrumbPage>
+                                </BreadcrumbItem>
+                            </BreadcrumbList>
+                        </Breadcrumb>
 
-            <Card
-                title={
-                    <InventoryHeaderWithFilters
-                        title="Hardware Inventory"
-                        categoryCounts={categoryCounts}
-                        categoryConfig={ITEM_CONFIG}
-                        searchText={searchText}
-                        category={category}
-                        subCategory={subCategory}
-                        onSearchChange={handleSearch}
-                        onCategoryChange={handleCategoryChange}
-                        onSubCategoryChange={handleSubCategoryChange}
-                        hasActiveFilters={
-                            !!(category || searchText || subCategory)
-                        }
-                        onResetFilters={handleResetFilters}
+                        <Button
+                            size="sm"
+                            onClick={openCreate}
+                            className="gap-2"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Add Hardware
+                        </Button>
+                    </div>
+
+                    {/* ── Main card ── */}
+                    <Card className="shadow-sm border-border/60 flex flex-col h-[calc(100vh-12rem)]">
+                        <CardHeader className="pb-0 pt-4 px-4 flex-shrink-0">
+                            <InventoryHeaderWithFilters
+                                title="Hardware Inventory"
+                                categoryCounts={categoryCounts}
+                                categoryConfig={ITEM_CONFIG}
+                                searchText={searchText}
+                                category={category}
+                                subCategory={subCategory}
+                                onSearchChange={handleSearch}
+                                onCategoryChange={handleCategoryChange}
+                                onSubCategoryChange={handleSubCategoryChange}
+                                hasActiveFilters={
+                                    !!(category || searchText || subCategory)
+                                }
+                                onResetFilters={handleResetFilters}
+                            />
+                        </CardHeader>
+
+                        <CardContent className="p-0 mt-3 flex-1 overflow-hidden flex flex-col">
+                            {/* ── Table ── */}
+                            <div className="overflow-auto max-h-[70vh]">
+                                <Table className="h-full">
+                                    <TableHeader className="sticky top-0 z-30 bg-background">
+                                        <TableRow className="border-border/60 hover:bg-transparent">
+                                            <TableHead className="w-16 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                ID
+                                            </TableHead>
+                                            <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                Hostname
+                                            </TableHead>
+                                            <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                Brand
+                                            </TableHead>
+                                            <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                Category
+                                            </TableHead>
+                                            <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                Location
+                                            </TableHead>
+                                            <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                Issued To
+                                            </TableHead>
+                                            <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                Status
+                                            </TableHead>
+                                            <TableHead className="w-12 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">
+                                                Actions
+                                            </TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {hardware?.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell
+                                                    colSpan={8}
+                                                    className="h-32 text-center text-sm text-muted-foreground"
+                                                >
+                                                    No hardware records found.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            hardware?.map((record) => (
+                                                <TableRow
+                                                    key={record.id}
+                                                    className="border-border/40 hover:bg-muted/30 transition-colors"
+                                                >
+                                                    <TableCell className="text-xs text-muted-foreground font-mono">
+                                                        {record.id}
+                                                    </TableCell>
+                                                    <TableCell className="text-sm font-medium">
+                                                        {record.hostname || "—"}
+                                                    </TableCell>
+                                                    <TableCell className="text-sm text-muted-foreground">
+                                                        {record.brand || "—"}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderCategory(
+                                                            record.category,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-sm text-muted-foreground">
+                                                        {record.location_name ||
+                                                            "—"}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {record.assignedUsers
+                                                            ?.length ? (
+                                                            <div className="flex -space-x-2">
+                                                                {record.assignedUsers
+                                                                    .slice(0, 3)
+                                                                    .map(
+                                                                        (
+                                                                            user,
+                                                                        ) => (
+                                                                            <Tooltip
+                                                                                key={
+                                                                                    user.EMPLOYID
+                                                                                }
+                                                                            >
+                                                                                <TooltipTrigger
+                                                                                    asChild
+                                                                                >
+                                                                                    <Avatar className="h-7 w-7 border-2 border-background cursor-default">
+                                                                                        <AvatarFallback
+                                                                                            className="text-[10px] font-bold text-white"
+                                                                                            style={{
+                                                                                                backgroundColor:
+                                                                                                    stringToColor(
+                                                                                                        user.fullName,
+                                                                                                    ),
+                                                                                            }}
+                                                                                        >
+                                                                                            {
+                                                                                                user.initials
+                                                                                            }
+                                                                                        </AvatarFallback>
+                                                                                    </Avatar>
+                                                                                </TooltipTrigger>
+                                                                                <TooltipContent
+                                                                                    side="top"
+                                                                                    className="text-xs"
+                                                                                >
+                                                                                    {
+                                                                                        user.fullName
+                                                                                    }
+                                                                                </TooltipContent>
+                                                                            </Tooltip>
+                                                                        ),
+                                                                    )}
+                                                                {record
+                                                                    .assignedUsers
+                                                                    .length >
+                                                                    3 && (
+                                                                    <Avatar className="h-7 w-7 border-2 border-background">
+                                                                        <AvatarFallback className="text-[10px] font-bold bg-muted text-muted-foreground">
+                                                                            +
+                                                                            {record
+                                                                                .assignedUsers
+                                                                                .length -
+                                                                                3}
+                                                                        </AvatarFallback>
+                                                                    </Avatar>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-muted-foreground/50">
+                                                                —
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <StatusBadge
+                                                            color={
+                                                                record.status_color
+                                                            }
+                                                            label={
+                                                                record.status_label
+                                                            }
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger
+                                                                asChild
+                                                            >
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                                                >
+                                                                    <EllipsisVertical className="h-4 w-4" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent
+                                                                align="end"
+                                                                className="w-48"
+                                                            >
+                                                                <DropdownMenuItem
+                                                                    className="gap-2 cursor-pointer text-sm"
+                                                                    onClick={() =>
+                                                                        handleView(
+                                                                            record,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Eye className="h-3.5 w-3.5 text-blue-500" />
+                                                                    View Details
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem
+                                                                    className="gap-2 cursor-pointer text-sm"
+                                                                    onClick={() =>
+                                                                        openLogs(
+                                                                            record.id,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <History className="h-3.5 w-3.5 text-amber-500" />
+                                                                    View Logs
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuSeparator />
+                                                                <DropdownMenuItem
+                                                                    className="gap-2 cursor-pointer text-sm"
+                                                                    onClick={() =>
+                                                                        handleEdit(
+                                                                            record,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Pencil className="h-3.5 w-3.5 text-emerald-500" />
+                                                                    Edit
+                                                                    Hardware
+                                                                </DropdownMenuItem>
+                                                                {record.status ==
+                                                                    "1" && (
+                                                                    <DropdownMenuItem
+                                                                        className="gap-2 cursor-pointer text-sm"
+                                                                        onClick={() =>
+                                                                            handleOpenMaintenance(
+                                                                                record,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <ClipboardPlus className="h-3.5 w-3.5 text-purple-500" />
+                                                                        Component
+                                                                        Issuance
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            {/* ── Pagination ── */}
+                            <div className="border-t border-border/40 px-4">
+                                <TablePagination
+                                    pagination={pagination}
+                                    onChange={(page) =>
+                                        handleTableChange(
+                                            { current: page },
+                                            {},
+                                            {},
+                                        )
+                                    }
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* ── Drawers & Modals ── */}
+                    <DetailsDrawer
+                        visible={drawerOpen}
+                        fieldGroups={getFieldGroups(selectedItem)}
+                        loading={false}
+                        onClose={closeDrawer}
                     />
-                }
-                variant="outlined"
-                style={{
-                    borderRadius: 8,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                    marginBottom: 24,
-                }}
-            >
-                <Table
-                    columns={columns}
-                    dataSource={hardware}
-                    rowKey="id"
-                    pagination={paginationConfig}
-                    onChange={handleTableChange}
-                    onRow={() => ({ style: { cursor: "default" } })}
-                    bordered
-                    scroll={{ y: "70vh" }}
-                />
 
-                <DetailsDrawer
-                    visible={drawerOpen}
-                    fieldGroups={getFieldGroups(selectedItem)}
-                    loading={false}
-                    onClose={closeDrawer}
-                />
+                    <HardwareFormDrawer
+                        open={formDrawerOpen}
+                        onClose={closeForm}
+                        item={editingItem}
+                        onSave={handleFormSave}
+                        fieldGroups={formFieldGroups}
+                    />
 
-                <HardwareFormDrawer
-                    open={formDrawerOpen}
-                    onClose={closeForm}
-                    item={editingItem}
-                    onSave={handleFormSave}
-                    fieldGroups={formFieldGroups}
-                />
+                    <ComponentMaintenanceDrawer
+                        open={maintenanceDrawerOpen}
+                        onClose={() => {
+                            setMaintenanceDrawerOpen(false);
+                            setSelectedHardware(null);
+                        }}
+                        hardware={selectedHardware}
+                        onSave={() => router.reload({ only: ["hardware"] })}
+                    />
 
-                <ComponentMaintenanceDrawer
-                    open={maintenanceDrawerOpen}
-                    onClose={handleMaintenanceClose}
-                    hardware={selectedHardware}
-                    onSave={handleMaintenanceSave}
-                />
-
-                <ActivityLogsModal
-                    visible={logsModalVisible}
-                    onClose={closeLogs}
-                    entityId={entityId}
-                    entityType="Hardware"
-                    apiRoute="hardware.logs"
-                    title="Hardware Changes"
-                    actionColors={{
-                        created: "green",
-                        updated: "blue",
-                        deleted: "red",
-                        software_attached: "cyan",
-                        software_detached: "orange",
-                    }}
-                    perPage={5}
-                />
-            </Card>
+                    <ActivityLogsModal
+                        visible={logsModalVisible}
+                        onClose={closeLogs}
+                        entityId={entityId}
+                        entityType="Hardware"
+                        apiRoute="hardware.logs"
+                        title="Hardware Changes"
+                        actionColors={{
+                            created: "green",
+                            updated: "blue",
+                            deleted: "red",
+                            software_attached: "cyan",
+                            software_detached: "orange",
+                        }}
+                        perPage={5}
+                    />
+                </div>
+            </TooltipProvider>
         </AuthenticatedLayout>
     );
 };

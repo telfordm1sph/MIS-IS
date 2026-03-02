@@ -1,6 +1,11 @@
-import { Card, Progress, Typography, Tooltip } from "antd";
-
-const { Text } = Typography;
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function SummaryCard({
     label,
@@ -10,80 +15,75 @@ export function SummaryCard({
     pct,
     loading,
 }) {
+    if (loading) {
+        return (
+            <div className="rounded-xl p-4 h-[140px] flex flex-col justify-between border border-border/40 shadow-md">
+                <Skeleton className="h-3 w-20" />
+                <div className="space-y-2">
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-1.5 w-full rounded-full" />
+                </div>
+                <div className="flex justify-between">
+                    <Skeleton className="h-3 w-28" />
+                    <Skeleton className="h-3 w-8" />
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <Card
-            size="small"
-            loading={loading}
-            variant="borderless"
-            className="transition-transform transition-shadow duration-300 hover:scale-105 hover:shadow-2xl"
-            styles={{
-                body: {
-                    padding: 16,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    height: 140,
-                    borderRadius: 12,
-                    boxShadow:
-                        "0 4px 6px rgba(0,0,0,0.1), 0 8px 20px rgba(0,0,0,0.1)",
-                },
-            }}
-        >
-            <div className="flex items-center gap-2 mb-2">
-                <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ background: color }}
-                />
-                <Text
-                    strong
-                    className="text-xs uppercase tracking-wider"
-                    style={{ color }}
-                >
-                    {label}
-                </Text>
-            </div>
+        <TooltipProvider delayDuration={300}>
+            <Card className="transition-all duration-300 hover:scale-105 hover:shadow-2xl border-border/40 h-[140px]">
+                <CardContent className="p-4 h-full flex flex-col justify-between">
+                    {/* Label */}
+                    <div className="flex items-center gap-2">
+                        <span
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ background: color }}
+                        />
+                        <span
+                            className="text-xs font-bold uppercase tracking-wider truncate"
+                            style={{ color }}
+                        >
+                            {label}
+                        </span>
+                    </div>
 
-            <div className="mb-2">
-                <div className="text-3xl font-bold">{total}</div>
-                <Progress
-                    percent={pct}
-                    showInfo={false}
-                    size="small"
-                    className="mt-1"
-                    strokeColor={{
-                        "0%": color,
-                        "100%": `${color}80`,
-                    }}
-                />
-            </div>
+                    {/* Total + progress bar */}
+                    <div>
+                        <div className="text-3xl font-bold text-foreground tabular-nums">
+                            {total}
+                        </div>
+                        {/* Custom progress bar — shadcn doesn't have one, this is cleaner */}
+                        <div className="mt-1.5 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{
+                                    width: `${pct}%`,
+                                    background: `linear-gradient(90deg, ${color}, ${color}80)`,
+                                }}
+                            />
+                        </div>
+                    </div>
 
-            <div className="flex items-center mt-2" style={{ gap: 8 }}>
-                <Tooltip title={description}>
-                    <Text
-                        type="secondary"
-                        style={{
-                            fontSize: 12,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            flex: 1,
-                            minWidth: 0,
-                        }}
-                    >
-                        {description}
-                    </Text>
-                </Tooltip>
-                <Text
-                    strong
-                    style={{
-                        fontSize: 12,
-                        flexShrink: 0,
-                        whiteSpace: "nowrap",
-                    }}
-                >
-                    {pct}%
-                </Text>
-            </div>
-        </Card>
+                    {/* Description + pct */}
+                    <div className="flex items-center justify-between gap-2">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="text-xs text-muted-foreground truncate min-w-0 flex-1 cursor-default">
+                                    {description}
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="text-xs">
+                                {description}
+                            </TooltipContent>
+                        </Tooltip>
+                        <span className="text-xs font-semibold text-foreground flex-shrink-0">
+                            {pct}%
+                        </span>
+                    </div>
+                </CardContent>
+            </Card>
+        </TooltipProvider>
     );
 }

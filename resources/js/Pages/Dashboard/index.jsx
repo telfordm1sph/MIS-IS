@@ -1,14 +1,18 @@
 import { useEffect } from "react";
 import { Head } from "@inertiajs/react";
-import { Typography, Select } from "antd";
+import { AnimatePresence, motion } from "framer-motion";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { useDashboardData } from "@/Hooks/useDashboardData";
 import { HardwareView } from "./HardwareView";
 import { PartsView } from "./PartsView";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
-const { Title } = Typography;
-const { Option } = Select;
-import { AnimatePresence, motion } from "framer-motion";
 export default function Dashboard() {
     const {
         activeTab,
@@ -32,28 +36,31 @@ export default function Dashboard() {
         <AuthenticatedLayout>
             <Head title="Dashboard" />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                {/* ── Header ── */}
                 <div className="mb-6 flex justify-between items-center">
-                    <Title
-                        level={2}
-                        className="mb-0"
-                        style={{ textTransform: "capitalize" }}
-                    >
-                        Dashboard - {activeTab}
-                    </Title>
-                    <Select
-                        value={activeTab}
-                        onChange={setActiveTab}
-                        style={{ width: 200 }}
-                        size="large"
-                        showSearch
-                        placeholder="Select inventory type"
-                        optionFilterProp="children"
-                    >
-                        <Option value="hardware">Hardware Inventory</Option>
-                        <Option value="parts">Parts Inventory</Option>
+                    <h2 className="text-2xl font-bold capitalize text-foreground">
+                        Dashboard —{" "}
+                        <span className="text-muted-foreground font-medium">
+                            {activeTab}
+                        </span>
+                    </h2>
+
+                    <Select value={activeTab} onValueChange={setActiveTab}>
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Select inventory type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="hardware">
+                                Hardware Inventory
+                            </SelectItem>
+                            <SelectItem value="parts">
+                                Parts Inventory
+                            </SelectItem>
+                        </SelectContent>
                     </Select>
                 </div>
 
+                {/* ── Animated Tab Content ── */}
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={activeTab}

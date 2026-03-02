@@ -41,13 +41,21 @@ class HardwareUpdateService
 
             if (isset($data['parts']) && is_array($data['parts'])) {
                 foreach ($data['parts'] as $partData) {
-                    $this->createPart($hardware, $partData, $employeeId);
+                    if (!empty($partData['bypass_inventory'])) {
+                        $this->createPartManual($hardware, $partData, $employeeId);
+                    } else {
+                        $this->createPart($hardware, $partData, $employeeId);
+                    }
                 }
             }
 
             if (isset($data['software']) && is_array($data['software'])) {
                 foreach ($data['software'] as $softwareData) {
-                    $this->createSoftware($hardware, $softwareData, $employeeId);
+                    if (!empty($softwareData['bypass_inventory'])) {
+                        $this->createSoftwareManual($hardware, $softwareData, $employeeId);
+                    } else {
+                        $this->createSoftware($hardware, $softwareData, $employeeId);
+                    }
                 }
             }
 
@@ -162,13 +170,14 @@ class HardwareUpdateService
     {
         foreach ($parts as $partData) {
             if (isset($partData['_delete']) && $partData['_delete'] === true) {
-                // DELETE scenario
                 $this->deletePart($hardware, $partData, $employeeId);
             } elseif (isset($partData['id'])) {
-                // UPDATE scenario
                 $this->updatePart($partData, $employeeId);
+            } elseif (!empty($partData['bypass_inventory'])) {
+                // ← NEW: manual path — no inventory check
+                $this->createPartManual($hardware, $partData, $employeeId);
             } else {
-                // CREATE scenario
+                // existing inventory-backed path
                 $this->createPart($hardware, $partData, $employeeId);
             }
         }
@@ -409,13 +418,14 @@ class HardwareUpdateService
     {
         foreach ($softwareList as $softwareData) {
             if (isset($softwareData['_delete']) && $softwareData['_delete'] === true) {
-                // DELETE scenario
                 $this->deleteSoftware($hardware, $softwareData, $employeeId);
             } elseif (isset($softwareData['id'])) {
-                // UPDATE scenario
                 $this->updateSoftware($softwareData, $employeeId);
+            } elseif (!empty($softwareData['bypass_inventory'])) {
+                // ← NEW: manual path — no license activation
+                $this->createSoftwareManual($hardware, $softwareData, $employeeId);
             } else {
-                // CREATE scenario
+                // existing inventory-backed path
                 $this->createSoftware($hardware, $softwareData, $employeeId);
             }
         }
@@ -960,5 +970,30 @@ class HardwareUpdateService
             // REPO: Reload with relationships
             return $this->hardwareRepository->findWithRelations($hardware->id);
         });
+    }
+    public function createPartManual(Hardware $hardware, array $partData, int $employeeId): void
+    {
+        $this->hardwareRepository->createHardwarePartManual($hardware, $partData, $employeeId);
+
+        Log::info('Created hardware part (manual / no inventory)', [
+            'hardware_id' => $hardware->hostname,
+            'part_type'   => $partData['part_type'],
+            'created_by'  => $employeeId,
+        ]);
+    }
+
+    /**
+     * Create hardware software bypassing license / inventory.
+     * Called when the incoming software has  bypass_inventory = true.
+     */
+    public function createSoftwareManual(Hardware $hardware, array $softwareData, int $employeeId): void
+    {
+        $this->hardwareRepository->createHardwareSoftwareManual($hardware, $softwareData, $employeeId);
+
+        Log::info('Created hardware software (manual / no inventory)', [
+            'hardware_id'   => $hardware->hostname,
+            'software_name' => $softwareData['software_name'],
+            'created_by'    => $employeeId,
+        ]);
     }
 }

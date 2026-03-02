@@ -29,7 +29,6 @@ export const usePartsStore = create(
                 const { cache } = get();
                 const cacheKey = "types";
 
-                // Return cached if available
                 if (cache[cacheKey]) {
                     set((state) => ({
                         options: { ...state.options, types: cache[cacheKey] },
@@ -45,7 +44,6 @@ export const usePartsStore = create(
                     const { data } = await axios.get(
                         route("hardware.parts.options"),
                     );
-                    console.log("loadPartTypes response:", data);
 
                     const types = Array.isArray(data.types) ? data.types : [];
                     const options = types.map((t) => ({ label: t, value: t }));
@@ -63,13 +61,45 @@ export const usePartsStore = create(
                 }
             },
 
+            // Preload all data for a part (for editing)
+            preloadPartData: async (part) => {
+                if (!part || part.bypass_inventory) return;
+
+                const { part_type, brand, model } = part;
+
+                if (part_type) {
+                    // Load brands for this part type
+                    await get().loadBrands(part_type, `preload_${part_type}`);
+
+                    if (brand) {
+                        // Load models for this brand
+                        await get().loadModels(
+                            part_type,
+                            brand,
+                            `preload_${part_type}_${brand}`,
+                        );
+
+                        if (model) {
+                            // Load specifications for this model
+                            await get().loadSpecifications(
+                                part_type,
+                                brand,
+                                model,
+                                "preload",
+                                0,
+                                null,
+                            );
+                        }
+                    }
+                }
+            },
+
             loadBrands: async (partType, fieldName) => {
                 if (!partType) return;
 
                 const { cache } = get();
                 const cacheKey = `brands_${partType}`;
 
-                // Return cached if available
                 if (cache[cacheKey]) {
                     set((state) => ({
                         options: {
@@ -78,18 +108,20 @@ export const usePartsStore = create(
                                 ...state.options.brands,
                                 [fieldName]: cache[cacheKey],
                             },
-                            // Reset downstream
-                            models: {
-                                ...state.options.models,
-                                [fieldName]: [],
-                            },
-                            specifications: {
-                                ...state.options.specifications,
-                                [fieldName]: [],
-                            },
+                            // Don't reset if we're preloading
+                            ...(fieldName !== "preload" && {
+                                models: {
+                                    ...state.options.models,
+                                    [fieldName]: [],
+                                },
+                                specifications: {
+                                    ...state.options.specifications,
+                                    [fieldName]: [],
+                                },
+                            }),
                         },
                     }));
-                    return;
+                    return cache[cacheKey];
                 }
 
                 set((state) => ({
@@ -101,12 +133,9 @@ export const usePartsStore = create(
 
                 try {
                     const filters = btoa(JSON.stringify({ type: partType }));
-                    console.log("filters", partType, fieldName);
-
                     const { data } = await axios.get(
                         route("hardware.parts.options", filters),
                     );
-                    console.log(`loadBrands response for ${partType}:`, data);
 
                     const brands = Array.isArray(data.brands)
                         ? data.brands
@@ -120,15 +149,17 @@ export const usePartsStore = create(
                                 ...state.options.brands,
                                 [fieldName]: options,
                             },
-                            // Reset downstream
-                            models: {
-                                ...state.options.models,
-                                [fieldName]: [],
-                            },
-                            specifications: {
-                                ...state.options.specifications,
-                                [fieldName]: [],
-                            },
+                            // Only reset if not preloading
+                            ...(fieldName !== "preload" && {
+                                models: {
+                                    ...state.options.models,
+                                    [fieldName]: [],
+                                },
+                                specifications: {
+                                    ...state.options.specifications,
+                                    [fieldName]: [],
+                                },
+                            }),
                         },
                         cache: { ...state.cache, [cacheKey]: options },
                         loading: {
@@ -139,6 +170,8 @@ export const usePartsStore = create(
                             },
                         },
                     }));
+
+                    return options;
                 } catch (error) {
                     console.error("Error loading brands:", error);
                     set((state) => ({
@@ -167,13 +200,16 @@ export const usePartsStore = create(
                                 ...state.options.models,
                                 [fieldName]: cache[cacheKey],
                             },
-                            specifications: {
-                                ...state.options.specifications,
-                                [fieldName]: [],
-                            },
+                            // Only reset if not preloading
+                            ...(fieldName !== "preload" && {
+                                specifications: {
+                                    ...state.options.specifications,
+                                    [fieldName]: [],
+                                },
+                            }),
                         },
                     }));
-                    return;
+                    return cache[cacheKey];
                 }
 
                 set((state) => ({
@@ -190,10 +226,6 @@ export const usePartsStore = create(
                     const { data } = await axios.get(
                         route("hardware.parts.options", filters),
                     );
-                    console.log(
-                        `loadModels response for ${partType}, ${brand}:`,
-                        data,
-                    );
 
                     const models = Array.isArray(data.models)
                         ? data.models
@@ -207,10 +239,13 @@ export const usePartsStore = create(
                                 ...state.options.models,
                                 [fieldName]: options,
                             },
-                            specifications: {
-                                ...state.options.specifications,
-                                [fieldName]: [],
-                            },
+                            // Only reset if not preloading
+                            ...(fieldName !== "preload" && {
+                                specifications: {
+                                    ...state.options.specifications,
+                                    [fieldName]: [],
+                                },
+                            }),
                         },
                         cache: { ...state.cache, [cacheKey]: options },
                         loading: {
@@ -221,6 +256,8 @@ export const usePartsStore = create(
                             },
                         },
                     }));
+
+                    return options;
                 } catch (error) {
                     console.error("Error loading models:", error);
                     set((state) => ({
@@ -247,6 +284,11 @@ export const usePartsStore = create(
 
                 const { cache } = get();
                 const cacheKey = `specs_${partType}_${brand}_${model}`;
+
+                // Check cache first
+                if (cache[cacheKey] && fieldName === "preload") {
+                    return cache[cacheKey];
+                }
 
                 set((state) => ({
                     loading: {
@@ -290,30 +332,31 @@ export const usePartsStore = create(
                         inventoryMap[spec][condition] += quantity;
                     });
 
-                    // Remove specs already used in other rows
-                    const currentParts = form.getFieldValue("parts") || [];
+                    // Only check used specs if form is provided
                     const usedSpecsByCondition = {};
+                    if (form) {
+                        const currentParts = form.getFieldValue("parts") || [];
+                        currentParts.forEach((part, idx) => {
+                            if (
+                                idx !== rowIndex &&
+                                part?.part_type === partType &&
+                                part?.brand === brand &&
+                                part?.model === model &&
+                                part?.specifications &&
+                                part?.condition
+                            ) {
+                                const spec = part.specifications;
+                                const condition = part.condition;
 
-                    currentParts.forEach((part, idx) => {
-                        if (
-                            idx !== rowIndex &&
-                            part?.part_type === partType &&
-                            part?.brand === brand &&
-                            part?.model === model &&
-                            part?.specifications &&
-                            part?.condition
-                        ) {
-                            const spec = part.specifications;
-                            const condition = part.condition;
-
-                            if (!usedSpecsByCondition[spec]) {
-                                usedSpecsByCondition[spec] = {};
+                                if (!usedSpecsByCondition[spec]) {
+                                    usedSpecsByCondition[spec] = {};
+                                }
+                                usedSpecsByCondition[spec][condition] =
+                                    (usedSpecsByCondition[spec][condition] ||
+                                        0) + 1;
                             }
-                            usedSpecsByCondition[spec][condition] =
-                                (usedSpecsByCondition[spec][condition] || 0) +
-                                1;
-                        }
-                    });
+                        });
+                    }
 
                     // Create specification options
                     const specificationOptions = [];
@@ -344,22 +387,45 @@ export const usePartsStore = create(
                         );
                     });
 
+                    // Cache the options
                     set((state) => ({
-                        options: {
-                            ...state.options,
-                            specifications: {
-                                ...state.options.specifications,
-                                [fieldName]: specificationOptions,
-                            },
-                        },
-                        loading: {
-                            ...state.loading,
-                            specifications: {
-                                ...state.loading.specifications,
-                                [fieldName]: false,
-                            },
+                        cache: {
+                            ...state.cache,
+                            [cacheKey]: specificationOptions,
                         },
                     }));
+
+                    // Only update state if not preloading or if it's the actual field
+                    if (fieldName !== "preload") {
+                        set((state) => ({
+                            options: {
+                                ...state.options,
+                                specifications: {
+                                    ...state.options.specifications,
+                                    [fieldName]: specificationOptions,
+                                },
+                            },
+                            loading: {
+                                ...state.loading,
+                                specifications: {
+                                    ...state.loading.specifications,
+                                    [fieldName]: false,
+                                },
+                            },
+                        }));
+                    } else {
+                        set((state) => ({
+                            loading: {
+                                ...state.loading,
+                                specifications: {
+                                    ...state.loading.specifications,
+                                    [fieldName]: false,
+                                },
+                            },
+                        }));
+                    }
+
+                    return specificationOptions;
                 } catch (error) {
                     console.error("Error loading specifications:", error);
                     set((state) => ({
