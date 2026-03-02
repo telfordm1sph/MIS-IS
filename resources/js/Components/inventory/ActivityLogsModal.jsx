@@ -8,16 +8,15 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Clock,
-    User,
     PlusCircle,
     Pencil,
     Trash2,
     HelpCircle,
     ServerCrash,
+    ArrowRight,
 } from "lucide-react";
 import dayjs from "dayjs";
 import axios from "axios";
@@ -102,7 +101,11 @@ const formatKey = (key) =>
 
 const renderValue = (val) => {
     if (val === null || val === undefined)
-        return <span className="text-muted-foreground/40">—</span>;
+        return (
+            <span className="text-muted-foreground/40 italic text-[11px]">
+                empty
+            </span>
+        );
     if (Array.isArray(val))
         return val
             .map((item) =>
@@ -135,6 +138,42 @@ const getActionStyle = (actionType, overrides = {}) => {
     return DEFAULT_ACTION_COLORS[key] ?? DEFAULT_ACTION_COLORS.default;
 };
 
+/** Detect the "mode" of a diff: create, delete, or update */
+const getDiffMode = (actionType, oldVals, newVals) => {
+    const act = actionType?.toLowerCase() ?? "";
+    if (
+        act.includes("create") ||
+        act.includes("attach") ||
+        act.includes("assign")
+    )
+        return "created";
+    if (
+        act.includes("delete") ||
+        act.includes("detach") ||
+        act.includes("unassign")
+    )
+        return "deleted";
+    // Fallback: infer from data shape
+    const hasOld = oldVals && Object.keys(oldVals).length > 0;
+    const hasNew = newVals && Object.keys(newVals).length > 0;
+    if (!hasOld && hasNew) return "created";
+    if (hasOld && !hasNew) return "deleted";
+    return "updated";
+};
+
+/** For updates, filter to only changed fields */
+const getChangedKeys = (oldVals, newVals) => {
+    const allKeys = Array.from(
+        new Set([...Object.keys(oldVals || {}), ...Object.keys(newVals || {})]),
+    ).filter((k) => !HIDDEN_FIELDS.includes(k));
+
+    return allKeys.filter((k) => {
+        const oldStr = JSON.stringify(oldVals?.[k] ?? null);
+        const newStr = JSON.stringify(newVals?.[k] ?? null);
+        return oldStr !== newStr;
+    });
+};
+
 // ─── Action Badge ─────────────────────────────────────────────────────────────
 
 const ActionBadge = ({ actionType, actionColors }) => {
@@ -162,20 +201,102 @@ const ActionBadge = ({ actionType, actionColors }) => {
 
 // ─── Diff Section ─────────────────────────────────────────────────────────────
 
-const DiffSection = ({ oldVals, newVals }) => {
-    const keys = Array.from(
-        new Set([...Object.keys(oldVals || {}), ...Object.keys(newVals || {})]),
-    ).filter((k) => !HIDDEN_FIELDS.includes(k));
+const DiffSection = ({ actionType, oldVals, newVals }) => {
+    const mode = getDiffMode(actionType, oldVals, newVals);
 
-    if (!keys.length) return null;
+    // ── Created: only new values ──────────────────────────────────────────────
+    if (mode === "created") {
+        const keys = Object.keys(newVals || {}).filter(
+            (k) => !HIDDEN_FIELDS.includes(k),
+        );
+        if (!keys.length) return null;
+
+        return (
+            <div className="mt-3 rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/40 dark:bg-emerald-950/20 overflow-hidden">
+                <div className="grid grid-cols-2 px-3 py-2 bg-emerald-100/60 dark:bg-emerald-900/30 border-b border-emerald-200/60 dark:border-emerald-800/40">
+                    {["Field", "Value"].map((h) => (
+                        <span
+                            key={h}
+                            className="text-[10px] font-bold uppercase tracking-widest text-emerald-700/70 dark:text-emerald-400/70"
+                        >
+                            {h}
+                        </span>
+                    ))}
+                </div>
+                {keys.map((key, i) => (
+                    <div
+                        key={key}
+                        className={cn(
+                            "grid grid-cols-2 px-3 py-2 gap-2 text-xs",
+                            i % 2 === 0
+                                ? "bg-background/60"
+                                : "bg-emerald-50/30 dark:bg-emerald-950/10",
+                        )}
+                    >
+                        <span className="font-medium text-foreground truncate">
+                            {formatKey(key)}
+                        </span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium break-all">
+                            {renderValue(newVals?.[key])}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    // ── Deleted: only old values ──────────────────────────────────────────────
+    if (mode === "deleted") {
+        const keys = Object.keys(oldVals || {}).filter(
+            (k) => !HIDDEN_FIELDS.includes(k),
+        );
+        if (!keys.length) return null;
+
+        return (
+            <div className="mt-3 rounded-lg border border-red-200/60 dark:border-red-800/40 bg-red-50/40 dark:bg-red-950/20 overflow-hidden">
+                <div className="grid grid-cols-2 px-3 py-2 bg-red-100/60 dark:bg-red-900/30 border-b border-red-200/60 dark:border-red-800/40">
+                    {["Field", "Value"].map((h) => (
+                        <span
+                            key={h}
+                            className="text-[10px] font-bold uppercase tracking-widest text-red-700/70 dark:text-red-400/70"
+                        >
+                            {h}
+                        </span>
+                    ))}
+                </div>
+                {keys.map((key, i) => (
+                    <div
+                        key={key}
+                        className={cn(
+                            "grid grid-cols-2 px-3 py-2 gap-2 text-xs",
+                            i % 2 === 0
+                                ? "bg-background/60"
+                                : "bg-red-50/30 dark:bg-red-950/10",
+                        )}
+                    >
+                        <span className="font-medium text-foreground truncate">
+                            {formatKey(key)}
+                        </span>
+                        <span className="text-red-500 dark:text-red-400 line-through break-all">
+                            {renderValue(oldVals?.[key])}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    // ── Updated: only changed fields, 3-column diff ───────────────────────────
+    const changedKeys = getChangedKeys(oldVals, newVals);
+    if (!changedKeys.length) return null;
 
     return (
         <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 overflow-hidden">
             {/* Header */}
-            <div className="grid grid-cols-3 px-3 py-2 bg-muted/60 border-b border-border/60">
-                {["Field", "Old Value", "New Value"].map((h) => (
+            <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] px-3 py-2 bg-muted/60 border-b border-border/60 gap-2">
+                {["Field", "", "Before", "", "After"].map((h, idx) => (
                     <span
-                        key={h}
+                        key={idx}
                         className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70"
                     >
                         {h}
@@ -184,20 +305,23 @@ const DiffSection = ({ oldVals, newVals }) => {
             </div>
 
             {/* Rows */}
-            {keys.map((key, i) => (
+            {changedKeys.map((key, i) => (
                 <div
                     key={key}
                     className={cn(
-                        "grid grid-cols-3 px-3 py-2 gap-2 text-xs",
+                        "grid grid-cols-[1fr_auto_1fr_auto_1fr] px-3 py-2 gap-2 text-xs items-center",
                         i % 2 === 0 ? "bg-background" : "bg-muted/20",
                     )}
                 >
                     <span className="font-medium text-foreground truncate">
                         {formatKey(key)}
                     </span>
+                    {/* spacer arrow */}
+                    <ArrowRight className="h-3 w-3 text-muted-foreground/30 flex-shrink-0" />
                     <span className="text-red-500 dark:text-red-400 line-through break-all">
                         {renderValue(oldVals?.[key])}
                     </span>
+                    <ArrowRight className="h-3 w-3 text-muted-foreground/30 flex-shrink-0" />
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium break-all">
                         {renderValue(newVals?.[key])}
                     </span>
@@ -210,8 +334,6 @@ const DiffSection = ({ oldVals, newVals }) => {
 // ─── Log Card ─────────────────────────────────────────────────────────────────
 
 const LogCard = ({ log, actionColors }) => {
-    const style = getActionStyle(log.action_type, actionColors);
-
     return (
         <div className="rounded-xl border border-border/50 bg-card shadow-sm overflow-hidden mb-3">
             {/* Card header */}
@@ -245,6 +367,7 @@ const LogCard = ({ log, actionColors }) => {
                     </div>
                 )}
                 <DiffSection
+                    actionType={log.action_type}
                     oldVals={log.old_values}
                     newVals={log.new_values}
                 />
@@ -253,13 +376,12 @@ const LogCard = ({ log, actionColors }) => {
     );
 };
 
-// ─── Timeline dot ─────────────────────────────────────────────────────────────
+// ─── Timeline Item ────────────────────────────────────────────────────────────
 
 const TimelineItem = ({ log, actionColors, isLast }) => {
     const style = getActionStyle(log.action_type, actionColors);
     return (
         <div className="flex gap-3">
-            {/* Dot + line */}
             <div className="flex flex-col items-center flex-shrink-0">
                 <div
                     className={cn(
@@ -274,7 +396,6 @@ const TimelineItem = ({ log, actionColors, isLast }) => {
                     <div className="w-px flex-1 bg-border/50 my-1 min-h-[16px]" />
                 )}
             </div>
-            {/* Content */}
             <div className="flex-1 pb-1 min-w-0">
                 <LogCard log={log} actionColors={actionColors} />
             </div>
@@ -385,7 +506,6 @@ const ActivityLogsModal = ({
     return (
         <Dialog open={visible} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="!max-w-[860px] p-0 gap-0 overflow-hidden">
-                {/* ── Header ── */}
                 <DialogHeader className="px-6 py-4 border-b border-border/60 bg-card/80">
                     <div className="flex items-center gap-3">
                         <DialogTitle className="text-base font-semibold">
@@ -402,7 +522,6 @@ const ActivityLogsModal = ({
                     </div>
                 </DialogHeader>
 
-                {/* ── Body ── */}
                 <div
                     ref={scrollRef}
                     onScroll={handleScroll}
@@ -422,8 +541,6 @@ const ActivityLogsModal = ({
                                     isLast={i === logs.length - 1}
                                 />
                             ))}
-
-                            {/* Load-more spinner */}
                             {loading && (
                                 <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
                                     <div className="w-4 h-4 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />

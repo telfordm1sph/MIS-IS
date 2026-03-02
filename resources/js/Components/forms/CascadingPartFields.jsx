@@ -207,6 +207,7 @@ const CascadingPartFields = ({
                         <Combobox
                             options={partsOptions.types || []}
                             placeholder="Part Type"
+                            value={rowData?.part_type} // Add this
                             disabled={disabled.part_type}
                             onChange={handlePartTypeChange}
                             style={{ height: INPUT_H }}
@@ -224,6 +225,7 @@ const CascadingPartFields = ({
                         <Combobox
                             options={partsOptions.brands[fieldPrefix] || []}
                             placeholder="Brand"
+                            value={rowData?.brand} // Add this
                             disabled={
                                 disabled.brand || !getFieldValue("part_type")
                             }
@@ -247,6 +249,7 @@ const CascadingPartFields = ({
                         <Combobox
                             options={partsOptions.models[fieldPrefix] || []}
                             placeholder="Model"
+                            value={rowData?.model} // Add this
                             disabled={disabled.model || !getFieldValue("brand")}
                             onChange={handleModelChange}
                             onFocus={async () => {
@@ -259,7 +262,6 @@ const CascadingPartFields = ({
                         />
                     </Form.Item>
                 </Cell>
-
                 {/* Specifications */}
                 <Cell label="Specifications" showLabel={showLabels} flex={1.3}>
                     <Form.Item name={[rowIndex, "specifications"]} noStyle>
@@ -268,6 +270,7 @@ const CascadingPartFields = ({
                                 partsOptions.specifications[fieldPrefix] || []
                             }
                             placeholder="Specs"
+                            value={rowData?.specifications}
                             disabled={
                                 disabled.specifications ||
                                 !getFieldValue("model")
@@ -286,11 +289,12 @@ const CascadingPartFields = ({
                                     );
                             }}
                             style={{ height: INPUT_H }}
+                            allowCustomValue={true} // Add this
                         />
                     </Form.Item>
                 </Cell>
 
-                {/* Serial Number */}
+                {/* Serial Number (keep as is - it's an Input, not Combobox) */}
                 <Cell label="Serial No." showLabel={showLabels} flex={1.3}>
                     <Form.Item
                         name={[rowIndex, "serial_number"]}
@@ -299,6 +303,7 @@ const CascadingPartFields = ({
                     >
                         <Input
                             placeholder="Serial No."
+                            value={rowData?.serial_number} // Add this if Input component supports it
                             className="text-sm w-full"
                             style={{ height: INPUT_H }}
                         />

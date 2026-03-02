@@ -31,15 +31,16 @@ export const Combobox = ({
     clearable = true,
     className,
     style,
+    allowCustomValue = true, // Add this prop
 }) => {
     const [open, setOpen] = useState(false);
 
-    const selectedLabel =
-        options.find((o) => String(o.value) === String(value))?.label ?? "";
+    // Find matching option, but if not found, create a temporary option for display
+    const matchedOption = options.find((o) => String(o.value) === String(value));
+    const selectedLabel = matchedOption?.label ?? (value ? String(value) : "");
 
     const handleSelect = (optValue) => {
-        // Command matches by the `value` prop on CommandItem (which we set to label).
-        // We need the actual option value, so we find it back.
+        // Find the actual option by label or value
         const opt = options.find(
             (o) => String(o.label) === optValue || String(o.value) === optValue,
         );
@@ -52,6 +53,11 @@ export const Combobox = ({
         e.stopPropagation();
         onChange?.(undefined);
     };
+
+    // Combine options with current value if it doesn't exist and allowCustomValue is true
+    const displayOptions = allowCustomValue && value && !matchedOption
+        ? [...options, { value, label: value }]
+        : options;
 
     return (
         <Popover
@@ -106,7 +112,6 @@ export const Combobox = ({
                 className="p-0 w-[var(--radix-popover-trigger-width)] min-w-[160px] shadow-md"
                 align="start"
                 sideOffset={4}
-                // Prevent the popover from closing the Sheet when inside bottom sheet
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onWheel={(e) => e.stopPropagation()}
             >
@@ -123,10 +128,9 @@ export const Combobox = ({
                             No results found.
                         </CommandEmpty>
                         <CommandGroup>
-                            {options.map((opt) => (
+                            {displayOptions.map((opt) => (
                                 <CommandItem
                                     key={opt.value}
-                                    // value here is what Command uses for filtering — use label
                                     value={String(opt.label ?? opt.value)}
                                     onSelect={handleSelect}
                                     className="text-sm cursor-pointer gap-2"

@@ -147,6 +147,7 @@ const CascadingSoftwareFields = ({
                         <Combobox
                             options={softwareOptions.names || []}
                             placeholder="Software"
+                            value={rowData?.software_name} // Add this
                             disabled={disabled.software_name}
                             onChange={handleNameChange}
                             style={{ height: INPUT_H }}
@@ -164,6 +165,7 @@ const CascadingSoftwareFields = ({
                         <Combobox
                             options={softwareOptions.types[fieldPrefix] || []}
                             placeholder="Type"
+                            value={rowData?.software_type} // Add this
                             disabled={disabled.software_type}
                             onChange={handleTypeChange}
                             onFocus={async () => {
@@ -187,6 +189,7 @@ const CascadingSoftwareFields = ({
                                 softwareOptions.versions[fieldPrefix] || []
                             }
                             placeholder="Version"
+                            value={rowData?.version} // Add this
                             disabled={disabled.version}
                             onChange={handleVersionChange}
                             onFocus={async () => {
@@ -203,7 +206,6 @@ const CascadingSoftwareFields = ({
                         />
                     </Form.Item>
                 </Cell>
-
                 {/* License / Account */}
                 <Cell
                     label="License / Account"
@@ -216,6 +218,7 @@ const CascadingSoftwareFields = ({
                                 softwareOptions.licenses[fieldPrefix] || []
                             }
                             placeholder="License"
+                            value={rowData?._license_identifier}
                             disabled={disabled.license}
                             onFocus={async () => {
                                 const n = getFieldValue("software_name");
@@ -231,6 +234,7 @@ const CascadingSoftwareFields = ({
                                     );
                             }}
                             style={{ height: INPUT_H }}
+                            allowCustomValue={true} // Add this
                         />
                     </Form.Item>
                 </Cell>
