@@ -1,8 +1,6 @@
-import { Link, usePage, router } from "@inertiajs/react";
-import { useState, useContext, useEffect } from "react";
+import { Link, usePage } from "@inertiajs/react";
+import { useState, useEffect } from "react";
 import Navigation from "@/Components/sidebar/Navigation";
-import ThemeToggler from "@/Components/sidebar/ThemeToggler";
-import { ThemeContext } from "../ThemeContext";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -12,27 +10,21 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Menu, X, PanelLeftClose, PanelLeftOpen, Cpu } from "lucide-react";
+import {
+    Menu,
+    X,
+    PanelLeftClose,
+    PanelLeftOpen,
+    MonitorSmartphone,
+} from "lucide-react";
 
 export default function Sidebar() {
     const { display_name, emp_data } = usePage().props;
-    const { theme, toggleTheme } = useContext(ThemeContext);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => setMounted(true), []);
-
-    const logout = () => {
-        localStorage.clear();
-        sessionStorage.clear();
-        window.location.href = route("logout");
-    };
-
-    const formattedAppName = display_name
-        ?.split(" ")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
 
     if (!mounted) return null;
 
@@ -114,19 +106,17 @@ export default function Sidebar() {
                                 !isSidebarOpen && "justify-center",
                             )}
                         >
-                            {/* Logo mark */}
-                            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-900/50">
-                                <Cpu className="w-4 h-4 text-white" />
+                            <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-900/50">
+                                <MonitorSmartphone className="w-4 h-4 text-white" />
                             </div>
 
-                            {/* App name — only shown when expanded */}
                             {isSidebarOpen && (
                                 <div className="flex flex-col min-w-0">
-                                    <span className="text-sm font-semibold text-zinc-100 leading-tight truncate">
-                                        {formattedAppName}
+                                    <span className="text-sm font-bold text-zinc-100 leading-tight tracking-wide">
+                                        RIMS
                                     </span>
-                                    <span className="text-[10px] text-zinc-500 leading-tight font-medium tracking-wider uppercase">
-                                        IT Management
+                                    <span className="text-[7px] text-zinc-500 leading-tight font-medium tracking-wider uppercase truncate">
+                                        Request &amp; Issuance Management System
                                     </span>
                                 </div>
                             )}
@@ -136,43 +126,6 @@ export default function Sidebar() {
                     {/* ── Navigation ── */}
                     <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
                         <Navigation isSidebarOpen={isSidebarOpen} />
-                    </div>
-
-                    <Separator className="bg-zinc-800/60" />
-
-                    {/* ── Theme Toggler ── */}
-                    <div
-                        className={cn(
-                            "p-3",
-                            !isSidebarOpen && "flex justify-center px-2",
-                        )}
-                    >
-                        {!isSidebarOpen ? (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span>
-                                        <ThemeToggler
-                                            toggleTheme={toggleTheme}
-                                            theme={theme}
-                                            isCollapsed={true}
-                                        />
-                                    </span>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                    side="right"
-                                    className="text-xs"
-                                >
-                                    Toggle {theme === "dark" ? "Light" : "Dark"}{" "}
-                                    Mode
-                                </TooltipContent>
-                            </Tooltip>
-                        ) : (
-                            <ThemeToggler
-                                toggleTheme={toggleTheme}
-                                theme={theme}
-                                isCollapsed={false}
-                            />
-                        )}
                     </div>
                 </aside>
             </div>
