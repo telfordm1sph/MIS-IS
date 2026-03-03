@@ -1,6 +1,23 @@
 import React, { useState, useCallback } from "react";
-import { Form, Select, Card, Input, message, Alert } from "antd";
-import { InfoCircleOutlined } from "@ant-design/icons";
+import { useFormContext, useWatch } from "react-hook-form";
+
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+} from "@/components/ui/card";
+import { Info } from "lucide-react";
 
 import InventoryTable from "./InventoryTable";
 import ComponentsReviewTable from "./ComponentsReviewTable";
@@ -8,16 +25,20 @@ import { getPartColumns, getSoftwareColumns } from "@/Utils/inventoryColumns";
 import { useComponentManagement } from "@/Hooks/useComponentManagement";
 import { useComponentSelection } from "@/Hooks/useComponentSelection";
 
-const ReplaceComponent = ({ form, componentOptions, hardware }) => {
+// ── Component ─────────────────────────────────────────────────────────────────
+
+const ReplaceComponent = ({ componentOptions, hardware }) => {
+    const form = useFormContext();
+
     const [selectedOldComponent, setSelectedOldComponent] = useState(null);
     const [componentType, setComponentType] = useState(null);
     const [selectedComponentInfo, setSelectedComponentInfo] = useState(null);
     const [selectedPartType, setSelectedPartType] = useState(null);
 
-    // Watch replacements array directly from the form
-    const replacements = Form.useWatch("replacements", form) || [];
+    // Live-watch the replacements array from the shared form context
+    const replacements =
+        useWatch({ name: "replacements", control: form.control }) || [];
 
-    // Get component data
     const getComponentData = useCallback(
         (componentId) => {
             if (!componentId) return null;
@@ -25,29 +46,24 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
             if (type === "part") {
                 const data = hardware?.parts?.find((p) => p.id == id);
                 return { type: "part", data };
-            } else {
-                const data = hardware?.software?.find((s) => s.id == id);
-                return { type: "software", data };
             }
+            const data = hardware?.software?.find((s) => s.id == id);
+            return { type: "software", data };
         },
         [hardware],
     );
 
-    // Handle old component selection
     const handleOldComponentChange = (value) => {
-        setSelectedOldComponent(value);
+        setSelectedOldComponent(value || null);
         if (value) {
-            const componentInfo = getComponentData(value);
-            setComponentType(componentInfo?.type || null);
-            setSelectedComponentInfo(componentInfo);
-
-            if (componentInfo?.type === "part") {
-                setSelectedPartType(componentInfo.data.part_info?.part_type);
-            } else {
-                setSelectedPartType(
-                    componentInfo.data.inventory?.software_name,
-                );
-            }
+            const info = getComponentData(value);
+            setComponentType(info?.type || null);
+            setSelectedComponentInfo(info);
+            setSelectedPartType(
+                info?.type === "part"
+                    ? info.data?.part_info?.part_type
+                    : info?.data?.inventory?.software_name,
+            );
         } else {
             setComponentType(null);
             setSelectedComponentInfo(null);
@@ -55,21 +71,15 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
         }
     };
 
-    // Initialize the selection hook
     const { handleSelectComponent } = useComponentSelection({
         form,
         fieldName: "replacements",
         mode: "replace",
     });
 
-    // Wrap the handleSelectComponent to inject the context
     const handleReplacementSelect = useCallback(
         (record) => {
-            if (!selectedOldComponent || !selectedComponentInfo) {
-                message.error("Please select a component to replace first");
-                return;
-            }
-
+            if (!selectedOldComponent || !selectedComponentInfo) return;
             handleSelectComponent({
                 record,
                 selectedOldComponent,
@@ -79,7 +89,6 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
         [selectedOldComponent, selectedComponentInfo, handleSelectComponent],
     );
 
-    // Step 3 handlers
     const {
         handleQuantityChange,
         handleSerialChange,
@@ -87,102 +96,116 @@ const ReplaceComponent = ({ form, componentOptions, hardware }) => {
         handleRemarksChange,
         handleConditionChange,
         handleRemoveComponent,
-    } = useComponentManagement({
-        form,
-        fieldName: "replacements",
-    });
+    } = useComponentManagement({ form, fieldName: "replacements" });
 
     return (
-        <>
-            {/* Hidden Form.Item to initialize the field */}
-            <Form.Item name="replacements" hidden initialValue={[]}>
-                <Input />
-            </Form.Item>
+        <div className="space-y-4">
+            {/* Info */}
+            <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
+                    Select the old component to replace, then choose a
+                    replacement from inventory. You must specify the condition
+                    of the old component to determine how it will be returned to
+                    inventory.
+                </AlertDescription>
+            </Alert>
 
-            {/* Info Alert */}
-            <Alert
-                t="Component Replacement Process"
-                description="Select the old component to replace, then choose a replacement from inventory. You must specify the condition of the old component to determine how it will be returned to inventory."
-                type="info"
-                showIcon
-                icon={<InfoCircleOutlined />}
-                style={{ marginBottom: 16 }}
-            />
-
-            {/* Step 1: Select Component to Replace */}
-            <Card size="small" title="Step 1: Select Component to Replace">
-                <Form.Item
-                    label="Old Component"
-                    name="old_component_selector"
-                    rules={[
-                        {
-                            required: true,
-                            message: "Please select a component to replace",
-                        },
-                    ]}
-                >
-                    <Select
-                        placeholder="Select component to replace"
-                        options={componentOptions}
-                        onChange={handleOldComponentChange}
-                        showSearch
-                        optionFilterProp="label"
-                        allowClear
-                    />
-                </Form.Item>
+            {/* Step 1 */}
+            <Card className="border-border/60">
+                <CardHeader className="pb-3 pt-4 px-4">
+                    <CardTitle className="text-sm font-semibold">
+                        Step 1: Select Component to Replace
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                    <div className="space-y-1.5 ">
+                        <Label>
+                            Old Component{" "}
+                            <span className="text-destructive">*</span>
+                        </Label>
+                        <Select
+                            value={selectedOldComponent || undefined}
+                            onValueChange={handleOldComponentChange}
+                        >
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select component to replace" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {(componentOptions || []).map((opt) => (
+                                    <SelectItem
+                                        key={opt.value}
+                                        value={String(opt.value)}
+                                    >
+                                        {opt.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </CardContent>
             </Card>
-
-            {/* Step 2: Select Replacement from Inventory */}
+            {/* Step 2 */}
             {selectedOldComponent && componentType && (
-                <Card
-                    size="small"
-                    title="Step 2: Select Replacement from Inventory"
-                    style={{ marginTop: 16 }}
-                >
-                    <InventoryTable
-                        key={componentType}
-                        componentType={componentType}
-                        fetchEndpoint={
-                            componentType === "part"
-                                ? route("inventory.parts.available")
-                                : route("inventory.software.available")
-                        }
-                        selectedType={selectedPartType}
-                        onSelectComponent={handleReplacementSelect}
-                        columns={
-                            componentType === "part"
-                                ? getPartColumns(handleReplacementSelect)
-                                : getSoftwareColumns(handleReplacementSelect)
-                        }
-                    />
+                <Card className="border-border/60">
+                    <CardHeader className="pb-3 pt-4 px-4">
+                        <CardTitle className="text-sm font-semibold">
+                            Step 2: Select Replacement from Inventory
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <InventoryTable
+                            key={componentType}
+                            componentType={componentType}
+                            fetchEndpoint={
+                                componentType === "part"
+                                    ? route("inventory.parts.available")
+                                    : route("inventory.software.available")
+                            }
+                            selectedType={selectedPartType}
+                            onSelectComponent={handleReplacementSelect}
+                            columns={
+                                componentType === "part"
+                                    ? getPartColumns(handleReplacementSelect)
+                                    : getSoftwareColumns(
+                                          handleReplacementSelect,
+                                      )
+                            }
+                        />
+                    </CardContent>
                 </Card>
             )}
 
-            {/* Step 3: Review Selected Replacements */}
+            {/* Step 3 */}
             {replacements.length > 0 && (
-                <Card
-                    size="small"
-                    title={`Step 3: Review & Configure (${replacements.length} replacement${replacements.length > 1 ? "s" : ""})`}
-                    style={{ marginTop: 16 }}
-                    extra={
-                        <span style={{ fontSize: 12, color: "#999" }}>
-                            Required: Old condition, Reason
-                        </span>
-                    }
-                >
-                    <ComponentsReviewTable
-                        components={replacements}
-                        componentType="replace"
-                        onQuantityChange={handleQuantityChange}
-                        onSerialChange={handleSerialChange}
-                        onReasonChange={handleReasonChange}
-                        onRemarksChange={handleRemarksChange}
-                        onConditionChange={handleConditionChange}
-                        onRemove={handleRemoveComponent}
-                    />
+                <Card className="border-border/60">
+                    <CardHeader className="pb-3 pt-4 px-4 flex flex-row items-start justify-between space-y-0">
+                        <div>
+                            <CardTitle className="text-sm font-semibold">
+                                Step 3: Review &amp; Configure (
+                                {replacements.length} replacement
+                                {replacements.length > 1 ? "s" : ""})
+                            </CardTitle>
+                            <CardDescription className="text-xs mt-0.5">
+                                Required: Old condition, Reason
+                            </CardDescription>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <ComponentsReviewTable
+                            components={replacements}
+                            componentType="replace"
+                            onQuantityChange={handleQuantityChange}
+                            onSerialChange={handleSerialChange}
+                            onReasonChange={handleReasonChange}
+                            onRemarksChange={handleRemarksChange}
+                            onConditionChange={handleConditionChange}
+                            onRemove={handleRemoveComponent}
+                        />
+                    </CardContent>
                 </Card>
             )}
-        </>
+        </div>
     );
 };
 

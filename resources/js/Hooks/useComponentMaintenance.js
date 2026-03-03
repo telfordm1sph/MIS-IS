@@ -1,10 +1,16 @@
-import { useState, useEffect } from "react";
-import { message } from "antd";
+import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { usePage } from "@inertiajs/react";
 import { useComponentSelection } from "@/Hooks/useComponentSelection";
 import { useComponentManagement } from "@/Hooks/useComponentManagement";
 import { useHardwareParts } from "@/Hooks/useHardwareParts";
 import { useHardwareSoftware } from "@/Hooks/useHardwareSoftware";
+
+const DEFAULT_VALUES = {
+    components: [],
+    replacements: [],
+    components_to_remove: [{}],
+};
 
 export const useComponentMaintenance = (
     form,
@@ -18,19 +24,15 @@ export const useComponentMaintenance = (
     const [selectedComponentType, setSelectedComponentType] = useState(null);
     const { emp_data } = usePage().props;
 
-    // Hooks for inventory dropdowns
-    const partsHooks = useHardwareParts(form);
-    const softwareHooks = useHardwareSoftware(form);
+    // Always call these unconditionally — they read from Zustand stores
+    const partsHooks = useHardwareParts();
+    const softwareHooks = useHardwareSoftware();
 
-    // --- Initialize selection hooks for replace and add ---
+    // Always call unconditionally — hooks must never be conditional
     const {
         handleSelectComponent: handleAddSelect,
         resetSelection: resetAddSelection,
-    } = useComponentSelection({
-        form,
-        fieldName: "components",
-        mode: "add",
-    });
+    } = useComponentSelection({ form, fieldName: "components", mode: "add" });
 
     const {
         handleSelectComponent: handleReplaceSelect,
@@ -41,7 +43,6 @@ export const useComponentMaintenance = (
         mode: "replace",
     });
 
-    // --- Management hooks ---
     const addManagement = useComponentManagement({
         form,
         fieldName: "components",
@@ -51,56 +52,49 @@ export const useComponentMaintenance = (
         fieldName: "replacements",
     });
 
-    // Reset selections and load inventory when drawer opens
+    // Reset and load inventory when drawer opens — guard inside effect, not around hooks
     useEffect(() => {
-        if (open && hardware) {
-            form.resetFields();
-            resetAddSelection();
-            resetReplaceSelection();
-            setSelectedComponentType(null);
+        if (!open || !hardware) return;
 
-            partsHooks.loadPartTypes();
-            softwareHooks.loadSoftwareNames();
-        }
-    }, [open, hardware, action]);
+        form.reset(DEFAULT_VALUES);
+        resetAddSelection();
+        resetReplaceSelection();
+        setSelectedComponentType(null);
+        partsHooks.loadPartTypes();
+        softwareHooks.loadSoftwareNames();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, hardware?.id, action]);
 
-    // Generate component options for Select dropdowns
-    const getComponentOptions = () => {
+    const getComponentOptions = useCallback(() => {
         const options = [];
-
         hardware?.parts?.forEach((part) => {
             options.push({
                 label: `[Part] ${part.part_info?.part_type || "Part"}: ${part.part_info?.brand || ""} ${part.part_info?.model || ""} - ${part.part_info?.specifications || ""} - ${part?.serial_number || ""}`,
                 value: `part_${part.id}`,
             });
         });
-
-        hardware?.software?.forEach((software) => {
+        hardware?.software?.forEach((sw) => {
             options.push({
-                label: `[Software] ${software.inventory?.software_name || "Software"} ${software.inventory?.version || ""} (${software.inventory?.software_type || ""})`,
-                value: `software_${software.id}`,
+                label: `[Software] ${sw.inventory?.software_name || "Software"} ${sw.inventory?.version || ""} (${sw.inventory?.software_type || ""})`,
+                value: `software_${sw.id}`,
             });
         });
-
         return options;
-    };
+    }, [hardware]);
 
-    // Simple handler to just set the component type (for Add mode)
-    const handleComponentTypeSelect = (componentType) => {
-        console.log("Selected component type:", componentType);
+    const handleComponentTypeSelect = useCallback((componentType) => {
         setSelectedComponentType(componentType);
-    };
+    }, []);
 
-    // Reset everything on close
-    const handleClose = () => {
-        form.resetFields();
+    const handleClose = useCallback(() => {
+        form.reset(DEFAULT_VALUES);
         resetAddSelection();
         resetReplaceSelection();
         setSelectedComponentType(null);
         onClose?.();
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [onClose]);
 
-    // Parse specs to extract condition
     const parseSpecsAndCondition = (payload) => {
         const extract = (specs) => {
             if (!specs) return { condition: null, specifications: specs };
@@ -111,7 +105,7 @@ export const useComponentMaintenance = (
                         condition: parsed.condition || null,
                         specifications: parsed.specifications || specs,
                     };
-                } catch (e) {
+                } catch {
                     return { condition: null, specifications: specs.trim() };
                 }
             }
@@ -132,7 +126,6 @@ export const useComponentMaintenance = (
             if (condition && !payload.replacement_condition)
                 payload.replacement_condition = condition;
         }
-
         if (payload.new_specifications) {
             const { condition, specifications } = extract(
                 payload.new_specifications,
@@ -141,40 +134,35 @@ export const useComponentMaintenance = (
             if (condition && !payload.new_condition)
                 payload.new_condition = condition;
         }
-
         return payload;
     };
 
-    // Handle form submission
-    const handleFinish = async (values) => {
-        setLoading(true);
-        try {
-            let payload = {
-                hardware_id: hardware.id,
-                hostname: hardware.hostname,
-                action,
-                component_type: selectedComponentType,
-                employee_id: emp_data?.emp_id,
-                ...values,
-            };
-
-            payload = parseSpecsAndCondition(payload);
-
-            console.log("🔍 FINAL PAYLOAD:", payload);
-
-            // API call (mocked)
-            // const { data } = await axios.post("/hardware/maintenance", payload);
-
-            message.success(`Hardware ${action}d successfully`);
-            onSave?.(payload);
-            handleClose();
-        } catch (err) {
-            console.error("Error:", err);
-            message.error(`Failed to ${action}`);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const handleFinish = useCallback(
+        async (values) => {
+            setLoading(true);
+            try {
+                let payload = {
+                    hardware_id: hardware?.id,
+                    hostname: hardware?.hostname,
+                    action,
+                    component_type: selectedComponentType,
+                    employee_id: emp_data?.emp_id,
+                    ...values,
+                };
+                payload = parseSpecsAndCondition(payload);
+                toast.success(`Hardware ${action}d successfully`);
+                onSave?.(payload);
+                handleClose();
+            } catch (err) {
+                console.error("Error:", err);
+                toast.error(`Failed to ${action}`);
+            } finally {
+                setLoading(false);
+            }
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        },
+        [hardware, action, selectedComponentType, emp_data],
+    );
 
     return {
         loading,

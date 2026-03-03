@@ -138,13 +138,16 @@ const SoftwareLicense = () => {
         close: closeLogs,
     } = useLogsModal();
 
-    const { searchText, handleSearch, handleTableChange } = useInventoryFilters(
-        {
-            filters,
-            pagination,
-            routeName: "licenses.table",
-        },
-    );
+    const {
+        searchText,
+        handleSearch,
+        handleTableChange,
+        handlePageSizeChange,
+    } = useInventoryFilters({
+        filters,
+        pagination,
+        routeName: "licenses.table",
+    });
 
     const { handleSave, handleDelete } = useCrudOperations({
         updateRoute: "licenses.update",
@@ -543,6 +546,9 @@ const SoftwareLicense = () => {
                                 pagination={pagination}
                                 onChange={(page) =>
                                     handleTableChange({ current: page }, {}, {})
+                                }
+                                onChangePerPage={(size) =>
+                                    handlePageSizeChange(size)
                                 }
                             />
                         </div>

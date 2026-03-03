@@ -79,13 +79,16 @@ const CCTVTable = () => {
         close: closeLogs,
     } = useLogsModal();
 
-    const { searchText, handleSearch, handleTableChange } = useInventoryFilters(
-        {
-            filters,
-            pagination,
-            routeName: "cctv.index",
-        },
-    );
+    const {
+        searchText,
+        handleSearch,
+        handleTableChange,
+        handlePageSizeChange,
+    } = useInventoryFilters({
+        filters,
+        pagination,
+        routeName: "cctv.index",
+    });
 
     const { handleSave, handleDelete } = useCrudOperations({
         updateRoute: "cctv.update",
@@ -318,6 +321,9 @@ const CCTVTable = () => {
                                 pagination={pagination}
                                 onChange={(page) =>
                                     handleTableChange({ current: page }, {}, {})
+                                }
+                                onChangePerPage={(size) =>
+                                    handlePageSizeChange(size)
                                 }
                             />
                         </div>

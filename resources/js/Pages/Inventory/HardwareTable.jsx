@@ -139,6 +139,7 @@ const HardwareTable = () => {
         handleSubCategoryChange,
         handleResetFilters,
         handleTableChange,
+        handlePageSizeChange,
     } = useInventoryFilters({
         filters,
         pagination,
@@ -175,7 +176,10 @@ const HardwareTable = () => {
             return { parts: [], software: [] };
         }
     };
-
+    const handleMaintenanceClose = useCallback(() => {
+        setMaintenanceDrawerOpen(false);
+        setTimeout(() => setSelectedHardware(null), 300); // wait for Sheet animation
+    }, []);
     const handleView = async (record) => {
         const details = await fetchHardwareDetails(record.id);
         openDrawer({ ...record, ...details });
@@ -707,6 +711,9 @@ const HardwareTable = () => {
                                             {},
                                         )
                                     }
+                                    onChangePerPage={(size) =>
+                                        handlePageSizeChange(size)
+                                    }
                                 />
                             </div>
                         </CardContent>
@@ -728,15 +735,14 @@ const HardwareTable = () => {
                         fieldGroups={formFieldGroups}
                     />
 
-                    <ComponentMaintenanceDrawer
-                        open={maintenanceDrawerOpen}
-                        onClose={() => {
-                            setMaintenanceDrawerOpen(false);
-                            setSelectedHardware(null);
-                        }}
-                        hardware={selectedHardware}
-                        onSave={() => router.reload({ only: ["hardware"] })}
-                    />
+                    {selectedHardware && ( // ✅ FIX 1: don't mount until hardware exists
+                        <ComponentMaintenanceDrawer
+                            open={maintenanceDrawerOpen}
+                            onClose={handleMaintenanceClose} // ✅ FIX 2: delayed null
+                            hardware={selectedHardware}
+                            onSave={() => router.reload({ only: ["hardware"] })}
+                        />
+                    )}
 
                     <ActivityLogsModal
                         visible={logsModalVisible}

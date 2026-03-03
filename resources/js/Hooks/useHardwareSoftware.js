@@ -1,6 +1,7 @@
 import { useSoftwareStore } from "@/store/useSoftwareStore";
 
-export const useHardwareSoftware = (form) => {
+// form param removed — store actions no longer call form.setFieldsValue
+export const useHardwareSoftware = () => {
     const options = useSoftwareStore((state) => state.options);
     const loading = useSoftwareStore((state) => state.loading);
     const loadSoftwareNames = useSoftwareStore(
@@ -37,15 +38,9 @@ export const useHardwareSoftware = (form) => {
             loadSoftwareTypes(name, fieldName),
         loadSoftwareVersions: (name, type, fieldName) =>
             loadSoftwareVersions(name, type, fieldName),
+        // Store handles its own state — no form injection needed
         loadSoftwareLicenses: (name, type, version, fieldName, rowIndex) =>
-            loadSoftwareLicenses(
-                name,
-                type,
-                version,
-                fieldName,
-                rowIndex,
-                form,
-            ),
+            loadSoftwareLicenses(name, type, version, fieldName, rowIndex),
         getSoftwareOptions,
         resetTypes,
         resetVersions,

@@ -78,13 +78,16 @@ const PrinterTable = () => {
         close: closeLogs,
     } = useLogsModal();
 
-    const { searchText, handleSearch, handleTableChange } = useInventoryFilters(
-        {
-            filters,
-            pagination,
-            routeName: "printers.index",
-        },
-    );
+    const {
+        searchText,
+        handleSearch,
+        handleTableChange,
+        handlePageSizeChange,
+    } = useInventoryFilters({
+        filters,
+        pagination,
+        routeName: "printers.index",
+    });
 
     const { handleSave, handleDelete } = useCrudOperations({
         updateRoute: "printers.update",
@@ -338,6 +341,9 @@ const PrinterTable = () => {
                                 pagination={pagination}
                                 onChange={(page) =>
                                     handleTableChange({ current: page }, {}, {})
+                                }
+                                onChangePerPage={(size) =>
+                                    handlePageSizeChange(size)
                                 }
                             />
                         </div>

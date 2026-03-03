@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { message } from "antd";
+import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 
 export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
@@ -10,12 +10,11 @@ export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
             selectedOldComponent,
             selectedComponentInfo,
         }) => {
-            console.log("record", record);
-
-            const currentItems = form.getFieldValue(fieldName) || [];
+            // react-hook-form: getValues() replaces form.getFieldValue()
+            const currentItems = form.getValues(fieldName) || [];
 
             if (mode === "replace" && !selectedComponentInfo) {
-                message.error("Please select a component to replace first");
+                toast.error("Please select a component to replace first");
                 return;
             }
 
@@ -24,7 +23,7 @@ export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
                     ? selectedComponentInfo?.type
                     : selectedComponentType;
 
-            // Check if exists (same component + same condition if applicable)
+            // Check if already in list
             const exists = currentItems.find((item) => {
                 if (mode === "replace") {
                     return (
@@ -32,80 +31,67 @@ export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
                         item.old_component_id === selectedOldComponent &&
                         item.component_data?.condition === record.condition
                     );
-                } else {
-                    return (
-                        item.component_id === record.id &&
-                        item.component_type === selectedComponentType &&
-                        item.component_data?.condition === record.condition
-                    );
                 }
+                return (
+                    item.component_id === record.id &&
+                    item.component_type === selectedComponentType &&
+                    item.component_data?.condition === record.condition
+                );
             });
 
-            // Get max quantity available
             const maxQty =
                 componentType === "part"
                     ? record.quantity
                     : record.available_activations || 999;
 
             if (exists) {
-                // Increment quantity if not at max
                 if (exists.quantity < maxQty) {
                     const updated = currentItems.map((item) => {
-                        if (mode === "replace") {
-                            if (
-                                item.component_id === record.id &&
-                                item.old_component_id ===
-                                    selectedOldComponent &&
-                                item.component_data?.condition ===
-                                    record.condition
-                            ) {
-                                return { ...item, quantity: item.quantity + 1 };
-                            }
-                        } else {
-                            if (
-                                item.component_id === record.id &&
-                                item.component_type === selectedComponentType &&
-                                item.component_data?.condition ===
-                                    record.condition
-                            ) {
-                                return { ...item, quantity: item.quantity + 1 };
-                            }
-                        }
-                        return item;
+                        const match =
+                            mode === "replace"
+                                ? item.component_id === record.id &&
+                                  item.old_component_id ===
+                                      selectedOldComponent &&
+                                  item.component_data?.condition ===
+                                      record.condition
+                                : item.component_id === record.id &&
+                                  item.component_type ===
+                                      selectedComponentType &&
+                                  item.component_data?.condition ===
+                                      record.condition;
+
+                        return match
+                            ? { ...item, quantity: item.quantity + 1 }
+                            : item;
                     });
-                    form.setFieldsValue({ [fieldName]: updated });
-                    message.success("Quantity increased by 1");
+                    // react-hook-form: setValue() replaces form.setFieldsValue()
+                    form.setValue(fieldName, updated, { shouldDirty: true });
+                    toast.success("Quantity increased by 1");
                 } else {
-                    message.warning("Maximum quantity reached");
+                    toast.warning("Maximum quantity reached");
                 }
                 return;
             }
+
             const componentId = parseInt(
                 selectedOldComponent?.split("_")[1],
                 10,
             );
-            // Create new entry
+
             let newItem;
             if (mode === "replace") {
-                // Build replacement payload matching backend validation
                 const oldData = selectedComponentInfo?.data;
-
                 newItem = {
                     key: uuidv4(),
-                    // Required fields
                     component_id: componentId,
                     old_component_id: selectedOldComponent,
                     component_to_replace: selectedOldComponent,
                     component_type: componentType,
                     quantity: 1,
-                    old_component_condition: "", // User must fill - working/faulty/defective/damaged
-                    reason: "", // User must fill
+                    old_component_condition: "",
+                    reason: "",
                     remarks: "",
-
-                    // Store old component data for display
                     old_component_data: oldData,
-
-                    // New component fields (from inventory record)
                     ...(componentType === "part"
                         ? {
                               replacement_part_type: record.part_type || "",
@@ -123,20 +109,15 @@ export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
                                   record.software_type || "",
                               replacement_version: record.version || "",
                           }),
-
-                    // Store full record for display
                     component_data: record,
                 };
             } else {
-                // Build add payload matching backend validation
                 newItem = {
                     key: uuidv4(),
                     component_id: componentId,
                     component_type: selectedComponentType,
                     quantity: 1,
-                    remarks: "", // Optional for add
-
-                    // New component fields (from inventory record)
+                    remarks: "",
                     ...(selectedComponentType === "part"
                         ? {
                               new_part_type: record.part_type || "",
@@ -155,15 +136,13 @@ export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
                               new_account_password:
                                   record.account_password || "",
                           }),
-
-                    // Store full record for display
                     component_data: record,
                 };
             }
 
             const updatedItems = [...currentItems, newItem];
-            form.setFieldsValue({ [fieldName]: updatedItems });
-            message.success(
+            form.setValue(fieldName, updatedItems, { shouldDirty: true });
+            toast.success(
                 mode === "replace" ? "Replacement selected" : "Component added",
             );
 
@@ -173,7 +152,7 @@ export const useComponentSelection = ({ form, fieldName, mode = "add" }) => {
     );
 
     const resetSelection = useCallback(() => {
-        form.setFieldsValue({ [fieldName]: [] });
+        form.setValue(fieldName, [], { shouldDirty: true });
     }, [form, fieldName]);
 
     return { handleSelectComponent, resetSelection };

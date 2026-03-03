@@ -109,6 +109,9 @@ export const useInventoryFilters = ({ filters, pagination, routeName }) => {
         };
         navigateWithFilters(filterParams);
     };
+    const handlePageSizeChange = (newPageSize) => {
+        handleTableChange({ current: 1, pageSize: newPageSize }, {}, {});
+    };
 
     return {
         searchText,
@@ -119,5 +122,6 @@ export const useInventoryFilters = ({ filters, pagination, routeName }) => {
         handleSubCategoryChange,
         handleResetFilters,
         handleTableChange,
+        handlePageSizeChange,
     };
 };

@@ -655,7 +655,7 @@ class HardwareUpdateService
             'working' => 'Working',
             'faulty' => 'Used',
             'defective' => 'Defective',
-            'unknown' => 'Unknown',
+            'damaged' => 'Damaged',
         ];
 
         return $mapping[strtolower($removalCondition)] ?? 'Working';

@@ -1,6 +1,7 @@
 import { usePartsStore } from "@/store/usePartsStore";
 
-export const useHardwareParts = (form) => {
+// form param removed — store actions no longer call form.setFieldsValue
+export const useHardwareParts = () => {
     const options = usePartsStore((state) => state.options);
     const loading = usePartsStore((state) => state.loading);
     const loadPartTypes = usePartsStore((state) => state.loadPartTypes);
@@ -31,15 +32,9 @@ export const useHardwareParts = (form) => {
         loadPartTypes,
         loadBrands,
         loadModels,
+        // Store handles its own state — no form injection needed
         loadSpecifications: (partType, brand, model, fieldName, rowIndex) =>
-            loadSpecifications(
-                partType,
-                brand,
-                model,
-                fieldName,
-                rowIndex,
-                form,
-            ),
+            loadSpecifications(partType, brand, model, fieldName, rowIndex),
         preloadPartData,
         getPartsOptions,
         resetBrands,

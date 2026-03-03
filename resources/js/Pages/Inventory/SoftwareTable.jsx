@@ -76,13 +76,16 @@ const SoftwareTable = () => {
         close: closeLogs,
     } = useLogsModal();
 
-    const { searchText, handleSearch, handleTableChange } = useInventoryFilters(
-        {
-            filters,
-            pagination,
-            routeName: "software.table",
-        },
-    );
+    const {
+        searchText,
+        handleSearch,
+        handleTableChange,
+        handlePageSizeChange,
+    } = useInventoryFilters({
+        filters,
+        pagination,
+        routeName: "software.table",
+    });
 
     const { handleSave, handleDelete } = useCrudOperations({
         updateRoute: "software.update",
@@ -282,6 +285,9 @@ const SoftwareTable = () => {
                                 pagination={pagination}
                                 onChange={(page) =>
                                     handleTableChange({ current: page }, {}, {})
+                                }
+                                onChangePerPage={(size) =>
+                                    handlePageSizeChange(size)
                                 }
                             />
                         </div>

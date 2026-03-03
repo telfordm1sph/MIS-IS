@@ -1,29 +1,88 @@
 import React from "react";
 import {
-    Modal,
-    Descriptions,
-    Table,
-    Tag,
-    Space,
-    Typography,
-    Divider,
-    Alert,
-    Card,
-    Row,
-    Col,
-    Statistic,
-} from "antd";
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
-    CheckCircleOutlined,
-    SwapOutlined,
-    PlusCircleOutlined,
-    DeleteOutlined,
-    DesktopOutlined,
-    UserOutlined,
-    WarningOutlined,
-} from "@ant-design/icons";
+    CheckCircle2,
+    ArrowLeftRight,
+    PlusCircle,
+    Trash2,
+    Monitor,
+    User,
+    AlertTriangle,
+    Info,
+} from "lucide-react";
 
-const { Title, Text } = Typography;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const operationConfig = {
+    add: {
+        icon: <PlusCircle className="h-3 w-3" />,
+        className:
+            "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300",
+        label: "Add",
+    },
+    remove: {
+        icon: <Trash2 className="h-3 w-3" />,
+        className:
+            "bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300",
+        label: "Remove",
+    },
+    replace: {
+        icon: <ArrowLeftRight className="h-3 w-3" />,
+        className:
+            "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300",
+        label: "Replace",
+    },
+};
+
+const componentTypeConfig = {
+    part: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300",
+    software:
+        "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300",
+};
+
+const StatCard = ({ label, value, icon, valueClass }) => (
+    <Card className="border-border/60">
+        <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+                {label}
+            </p>
+            <p className={cn("text-2xl font-bold tabular-nums", valueClass)}>
+                {icon && (
+                    <span className="mr-1 inline-flex items-center translate-y-0.5">
+                        {icon}
+                    </span>
+                )}
+                {value}
+            </p>
+        </CardContent>
+    </Card>
+);
+
+const InlineBadge = ({ className, icon, children }) => (
+    <span
+        className={cn(
+            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+            className,
+        )}
+    >
+        {icon}
+        {children}
+    </span>
+);
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 const IssuanceConfirmationModal = ({
     visible,
@@ -38,7 +97,6 @@ const IssuanceConfirmationModal = ({
     const handleConfirm = () => {
         onConfirm(employeeData?.emp_id || employeeData);
     };
-    // console.log("Hardware MOdal", hardware);
 
     const getOperationsArray = () => {
         if (!operations) return [];
@@ -63,13 +121,6 @@ const IssuanceConfirmationModal = ({
         replaces: action === "replace" ? operationsArray.length : 0,
     };
 
-    const componentTypeColors = { part: "blue", software: "green" };
-    const operationConfig = {
-        add: { icon: <PlusCircleOutlined />, color: "green", text: "Add" },
-        remove: { icon: <DeleteOutlined />, color: "red", text: "Remove" },
-        replace: { icon: <SwapOutlined />, color: "orange", text: "Replace" },
-    };
-
     const tableData = operationsArray.map((op, index) => {
         const type = op?.component_type || op?.componentType;
         const isPart = type === "part";
@@ -82,11 +133,10 @@ const IssuanceConfirmationModal = ({
 
         const newCompName = (() => {
             if (op?.operation === "remove") return "-";
-            if (op?.operation === "add") {
+            if (op?.operation === "add")
                 return isPart
                     ? `${op?.new_brand || ""} ${op?.new_model || ""} - ${op?.new_specifications || ""}`
                     : `${op?.new_software_name || ""} ${op?.new_version || ""}`;
-            }
             return isPart
                 ? `${op?.replacement_brand || ""} ${op?.replacement_model || ""} - ${op?.replacement_specifications || ""}`
                 : `${op?.replacement_software_name || ""} ${op?.replacement_version || ""}`;
@@ -108,256 +158,316 @@ const IssuanceConfirmationModal = ({
         };
     });
 
-    const columns = [
-        {
-            title: "Operation",
-            dataIndex: "operation",
-            key: "operation",
-            render: (op) => {
-                const cfg = operationConfig[op] || {};
-                return (
-                    <Tag icon={cfg.icon} color={cfg.color}>
-                        {cfg.text}
-                    </Tag>
-                );
-            },
-        },
-        {
-            title: "Component Type",
-            dataIndex: "componentType",
-            key: "componentType",
-            render: (t) => (
-                <Tag color={componentTypeColors[t] || "default"}>
-                    {t?.toUpperCase()}
-                </Tag>
-            ),
-        },
-        {
-            title: "Old Component",
-            key: "oldComponent",
-            render: (_, rec) => (
-                <Space direction="vertical" size={0}>
-                    <Text strong>{rec.oldComponentId || "-"}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                        {rec.oldComponent || "N/A"}
-                    </Text>
-                    {rec.oldCondition && (
-                        <Tag
-                            color={
-                                rec.oldCondition === "working" ? "green" : "red"
-                            }
-                            size="small"
-                        >
-                            {rec.oldCondition}
-                        </Tag>
-                    )}
-                </Space>
-            ),
-        },
-        {
-            title: "New Component",
-            key: "newComponent",
-            render: (_, rec) => (
-                <Space direction="vertical" size={0}>
-                    <Text strong>{rec.newComponentId || "New"}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                        {rec.newComponent || "N/A"}
-                    </Text>
-                    {rec.newCondition && (
-                        <Tag color="green" size="small">
-                            {rec.newCondition}
-                        </Tag>
-                    )}
-                </Space>
-            ),
-        },
-        {
-            title: "Reason/Remarks",
-            key: "remarks",
-            width: 200,
-            render: (_, rec) => (
-                <Space direction="vertical" size={0}>
-                    {rec.reason && (
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                            <Text strong>Reason:</Text> {rec.reason}
-                        </Text>
-                    )}
-                    {rec.remarks && (
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                            <Text strong>Remarks:</Text> {rec.remarks}
-                        </Text>
-                    )}
-                </Space>
-            ),
-        },
-    ];
-
     return (
-        <Modal
-            title={
-                <Space>
-                    <CheckCircleOutlined style={{ color: "#52c41a" }} /> Confirm
-                    Hardware Maintenance Issuance
-                </Space>
-            }
-            open={visible}
-            onCancel={onCancel}
-            onOk={handleConfirm}
-            confirmLoading={loading}
-            okText="Confirm & Create Issuance"
-            cancelText="Review Changes"
-            width={1000}
-            style={{ top: 20 }}
-        >
-            <Space direction="vertical" size="large" style={{ width: "100%" }}>
-                {/* Hardware Info */}
-                <Card
-                    size="small"
-                    title={
-                        <Space>
-                            <DesktopOutlined /> Hardware Information
-                        </Space>
-                    }
-                >
-                    <Row gutter={[16, 16]}>
-                        <Col span={8}>
-                            <Statistic
-                                title="Hostname"
-                                value={hardware?.hostname || "N/A"}
-                                prefix={<DesktopOutlined />}
-                            />
-                        </Col>
-                        <Col span={8}>
-                            <Statistic
-                                title="Location"
-                                value={hardware?.location || "N/A"}
-                            />
-                        </Col>
-                        <Col span={8}>
-                            <Statistic
-                                title="Department"
-                                value={hardware?.department || "N/A"}
-                            />
-                        </Col>
-                    </Row>
-                    <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                        <Col span={12}>
-                            <Statistic
-                                title="Brand/Model"
-                                value={`${hardware?.brand || ""} ${hardware?.model || ""}`}
-                            />
-                        </Col>
-                        <Col span={12}>
-                            <Statistic
-                                title="Serial Number"
-                                value={hardware?.serial_number || "N/A"}
-                            />
-                        </Col>
-                    </Row>
-                </Card>
+        <Dialog open={visible} onOpenChange={(open) => !open && onCancel()}>
+            <DialogContent className="!max-w-[960px] p-0 gap-0 overflow-hidden max-h-[90vh] flex flex-col">
+                {/* Header */}
+                <DialogHeader className="px-6 py-4 border-b border-border/60 bg-card/80 flex-shrink-0">
+                    <DialogTitle className="flex items-center gap-2 text-base">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                        Confirm Hardware Maintenance Issuance
+                    </DialogTitle>
+                </DialogHeader>
 
-                {/* Issuance Details */}
-                <Card
-                    size="small"
-                    title={
-                        <Space>
-                            <UserOutlined /> Issuance Details
-                        </Space>
-                    }
-                >
-                    <Descriptions column={2} size="small" layout="vertical">
-                        <Descriptions.Item label="Issued To" span={2}>
-                            <Text strong>
-                                {hardware?.assignedUsers?.[0]?.fullName ||
-                                    "N/A"}
-                            </Text>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Issuance Date">
-                            {new Date().toLocaleDateString()}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Status">
-                            <Tag color="warning">Pending Acknowledgment</Tag>
-                        </Descriptions.Item>
-                    </Descriptions>
-                </Card>
+                {/* Scrollable body */}
+                <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+                    {/* Hardware info */}
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Monitor className="h-4 w-4 text-muted-foreground" />
+                            <h3 className="text-sm font-semibold text-foreground">
+                                Hardware Information
+                            </h3>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            {[
+                                {
+                                    label: "Hostname",
+                                    value: hardware?.hostname,
+                                },
+                                {
+                                    label: "Location",
+                                    value: hardware?.location_name,
+                                },
+                                {
+                                    label: "Department",
+                                    value: hardware?.department_name,
+                                },
+                                {
+                                    label: "Brand / Model",
+                                    value: `${hardware?.brand || ""} ${hardware?.model || ""}`.trim(),
+                                },
+                                {
+                                    label: "Serial Number",
+                                    value: hardware?.serial_number,
+                                },
+                            ].map(({ label, value }) => (
+                                <div
+                                    key={label}
+                                    className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5"
+                                >
+                                    <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
+                                        {label}
+                                    </p>
+                                    <p className="text-sm font-semibold text-foreground">
+                                        {value || "N/A"}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
 
-                {/* Stats */}
-                <Row gutter={16}>
-                    <Col span={6}>
-                        <Card size="small">
-                            <Statistic
-                                title="Total Changes"
-                                value={stats.total}
-                                suffix="items"
-                                valueStyle={{ color: "#1890ff" }}
-                            />
-                        </Card>
-                    </Col>
-                    <Col span={6}>
-                        <Card size="small">
-                            <Statistic
-                                title="Additions"
-                                value={stats.adds}
-                                prefix={<PlusCircleOutlined />}
-                                valueStyle={{ color: "#52c41a" }}
-                            />
-                        </Card>
-                    </Col>
-                    <Col span={6}>
-                        <Card size="small">
-                            <Statistic
-                                title="Removals"
-                                value={stats.removes}
-                                prefix={<DeleteOutlined />}
-                                valueStyle={{ color: "#ff4d4f" }}
-                            />
-                        </Card>
-                    </Col>
-                    <Col span={6}>
-                        <Card size="small">
-                            <Statistic
-                                title="Replacements"
-                                value={stats.replaces}
-                                prefix={<SwapOutlined />}
-                                valueStyle={{ color: "#fa8c16" }}
-                            />
-                        </Card>
-                    </Col>
-                </Row>
+                    {/* Issuance details */}
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <h3 className="text-sm font-semibold text-foreground">
+                                Issuance Details
+                            </h3>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 col-span-1">
+                                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
+                                    Issued To
+                                </p>
+                                <p className="text-sm font-semibold text-foreground">
+                                    {hardware?.assignedUsers?.[0]?.fullName ||
+                                        "N/A"}
+                                </p>
+                            </div>
+                            <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+                                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
+                                    Issuance Date
+                                </p>
+                                <p className="text-sm font-semibold text-foreground">
+                                    {new Date().toLocaleDateString()}
+                                </p>
+                            </div>
+                            <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+                                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
+                                    Status
+                                </p>
+                                <InlineBadge className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 mt-0.5">
+                                    Pending Acknowledgment
+                                </InlineBadge>
+                            </div>
+                        </div>
+                    </div>
 
-                <Divider style={{ margin: "8px 0" }} />
-
-                {/* Table */}
-                {operationsArray.length > 0 && (
-                    <>
-                        <Title level={5}>Component Changes</Title>
-                        <Table
-                            columns={columns}
-                            dataSource={tableData}
-                            pagination={false}
-                            size="small"
-                            bordered
-                            scroll={{ x: 800 }}
+                    {/* Stats */}
+                    <div className="grid grid-cols-4 gap-3">
+                        <StatCard
+                            label="Total Changes"
+                            value={`${stats.total} items`}
+                            valueClass="text-blue-600 dark:text-blue-400 text-lg"
                         />
-                    </>
-                )}
+                        <StatCard
+                            label="Additions"
+                            value={stats.adds}
+                            icon={
+                                <PlusCircle className="h-5 w-5 text-emerald-500" />
+                            }
+                            valueClass="text-emerald-600 dark:text-emerald-400"
+                        />
+                        <StatCard
+                            label="Removals"
+                            value={stats.removes}
+                            icon={<Trash2 className="h-5 w-5 text-red-500" />}
+                            valueClass="text-red-600 dark:text-red-400"
+                        />
+                        <StatCard
+                            label="Replacements"
+                            value={stats.replaces}
+                            icon={
+                                <ArrowLeftRight className="h-5 w-5 text-amber-500" />
+                            }
+                            valueClass="text-amber-600 dark:text-amber-400"
+                        />
+                    </div>
 
-                {/* Warnings */}
-                {stats.removes > 0 && (
-                    <Alert
-                        description={`${stats.removes} component(s) will be removed from this hardware.`}
-                        type="warning"
-                        showIcon
-                        icon={<WarningOutlined />}
-                    />
-                )}
-                <Alert
-                    description="The user must acknowledge receipt of these changes. The issuance will be marked as 'Pending Acknowledgment' until confirmed."
-                    type="info"
-                    showIcon
-                />
-            </Space>
-        </Modal>
+                    <Separator />
+
+                    {/* Component changes table */}
+                    {tableData.length > 0 && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-foreground mb-3">
+                                Component Changes
+                            </h3>
+                            <div className="rounded-lg border border-border overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm border-collapse min-w-[700px]">
+                                        <thead>
+                                            <tr className="bg-muted/60 border-b border-border">
+                                                {[
+                                                    "Operation",
+                                                    "Type",
+                                                    "Old Component",
+                                                    "New Component",
+                                                    "Reason / Remarks",
+                                                ].map((h) => (
+                                                    <th
+                                                        key={h}
+                                                        className="text-left px-3 py-2.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground"
+                                                    >
+                                                        {h}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {tableData.map((row, i) => {
+                                                const opCfg =
+                                                    operationConfig[
+                                                        row.operation
+                                                    ] || operationConfig.add;
+                                                const typeCfg =
+                                                    componentTypeConfig[
+                                                        row.componentType
+                                                    ] ||
+                                                    componentTypeConfig.part;
+
+                                                return (
+                                                    <tr
+                                                        key={row.key}
+                                                        className={cn(
+                                                            "border-b border-border/50 align-top",
+                                                            i % 2 === 0
+                                                                ? "bg-background"
+                                                                : "bg-muted/20",
+                                                        )}
+                                                    >
+                                                        <td className="px-3 py-3">
+                                                            <InlineBadge
+                                                                className={
+                                                                    opCfg.className
+                                                                }
+                                                                icon={
+                                                                    opCfg.icon
+                                                                }
+                                                            >
+                                                                {opCfg.label}
+                                                            </InlineBadge>
+                                                        </td>
+                                                        <td className="px-3 py-3">
+                                                            <InlineBadge
+                                                                className={
+                                                                    typeCfg
+                                                                }
+                                                            >
+                                                                {row.componentType?.toUpperCase()}
+                                                            </InlineBadge>
+                                                        </td>
+                                                        <td className="px-3 py-3">
+                                                            <p className="text-sm font-semibold">
+                                                                {row.oldComponentId ||
+                                                                    "—"}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {row.oldComponent ||
+                                                                    "N/A"}
+                                                            </p>
+                                                            {row.oldCondition && (
+                                                                <InlineBadge
+                                                                    className={
+                                                                        row.oldCondition ===
+                                                                        "working"
+                                                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200 mt-1"
+                                                                            : "bg-red-100 text-red-700 border-red-200 mt-1"
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        row.oldCondition
+                                                                    }
+                                                                </InlineBadge>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-3 py-3">
+                                                            <p className="text-sm font-semibold">
+                                                                {row.newComponentId ||
+                                                                    "New"}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {row.newComponent ||
+                                                                    "N/A"}
+                                                            </p>
+                                                            {row.newCondition && (
+                                                                <InlineBadge className="bg-emerald-100 text-emerald-700 border-emerald-200 mt-1">
+                                                                    {
+                                                                        row.newCondition
+                                                                    }
+                                                                </InlineBadge>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-3 py-3 space-y-1">
+                                                            {row.reason && (
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    <span className="font-semibold text-foreground">
+                                                                        Reason:
+                                                                    </span>{" "}
+                                                                    {row.reason}
+                                                                </p>
+                                                            )}
+                                                            {row.remarks && (
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    <span className="font-semibold text-foreground">
+                                                                        Remarks:
+                                                                    </span>{" "}
+                                                                    {
+                                                                        row.remarks
+                                                                    }
+                                                                </p>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Warnings */}
+                    {stats.removes > 0 && (
+                        <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            <AlertDescription className="text-amber-700 dark:text-amber-300">
+                                {stats.removes} component(s) will be removed
+                                from this hardware.
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
+                    <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+                        <Info className="h-4 w-4 text-blue-600" />
+                        <AlertDescription className="text-blue-700 dark:text-blue-300">
+                            The user must acknowledge receipt of these changes.
+                            The issuance will be marked as "Pending
+                            Acknowledgment" until confirmed.
+                        </AlertDescription>
+                    </Alert>
+                </div>
+
+                {/* Footer */}
+                <DialogFooter className="px-6 py-4 border-t border-border/60 bg-card/80 flex-shrink-0">
+                    <Button
+                        variant="outline"
+                        onClick={onCancel}
+                        disabled={loading}
+                    >
+                        Review Changes
+                    </Button>
+                    <Button onClick={handleConfirm} disabled={loading}>
+                        {loading && (
+                            <span className="mr-2 h-4 w-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" />
+                        )}
+                        <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                        Confirm &amp; Create Issuance
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 };
 

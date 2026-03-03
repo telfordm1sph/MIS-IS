@@ -1,188 +1,340 @@
-import React from "react";
+import React, { useCallback, useEffect } from "react";
+import { useFormContext, useFieldArray, Controller } from "react-hook-form";
+
 import {
-    Row,
-    Col,
-    Form,
     Select,
-    Input,
-    Alert,
-    Card,
-    Button,
-    Space,
-} from "antd";
-import {
-    ExclamationCircleOutlined,
-    DeleteOutlined,
-    PlusOutlined,
-} from "@ant-design/icons";
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { AlertTriangle, Trash2, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-const { TextArea } = Input;
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-const RemoveComponent = ({
-    form,
-    selectedComponent,
-    selectedComponentType,
-    selectedComponentData,
-    componentOptions,
-    onComponentSelect,
-}) => {
-    const CONDITION_REASON_MAP = {
-        working: "Working",
-        faulty: "Faulty",
-        defective: "Defective",
-        damaged: "Damaged",
+const CONDITION_OPTIONS = [
+    { value: "working", label: "Working — Return to Inventory" },
+    { value: "faulty", label: "Faulty — For Repair" },
+    { value: "defective", label: "Defective — Dispose" },
+    { value: "damaged", label: "Damaged — Dispose" },
+];
+
+const CONDITION_REASON_MAP = {
+    working: "Working",
+    faulty: "Faulty",
+    defective: "Defective",
+    damaged: "Damaged",
+};
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+const RemoveComponent = ({ componentOptions = [], hardware }) => {
+    const form = useFormContext();
+    const {
+        control,
+        register,
+        setValue,
+        getValues,
+        formState: { errors },
+    } = form;
+
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: "components_to_remove",
+    });
+
+    // Helper: parse component ID into type and numeric ID
+    const getComponentData = useCallback((componentId) => {
+        if (!componentId) return null;
+        const [type, id] = componentId.split("_");
+        if (type === "part" || type === "software") {
+            return { type, id };
+        }
+        return null;
+    }, []);
+
+    const handleComponentChange = (index, value) => {
+        if (!value) {
+            setValue(`components_to_remove.${index}.component_type`, null);
+            setValue(`components_to_remove.${index}.component_id`, null);
+            setValue(
+                `components_to_remove.${index}.component_id_display`,
+                null,
+            );
+            return;
+        }
+
+        const componentData = getComponentData(value);
+
+        if (componentData) {
+            // 1️⃣ For UI display
+            setValue(
+                `components_to_remove.${index}.component_id_display`,
+                value,
+            );
+
+            // 2️⃣ For backend (numeric ID only)
+            setValue(
+                `components_to_remove.${index}.component_id`,
+                Number(componentData.id),
+            );
+
+            // 3️⃣ Store component type
+            setValue(
+                `components_to_remove.${index}.component_type`,
+                componentData.type,
+            );
+
+            // 4️⃣ Store operation type
+            setValue(`components_to_remove.${index}.operation`, "remove");
+        }
+    };
+
+    const handleConditionChange = (index, value) => {
+        setValue(`components_to_remove.${index}.condition`, value);
+        setValue(
+            `components_to_remove.${index}.reason`,
+            CONDITION_REASON_MAP[value] ?? "",
+        );
+    };
+
+    const handleAddOperation = () => {
+        append({ operation: "remove" });
     };
 
     return (
-        <>
-            <Alert
-                title="Warning"
-                description="Removing components will return them to inventory or mark them for disposal based on their condition."
-                type="warning"
-                showIcon
-                icon={<ExclamationCircleOutlined />}
-                style={{ marginBottom: 24 }}
-            />
+        <div className="space-y-4">
+            {/* Warning */}
+            <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertDescription className="text-amber-700 dark:text-amber-300">
+                    Removing components will return them to inventory or mark
+                    them for disposal based on their condition.
+                </AlertDescription>
+            </Alert>
 
-            <Form.List name="components_to_remove" initialValue={[{}]}>
-                {(fields, { add, remove }) => (
-                    <>
-                        {fields.map(({ key, name, ...restField }, index) => (
-                            <Card
-                                key={key}
-                                size="small"
-                                title={`Component ${index + 1}`}
-                                extra={
-                                    fields.length > 1 && (
-                                        <Button
-                                            type="text"
-                                            danger
-                                            icon={<DeleteOutlined />}
-                                            onClick={() => remove(name)}
-                                        >
-                                            Remove
-                                        </Button>
-                                    )
-                                }
-                                style={{ marginBottom: 16 }}
-                            >
-                                <Row gutter={16}>
-                                    <Col span={24}>
-                                        <Form.Item
-                                            {...restField}
-                                            label="Component to Remove"
-                                            name={[name, "component_id"]}
-                                            rules={[
-                                                {
-                                                    required: true,
-                                                    message:
-                                                        "Please select component",
-                                                },
-                                            ]}
-                                        >
-                                            <Select
-                                                placeholder="Select component to remove"
-                                                options={componentOptions}
-                                                showSearch
-                                                optionFilterProp="label"
-                                            />
-                                        </Form.Item>
-                                    </Col>
-                                </Row>
+            {/* Dynamic component cards */}
+            {fields.map((field, index) => {
+                const fieldErrors = errors?.components_to_remove?.[index];
 
-                                <Row gutter={16}>
-                                    <Col span={12}>
-                                        <Form.Item
-                                            {...restField}
-                                            label="Component Condition"
-                                            name={[name, "condition"]}
-                                            rules={[
-                                                {
-                                                    required: true,
-                                                    message:
-                                                        "Please select condition",
-                                                },
-                                            ]}
+                // Ensure operation is set when component mounts
+                useEffect(() => {
+                    setValue(
+                        `components_to_remove.${index}.operation`,
+                        "remove",
+                    );
+                }, [index, setValue]);
+
+                return (
+                    <Card key={field.id} className="border-border/60">
+                        <CardHeader className="pb-3 pt-4 px-4 flex flex-row items-center justify-between space-y-0">
+                            <CardTitle className="text-sm font-semibold">
+                                Component {index + 1}
+                            </CardTitle>
+                            {fields.length > 1 && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => remove(index)}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                    Remove
+                                </Button>
+                            )}
+                        </CardHeader>
+
+                        <CardContent className="px-4 pb-4 space-y-4">
+                            {/* Hidden fields */}
+                            <input
+                                type="hidden"
+                                {...register(
+                                    `components_to_remove.${index}.operation`,
+                                )}
+                                value="remove"
+                            />
+                            <input
+                                type="hidden"
+                                {...register(
+                                    `components_to_remove.${index}.component_type`,
+                                )}
+                            />
+                            <input
+                                type="hidden"
+                                {...register(
+                                    `components_to_remove.${index}.component_id`,
+                                )}
+                            />
+
+                            {/* Component selector */}
+                            <div className="space-y-1.5">
+                                <Label>
+                                    Component to Remove{" "}
+                                    <span className="text-destructive">*</span>
+                                </Label>
+                                <Controller
+                                    control={control}
+                                    name={`components_to_remove.${index}.component_id_display`}
+                                    rules={{
+                                        required: "Please select a component",
+                                    }}
+                                    render={({ field: f }) => (
+                                        <Select
+                                            value={f.value || undefined}
+                                            onValueChange={(value) => {
+                                                f.onChange(value);
+                                                handleComponentChange(
+                                                    index,
+                                                    value,
+                                                );
+                                            }}
                                         >
+                                            <SelectTrigger
+                                                className={cn(
+                                                    fieldErrors?.component_id &&
+                                                        "border-destructive focus:ring-destructive/30",
+                                                )}
+                                            >
+                                                <SelectValue placeholder="Select component to remove" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {(componentOptions || []).map(
+                                                    (opt) => (
+                                                        <SelectItem
+                                                            key={opt.value}
+                                                            value={String(
+                                                                opt.value,
+                                                            )}
+                                                        >
+                                                            {opt.label}
+                                                        </SelectItem>
+                                                    ),
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
+                                {fieldErrors?.component_id && (
+                                    <p className="text-xs text-destructive">
+                                        {fieldErrors.component_id.message}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* Condition */}
+                                <div className="space-y-1.5">
+                                    <Label>
+                                        Component Condition{" "}
+                                        <span className="text-destructive">
+                                            *
+                                        </span>
+                                    </Label>
+                                    <Controller
+                                        control={control}
+                                        name={`components_to_remove.${index}.condition`}
+                                        rules={{
+                                            required:
+                                                "Please select a condition",
+                                        }}
+                                        render={({ field: f }) => (
                                             <Select
-                                                placeholder="Select condition"
-                                                onChange={(value) => {
-                                                    const currentValues =
-                                                        form.getFieldValue(
-                                                            "components_to_remove",
-                                                        ) || [];
-                                                    currentValues[name] = {
-                                                        ...currentValues[name],
-                                                        reason: CONDITION_REASON_MAP[
-                                                            value
-                                                        ],
-                                                    };
-                                                    form.setFieldsValue({
-                                                        components_to_remove:
-                                                            currentValues,
-                                                    });
+                                                value={f.value || undefined}
+                                                onValueChange={(v) => {
+                                                    f.onChange(v);
+                                                    handleConditionChange(
+                                                        index,
+                                                        v,
+                                                    );
                                                 }}
                                             >
-                                                <Select.Option value="working">
-                                                    Working - Return to
-                                                    Inventory
-                                                </Select.Option>
-                                                <Select.Option value="faulty">
-                                                    Faulty - For Repair
-                                                </Select.Option>
-                                                <Select.Option value="defective">
-                                                    Defective - Dispose
-                                                </Select.Option>
-                                                <Select.Option value="damaged">
-                                                    Damaged - Dispose
-                                                </Select.Option>
+                                                <SelectTrigger
+                                                    className={cn(
+                                                        fieldErrors?.condition &&
+                                                            "border-destructive focus:ring-destructive/30",
+                                                    )}
+                                                >
+                                                    <SelectValue placeholder="Select condition" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {CONDITION_OPTIONS.map(
+                                                        (opt) => (
+                                                            <SelectItem
+                                                                key={opt.value}
+                                                                value={
+                                                                    opt.value
+                                                                }
+                                                            >
+                                                                {opt.label}
+                                                            </SelectItem>
+                                                        ),
+                                                    )}
+                                                </SelectContent>
                                             </Select>
-                                        </Form.Item>
-                                        <Form.Item
-                                            {...restField}
-                                            name={[name, "reason"]}
-                                            hidden
-                                        >
-                                            <Input />
-                                        </Form.Item>
-                                    </Col>
-                                    <Col span={12}>
-                                        <Form.Item
-                                            {...restField}
-                                            label="Remarks"
-                                            name={[name, "remarks"]}
-                                            rules={[
-                                                {
-                                                    required: true,
-                                                    message:
-                                                        "Please provide remarks",
-                                                },
-                                            ]}
-                                        >
-                                            <TextArea
-                                                rows={3}
-                                                placeholder="Why are you removing this?"
-                                                maxLength={500}
-                                                showCount
-                                            />
-                                        </Form.Item>
-                                    </Col>
-                                </Row>
-                            </Card>
-                        ))}
+                                        )}
+                                    />
+                                    {fieldErrors?.condition && (
+                                        <p className="text-xs text-destructive">
+                                            {fieldErrors.condition.message}
+                                        </p>
+                                    )}
+                                </div>
 
-                        <Button
-                            type="dashed"
-                            onClick={() => add()}
-                            block
-                            icon={<PlusOutlined />}
-                        >
-                            Add Another Component to Remove
-                        </Button>
-                    </>
-                )}
-            </Form.List>
-        </>
+                                {/* Remarks */}
+                                <div className="space-y-1.5">
+                                    <Label>
+                                        Remarks{" "}
+                                        <span className="text-destructive">
+                                            *
+                                        </span>
+                                    </Label>
+                                    <Textarea
+                                        {...register(
+                                            `components_to_remove.${index}.remarks`,
+                                            {
+                                                required:
+                                                    "Please provide remarks",
+                                            },
+                                        )}
+                                        rows={3}
+                                        placeholder="Why are you removing this?"
+                                        maxLength={500}
+                                        className={cn(
+                                            "resize-none text-sm",
+                                            fieldErrors?.remarks &&
+                                                "border-destructive focus-visible:ring-destructive/30",
+                                        )}
+                                    />
+                                    {fieldErrors?.remarks && (
+                                        <p className="text-xs text-destructive">
+                                            {fieldErrors.remarks.message}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            })}
+
+            {/* Add more button */}
+            <Button
+                type="button"
+                variant="outline"
+                className="w-full border-dashed border-2 border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-foreground"
+                onClick={handleAddOperation}
+            >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Another Component to Remove
+            </Button>
+        </div>
     );
 };
 

@@ -69,13 +69,16 @@ const PartsTable = () => {
         close: closeLogs,
     } = useLogsModal();
 
-    const { searchText, handleSearch, handleTableChange } = useInventoryFilters(
-        {
-            filters,
-            pagination,
-            routeName: "parts.table",
-        },
-    );
+    const {
+        searchText,
+        handleSearch,
+        handleTableChange,
+        handlePageSizeChange,
+    } = useInventoryFilters({
+        filters,
+        pagination,
+        routeName: "parts.table",
+    });
 
     const { handleSave, handleDelete } = useCrudOperations({
         updateRoute: "parts.update",
@@ -322,6 +325,9 @@ const PartsTable = () => {
                                 pagination={pagination}
                                 onChange={(page) =>
                                     handleTableChange({ current: page }, {}, {})
+                                }
+                                onChangePerPage={(size) =>
+                                    handlePageSizeChange(size)
                                 }
                             />
                         </div>
