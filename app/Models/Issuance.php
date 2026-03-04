@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Issuance extends Model
 {
     protected $table = 'issuance';
+    protected $connection = 'mysql';
     public $timestamps = false;
 
     protected $fillable = [

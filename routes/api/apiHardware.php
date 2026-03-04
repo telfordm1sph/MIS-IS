@@ -6,6 +6,10 @@ use App\Http\Controllers\HardwareController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('hardware')->middleware('api.token')->group(function () {
+    Route::get('hostnames', [HardwareDetailController::class, 'getHostNames'])
+        ->name('hostnames.list');
+    Route::get('hostnames-or-serials/{type_of_request}', [HardwareDetailController::class, 'getHostNamesOrSerial'])
+        ->name('hostnames.or.serials.list');
     Route::get('{hardwareId}/full-details', [HardwareDetailController::class, 'fullDetails'])
         ->name('hardware.full.details');
     Route::get('{hardwareId}/parts', [HardwareDetailController::class, 'parts'])->name('hardware.parts.list');

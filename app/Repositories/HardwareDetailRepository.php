@@ -29,6 +29,19 @@ class HardwareDetailRepository
             ->where('hostname', $hardwareId)
             ->first();
     }
+    public function getHostNames()
+{
+    return Hardware::whereNotIn('status', [2, 3])
+        ->distinct()
+        ->pluck('hostname');
+}
+ public function getHostNamesOrSerial($type_of_request)
+    {
+        return Hardware::where('category', $type_of_request)
+            ->select('hostname', 'serial_number')
+            ->distinct()
+            ->get();
+    }
     public function getHardwareInfoById(int $hardwareId)
     {
         return Hardware::with([

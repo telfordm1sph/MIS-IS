@@ -573,4 +573,13 @@ class HardwareDetailService
             'last_page' => $paginator->lastPage(),
         ];
     }
+
+      public function getHostNames()
+    {
+        return $this->repository->getHostNames();
+    }
+       public function getHostNamesOrSerial($type_of_request)
+    {
+        return $this->repository->getHostNamesOrSerial($type_of_request);
+    }
 }

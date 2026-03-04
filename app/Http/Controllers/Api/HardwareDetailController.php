@@ -199,4 +199,14 @@ class HardwareDetailController extends Controller
 
         return response()->json($result);
     }
+      public function getHostNames()
+    {
+        $hostnames = $this->hardwareDetailService->getHostNames();
+        return response()->json($hostnames);
+    }
+    public function getHostNamesOrSerial($type_of_request)
+    {
+        $hostnames = $this->hardwareDetailService->getHostNamesOrSerial($type_of_request);
+        return response()->json($hostnames);
+    }
 }

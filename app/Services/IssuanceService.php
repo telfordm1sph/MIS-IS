@@ -47,9 +47,7 @@ class IssuanceService
         return $prefix . $newNumber;
     }
 
-    /**
-     * BUSINESS LOGIC: Get unified issuance table (type 1 + type 2)
-     */
+
     /**
      * BUSINESS LOGIC: Get unified issuance table (type 1 + type 2)
      */
