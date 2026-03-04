@@ -25,7 +25,10 @@ export default function Sidebar() {
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => setMounted(true), []);
-
+    const formattedAppName = display_name
+        ?.split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
     if (!mounted) return null;
 
     return (
@@ -110,13 +113,14 @@ export default function Sidebar() {
                                 <MonitorSmartphone className="w-4 h-4 text-white" />
                             </div>
 
+                            {/* App name — only shown when expanded */}
                             {isSidebarOpen && (
                                 <div className="flex flex-col min-w-0">
-                                    <span className="text-sm font-bold text-zinc-100 leading-tight tracking-wide">
-                                        RIMS
+                                    <span className="text-sm font-semibold text-zinc-100 leading-tight truncate">
+                                        {formattedAppName}
                                     </span>
-                                    <span className="text-[7px] text-zinc-500 leading-tight font-medium tracking-wider uppercase truncate">
-                                        Request &amp; Issuance Management System
+                                    <span className="text-[10px] text-zinc-500 leading-tight font-medium tracking-wider uppercase">
+                                        IT Management
                                     </span>
                                 </div>
                             )}

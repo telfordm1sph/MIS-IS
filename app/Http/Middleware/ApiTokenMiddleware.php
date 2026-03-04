@@ -10,8 +10,9 @@ class ApiTokenMiddleware
     public function handle(Request $request, Closure $next)
     {
         $token = $request->bearerToken();
-        $isInternal = in_array($request->ip(), ['127.0.0.1', '::1']);
-
+        $isInternal = in_array($request->ip(), ['192.168.2.110', '::1']);
+//         dd($request->ip());
+// dd($token, $isInternal);
         // ❌ If token exists but is wrong → reject
         if ($token && $token !== config('api.token')) {
             return response()->json([
