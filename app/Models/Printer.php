@@ -18,9 +18,7 @@ class Printer extends Model
         'brand',
         'model',
         'serial_number',
-        'dpi',
         'category_status',
-        'toner',
         'supplier',
         'status',
     ];
