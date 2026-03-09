@@ -290,12 +290,15 @@ class IssuanceService
                 $this->hardwareUpdateService->updateHardware($hardware->id, [
                     'location'    => $hostnameData['location'] ?? $hardware->location,
                     'date_issued' => now(),
+                    'assignedUsersIds' => [$hostnameData['issued_to']],  
+                    'status'      => 1,
                     'updated_by'  => $createdBy,
                 ], $createdBy);
 
                 Log::info('Hardware updated during issuance', [
                     'hardware_id' => $hardware->id,
                     'hostname'    => $hardware->hostname ?? $hardware->serial,
+                    'assignedUsersIds' => [$hostnameData['issued_to']], 
                     'location'    => $hostnameData['location'],
                     'updated_by'  => $createdBy,
                 ]);

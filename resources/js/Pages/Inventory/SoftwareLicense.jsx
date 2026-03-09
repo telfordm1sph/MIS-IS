@@ -293,7 +293,7 @@ const SoftwareLicense = () => {
                 </div>
 
                 {/* ── Main card ── */}
-                <Card className="shadow-sm border-border/60 flex flex-col h-[calc(100vh-12rem)]">
+                <Card className="shadow-sm border-border/60 flex flex-col max-h-[calc(100vh-12rem)]">
                     <CardHeader className="pb-0 pt-4 px-4 flex-shrink-0">
                         <div className="flex items-center justify-between gap-4">
                             <h2 className="text-lg font-semibold text-foreground">

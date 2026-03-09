@@ -77,7 +77,7 @@ const PromisTable = () => {
     } = useInventoryFilters({
         filters,
         pagination,
-        routeName: "promis.index",
+        routeName: "promis.table",
     });
 
     const { handleSave, handleDelete } = useCrudOperations({

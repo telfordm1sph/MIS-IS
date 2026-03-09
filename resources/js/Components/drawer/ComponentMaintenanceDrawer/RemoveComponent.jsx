@@ -123,14 +123,6 @@ const RemoveComponent = ({ componentOptions = [], hardware }) => {
             {fields.map((field, index) => {
                 const fieldErrors = errors?.components_to_remove?.[index];
 
-                // Ensure operation is set when component mounts
-                useEffect(() => {
-                    setValue(
-                        `components_to_remove.${index}.operation`,
-                        "remove",
-                    );
-                }, [index, setValue]);
-
                 return (
                     <Card key={field.id} className="border-border/60">
                         <CardHeader className="pb-3 pt-4 px-4 flex flex-row items-center justify-between space-y-0">

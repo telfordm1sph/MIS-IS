@@ -184,7 +184,7 @@ const PartsTable = () => {
                 </div>
 
                 {/* ── Main card ── */}
-                <Card className="shadow-sm border-border/60 flex flex-col h-[calc(100vh-12rem)]">
+                <Card className="shadow-sm border-border/60 flex flex-col max-h-[calc(100vh-12rem)]">
                     <CardHeader className="pb-0 pt-4 px-4 flex-shrink-0">
                         <div className="flex items-center justify-between gap-4">
                             <h2 className="text-lg font-semibold text-foreground">
@@ -204,8 +204,8 @@ const PartsTable = () => {
 
                     <CardContent className="p-0 mt-3 flex-1 overflow-hidden flex flex-col">
                         {/* ── Table ── */}
-                        <div className="overflow-auto max-h-[70vh]">
-                            <Table className="h-full">
+                        <div className="overflow-auto">
+                            <Table>
                                 <TableHeader className="sticky top-0 z-30 bg-background">
                                     <TableRow className="border-border/60 hover:bg-transparent">
                                         {COLUMNS.map((col) => (
@@ -326,7 +326,7 @@ const PartsTable = () => {
                                 onChange={(page) =>
                                     handleTableChange({ current: page }, {}, {})
                                 }
-                                onChangePerPage={(size) =>
+                                onPageSizeChange={(size) =>
                                     handlePageSizeChange(size)
                                 }
                             />
