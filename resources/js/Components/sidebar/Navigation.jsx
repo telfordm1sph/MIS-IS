@@ -60,12 +60,6 @@ export default function NavLinks({ isSidebarOpen }) {
                 label="CCTVs"
                 isSidebarOpen={isSidebarOpen}
             />
-            <SidebarLink
-                href={route("promis.table")}
-                icon={<CodeOutlined className="w-5 h-5" />}
-                label="Promis Terminal"
-                isSidebarOpen={isSidebarOpen}
-            />
         </nav>
     );
 }

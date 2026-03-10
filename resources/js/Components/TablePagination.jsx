@@ -1,6 +1,14 @@
 import { Button } from "@/components/ui/button";
+import React from "react";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
-export const TablePagination = ({ pagination, onChange, onChangePerPage }) => {
+const TablePagination = ({ pagination, onChange, onChangePerPage }) => {
     if (!pagination) return null;
 
     const currentPage = pagination.current_page ?? pagination.currentPage ?? 1;
@@ -19,37 +27,38 @@ export const TablePagination = ({ pagination, onChange, onChangePerPage }) => {
 
     return (
         <div className="flex flex-col md:flex-row items-center justify-between gap-3 py-3 text-sm text-muted-foreground">
-            {/* ── Left: Showing records & Rows per page ── */}
+            {/* Left: Showing records & Rows per page */}
             <div className="flex items-center gap-4">
                 <span>
                     Showing {total === 0 ? 0 : from}–{to} of {total} records
                 </span>
-
-                <div className="flex items-center gap-2">
-                    <label
-                        className="text-xs text-muted-foreground"
-                        htmlFor="rowsPerPage"
-                    >
-                        Rows per page:
-                    </label>
-                    <select
-                        id="rowsPerPage"
-                        className="border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                        value={perPage}
+                <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">Rows</span>
+                    <Select
+                        value={String(perPage)} // use perPage instead of undefined pageSize
                         onChange={(e) =>
                             onChangePerPage?.(parseInt(e.target.value))
                         }
                     >
-                        {perPageOptions.map((option) => (
-                            <option key={option} value={option}>
-                                {option}
-                            </option>
-                        ))}
-                    </select>
+                        <SelectTrigger className="h-7 w-16 text-xs">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {[10, 15, 25, 50, 100].map(
+                                (
+                                    s, // align with your perPageOptions
+                                ) => (
+                                    <SelectItem key={s} value={String(s)}>
+                                        {s}
+                                    </SelectItem>
+                                ),
+                            )}
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
 
-            {/* ── Right: Pagination buttons ── */}
+            {/* Right: Pagination buttons */}
             <div className="flex items-center gap-1">
                 {/* Previous */}
                 <Button

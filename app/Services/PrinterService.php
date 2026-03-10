@@ -4,16 +4,133 @@ namespace App\Services;
 
 use App\Constants\PrinterStatus;
 use App\Repositories\PrinterRepository;
+use App\Repositories\HardwareRepository;
+use App\Services\Traits\PartOperationsTrait;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class PrinterService
 {
-    protected PrinterRepository $printerRepository;
+    use PartOperationsTrait;
 
-    public function __construct(PrinterRepository $printerRepository)
+    protected PrinterRepository $printerRepository;
+    protected HardwareRepository $hardwareRepository;
+
+    public function __construct(PrinterRepository $printerRepository, HardwareRepository $hardwareRepository)
     {
         $this->printerRepository = $printerRepository;
+        $this->hardwareRepository = $hardwareRepository;
+    }
+
+    // PartOperationsTrait abstract method implementations
+    protected function getEntityType($entity): string
+    {
+        return 'printer';
+    }
+
+    protected function getEntityName($entity): string
+    {
+        return $entity->printer_name;
+    }
+
+    protected function getEntityId($entity): int
+    {
+        return $entity->id;
+    }
+
+    protected function createPartRecord($entity, array $partData, string $condition, int $inventoryId, int $employeeId)
+    {
+        $printerPartData = [
+            'printer_id' => $entity->id,
+            'part_type' => $partData['part_type'],
+            'brand' => $partData['brand'],
+            'model' => $partData['model'],
+            'specifications' => $partData['specifications'] ?? '',
+            'condition' => $condition,
+            'serial_number' => $partData['serial_number'] ?? null,
+            'source_inventory_id' => $inventoryId,
+            'status' => 'installed',
+            'installed_date' => now(),
+            'created_by' => $employeeId,
+        ];
+
+        return $this->printerRepository->createPrinterPart($printerPartData);
+    }
+
+    protected function createPartRecordManual($entity, array $partData, int $employeeId)
+    {
+        $printerPartData = [
+            'printer_id' => $entity->id,
+            'part_type' => $partData['part_type'],
+            'brand' => $partData['brand'],
+            'model' => $partData['model'],
+            'specifications' => $partData['specifications'] ?? null,
+            'serial_number' => $partData['serial_number'] ?? null,
+            'condition' => $partData['condition'] ?? 'Working',
+            'status' => 'installed',
+            'installed_date' => now(),
+            'created_by' => $employeeId,
+        ];
+
+        return $this->printerRepository->createPrinterPart($printerPartData);
+    }
+
+    protected function findPartRecordById(int $id)
+    {
+        return $this->printerRepository->findPrinterPartById($id);
+    }
+
+    protected function updatePartRecord(int $id, array $data): void
+    {
+        $this->printerRepository->updatePrinterPart($id, $data);
+    }
+
+    protected function logPartAddition($entity, $partRecord, $part, string $condition, int $employeeId): void
+    {
+        $this->printerRepository->logPrinterPartChange(
+            $entity,
+            $partRecord,
+            'part_added',
+            $employeeId,
+            "Added {$part->part_type} - {$part->brand} {$part->model} ({$condition})"
+        );
+    }
+
+    protected function logPartRemoval($entity, $partRecord, $part, string $condition, string $removalReason, int $employeeId): void
+    {
+        $this->printerRepository->logPrinterPartChange(
+            $entity,
+            $partRecord,
+            'part_removed',
+            $employeeId,
+            "Removed {$part->part_type} - {$part->brand} {$part->model} ({$condition})"
+        );
+    }
+
+    protected function logPartAdditionManual($entity, $partRecord, string $partType, string $brand, string $model, int $employeeId): void
+    {
+        $this->printerRepository->logPrinterPartChange(
+            $entity,
+            $partRecord,
+            'part_added_manual',
+            $employeeId,
+            "Added {$partType} - {$brand} {$model} (Manual)"
+        );
+    }
+
+    protected function getRemovedStatus(): string
+    {
+        return 'removed';
+    }
+
+    protected function getEntityTypeFromPartRecord($partRecord): string
+    {
+        return 'printer';
+    }
+
+    protected function getEntityTypeFromPartData(array $partData): string
+    {
+        return 'printer';
     }
 
     /**
@@ -22,13 +139,15 @@ class PrinterService
      */
     public function getPrinterTable(array $filters): array
     {
-        $query = $this->printerRepository->query();
+        // --- Start query and eager-load location ---
+        $query = $this->printerRepository->query()->with('locationDetail');
 
+        // --- Apply status filter ---
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
         }
 
-
+        // --- Apply search filter ---
         if (!empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
@@ -42,29 +161,34 @@ class PrinterService
             });
         }
 
-
+        // --- Sorting ---
         $sortField = $filters['sortField'] ?? 'created_at';
         $sortOrder = $filters['sortOrder'] ?? 'desc';
         $query->orderBy($sortField, $sortOrder);
 
+        // --- Pagination ---
         $page = $filters['page'] ?? 1;
         $pageSize = $filters['pageSize'] ?? 10;
         $paginated = $query->paginate($pageSize, ['*'], 'page', $page);
 
+        // --- Map data with status + location_name ---
+        $data = $paginated->getCollection()->map(function ($printer) {
+            return [
+                'id' => $printer->id,
+                'printer_name' => $printer->printer_name,
+                'ip_address' => $printer->ip_address,
+                'printer_type' => $printer->printer_type,
+                'brand' => $printer->brand,
+                'model' => $printer->model,
+                'serial_number' => $printer->serial_number,
+                'status' => $printer->status,
+                'status_label' => PrinterStatus::getLabel($printer->status),
+                'status_color' => PrinterStatus::getColor($printer->status),
+                'location_name' => $printer->locationDetail?->location_name, // eager-loaded relation
+            ];
+        })->toArray();
 
-        $data = array_map(function ($printer) {
-
-            $printerArray = $printer->toArray();
-
-
-            $status = $printerArray['status'] ?? null;
-
-            return array_merge($printerArray, [
-                'status_label' => PrinterStatus::getLabel($status),
-                'status_color' => PrinterStatus::getColor($status),
-            ]);
-        }, $paginated->items());
-
+        // --- Return paginated data ---
         return [
             'data' => $data,
             'pagination' => [

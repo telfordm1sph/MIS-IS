@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { usePage } from "@inertiajs/react";
+import React, { useState, useCallback } from "react";
+import { usePage, router } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import {
     History,
     EllipsisVertical,
     Search,
+    ClipboardPlus,
 } from "lucide-react";
 
 import { useInventoryFilters } from "@/Hooks/useInventoryFilters";
@@ -44,10 +45,11 @@ import { useFormDrawer } from "@/Hooks/useFormDrawer";
 import { useLogsModal } from "@/Hooks/useLogsModal";
 import { useCrudOperations } from "@/Hooks/useCrudOperations";
 
-import FormDrawer from "@/Components/Drawer/FormDrawer";
+import HardwareFormDrawer from "@/Components/drawer/HardwareFormDrawer";
 import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
 import { DeleteConfirm } from "@/Components/DeleteConfirm";
 import TablePagination from "@/Components/TablePagination";
+import ComponentMaintenanceDrawer from "@/Components/drawer/ComponentMaintenanceDrawer";
 const COLUMNS = [
     "ID",
     "Printer Name",
@@ -60,8 +62,10 @@ const COLUMNS = [
 
 const PrinterTable = () => {
     const { printers, pagination, filters, emp_data } = usePage().props;
-
+    console.log("Printers data:", printers); // Debugging log
     const [deleteTarget, setDeleteTarget] = useState(null);
+    const [maintenanceDrawerOpen, setMaintenanceDrawerOpen] = useState(false);
+    const [selectedEntity, setSelectedEntity] = useState(null);
 
     const {
         isOpen: formDrawerOpen,
@@ -69,6 +73,8 @@ const PrinterTable = () => {
         openCreate,
         openEdit,
         close: closeForm,
+        loadingOptions,
+        locationOptions,
     } = useFormDrawer();
 
     const {
@@ -99,14 +105,43 @@ const PrinterTable = () => {
         reloadProps: ["printers"],
     });
 
-    const handleFormSave = async (values) => {
-        const payload = {
-            ...values,
-            employee_id: emp_data?.emp_id,
-        };
-
-        const result = await handleSave(payload, values.id || null);
+    const handleFormSave = async (values, id) => {
+        const result = await handleSave(
+            { ...values, employee_id: emp_data?.emp_id },
+            id || null,
+        );
         if (result?.success) closeForm();
+    };
+
+    const fetchEntityDetails = async (id) => {
+        try {
+            const [partsRes] = await Promise.all([
+                axios.get(route("printers.parts.list", id)),
+            ]);
+            return {
+                parts: partsRes.data ?? [],
+                software: [], // printers don't have software
+            };
+        } catch {
+            return { parts: [], software: [] };
+        }
+    };
+
+    // Enhanced openEdit that fetches parts data for printers
+    const handleEdit = async (record) => {
+        const details = await fetchEntityDetails(record.id);
+        openEdit({ ...record, ...details });
+    };
+
+    const handleMaintenanceClose = useCallback(() => {
+        setMaintenanceDrawerOpen(false);
+        setTimeout(() => setSelectedEntity(null), 300); // wait for Sheet animation
+    }, []);
+
+    const handleOpenMaintenance = async (record) => {
+        const details = await fetchEntityDetails(record.id);
+        setSelectedEntity({ ...record, ...details });
+        setMaintenanceDrawerOpen(true);
     };
 
     const getStatusVariant = (status) => {
@@ -115,31 +150,84 @@ const PrinterTable = () => {
         return "outline";
     };
 
-    const fields = [
-        { name: "id", label: "ID", hidden: true },
+    const formFieldGroups = [
         {
-            name: "printer_name",
-            label: "Printer Name",
-            rules: [{ required: true }],
-        },
-        { name: "ip_address", label: "IP Address" },
-        { name: "printer_type", label: "Printer Type" },
-        { name: "printer_category", label: "Category" },
-        { name: "location", label: "Location" },
-        { name: "brand", label: "Brand" },
-        { name: "model", label: "Model" },
-        { name: "serial_number", label: "Serial Number" },
-        { name: "dpi", label: "DPI (Resolution)" },
-        { name: "category_status", label: "Category Status" },
-        { name: "toner", label: "Toner/Ink Type" },
-        { name: "supplier", label: "Supplier" },
-        {
-            name: "status",
-            label: "Status",
-            type: "select",
-            options: [
-                { value: 1, label: "Active" },
-                { value: 2, label: "Inactive" },
+            title: "Hardware Specifications",
+            column: 2,
+            fields: [
+                { key: "id", dataIndex: "id", type: "hidden" },
+                {
+                    key: "printer_name",
+                    label: "Printer Name",
+                    dataIndex: "printer_name",
+                    type: "input",
+                },
+                {
+                    key: "printer_type",
+                    label: "Printer Type",
+                    dataIndex: "printer_type",
+                    type: "input",
+                },
+                {
+                    key: "brand",
+                    label: "Brand",
+                    dataIndex: "brand",
+                    type: "input",
+                },
+                {
+                    key: "model",
+                    label: "Model",
+                    dataIndex: "model",
+                    type: "input",
+                },
+                {
+                    key: "serial_number",
+                    label: "Serial Number",
+                    dataIndex: "serial_number",
+                    type: "input",
+                },
+                {
+                    key: "ip_address",
+                    label: "IP Address",
+                    dataIndex: "ip_address",
+                    type: "input",
+                },
+                {
+                    key: "printer_category",
+                    label: "Category",
+                    dataIndex: "printer_category",
+                    type: "input",
+                },
+                {
+                    key: "location",
+                    label: "Location",
+                    dataIndex: "location",
+                    type: "select",
+                    options: locationOptions,
+                    loading: loadingOptions,
+                },
+                {
+                    key: "supplier",
+                    label: "Supplier",
+                    dataIndex: "supplier",
+                    type: "input",
+                },
+                {
+                    key: "category_status",
+                    label: "Category Status",
+                    dataIndex: "category_status",
+                    type: "input",
+                },
+                {
+                    key: "status",
+                    label: "Status",
+                    dataIndex: "status",
+                    type: "select",
+                    options: [
+                        { label: "Active", value: 1 },
+                        { label: "Inactive", value: 2 },
+                    ],
+                },
             ],
         },
     ];
@@ -193,8 +281,11 @@ const PrinterTable = () => {
                             <Table className="h-full">
                                 <TableHeader className="sticky top-0 z-30 bg-background">
                                     <TableRow className="border-border/60 hover:bg-transparent">
-                                        {COLUMNS.map((col) => (
-                                            <TableHead className="bg-background text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {COLUMNS.map((col, index) => (
+                                            <TableHead
+                                                key={index}
+                                                className="bg-background text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                                            >
                                                 {col}
                                             </TableHead>
                                         ))}
@@ -262,7 +353,8 @@ const PrinterTable = () => {
                                                         "-"}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {record.location || "-"}
+                                                    {record.location_name ||
+                                                        "-"}
                                                 </TableCell>
 
                                                 <TableCell>
@@ -292,7 +384,7 @@ const PrinterTable = () => {
                                                         <DropdownMenuContent align="end">
                                                             <DropdownMenuItem
                                                                 onClick={() =>
-                                                                    openEdit(
+                                                                    handleEdit(
                                                                         record,
                                                                     )
                                                                 }
@@ -311,6 +403,23 @@ const PrinterTable = () => {
                                                                 <History className="h-4 w-4 mr-2" />
                                                                 View Logs
                                                             </DropdownMenuItem>
+
+                                                            <DropdownMenuSeparator />
+
+                                                            {record.status ==
+                                                                1 && (
+                                                                <DropdownMenuItem
+                                                                    onClick={() =>
+                                                                        handleOpenMaintenance(
+                                                                            record,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <ClipboardPlus className="h-4 w-4 mr-2" />
+                                                                    Component
+                                                                    Issuance
+                                                                </DropdownMenuItem>
+                                                            )}
 
                                                             <DropdownMenuSeparator />
 
@@ -361,14 +470,16 @@ const PrinterTable = () => {
                     }}
                 />
 
-                <FormDrawer
+                <HardwareFormDrawer
                     open={formDrawerOpen}
                     onClose={closeForm}
-                    title={editingItem ? "Edit Printer" : "Add Printer"}
-                    mode={editingItem ? "edit" : "create"}
-                    initialValues={editingItem}
-                    fields={fields}
-                    onSubmit={handleFormSave}
+                    item={editingItem}
+                    onSave={handleFormSave}
+                    fieldGroups={formFieldGroups}
+                    includeSoftware={false}
+                    includeParts={true}
+                    entityType="Printer"
+                    entityLabel={(item) => item?.printer_name || "Printer"}
                 />
 
                 <ActivityLogsModal
@@ -385,6 +496,26 @@ const PrinterTable = () => {
                     }}
                     perPage={10}
                 />
+
+                {selectedEntity && (
+                    <ComponentMaintenanceDrawer
+                        open={maintenanceDrawerOpen}
+                        onClose={handleMaintenanceClose}
+                        hardware={selectedEntity} // legacy prop
+                        entity={selectedEntity} // generic prop
+                        componentTypes={[
+                            { label: "Printer Part", value: "part" },
+                        ]} // only parts, no software
+                        infoFields={[
+                            { label: "Printer Name", key: "printer_name" },
+                            { label: "Brand", key: "brand" },
+                            { label: "Model", key: "model" },
+                            { label: "Category", key: "printer_category" },
+                            { label: "Location", key: "location" },
+                        ]}
+                        onSave={() => router.reload({ only: ["printers"] })}
+                    />
+                )}
             </div>
         </AuthenticatedLayout>
     );

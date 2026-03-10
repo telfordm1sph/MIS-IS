@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\ActivityLog;
 use App\Models\Printer;
+use App\Models\PrinterPart;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 
@@ -13,7 +14,10 @@ class PrinterRepository
     {
         return Printer::query();
     }
-
+    public function getPrinterInfoById(int $id)
+    {
+        return Printer::find($id);
+    }
     public function create(array $data): object
     {
         try {
@@ -138,5 +142,43 @@ class PrinterRepository
     public function findById(int $id): ?object
     {
         return Printer::find($id);
+    }
+
+    public function createPrinterPart(array $data)
+    {
+        return PrinterPart::create($data);
+    }
+
+    public function findPrinterPartById($id)
+    {
+        return PrinterPart::find($id);
+    }
+
+    public function updatePrinterPart($id, array $data)
+    {
+        $part = PrinterPart::find($id);
+        if ($part) {
+            $part->update($data);
+            return $part;
+        }
+        return null;
+    }
+
+    public function logPrinterPartChange($printer, $printerPart, $action, $employeeId, $description)
+    {
+        ActivityLog::create([
+            'loggable_type' => Printer::class,
+            'loggable_id' => $printer->id,
+            'action_type' => $action,
+            'action_by' => $employeeId,
+            'remarks' => $description,
+            'old_values' => null,
+            'new_values' => [
+                'part_id' => $printerPart->id,
+                'part_type' => $printerPart->part_type,
+                'brand' => $printerPart->brand,
+                'model' => $printerPart->model,
+            ],
+        ]);
     }
 }

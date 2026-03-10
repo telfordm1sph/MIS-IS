@@ -3,14 +3,19 @@
 use App\Http\Controllers\Api\IssuanceController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('issuance')->middleware('api.token')->group(function () {
-    // Create
-    Route::post('/create', [IssuanceController::class, 'createIssuance']);
-    Route::post('/component/maintenance/batch', [IssuanceController::class, 'createComponentMaintenanceIssuance'])->name('component.maintenance.batch');
+Route::prefix('issuance')->middleware(['api.token'])->group(function () {
 
-    // Table (unified — type 1 + type 2)
-    Route::post('/table', [IssuanceController::class, 'getIssuanceTable']);
+    Route::post('/create', [IssuanceController::class, 'createIssuance'])
+        ->middleware('throttle:10,1');
 
-    // Acknowledgement
-    Route::put('/acknowledge/{id}', [IssuanceController::class, 'acknowledgeIssuance'])->name('issuance.acknowledge');
+    Route::post('/component/maintenance/batch', [IssuanceController::class, 'createComponentMaintenanceIssuance'])
+        ->middleware('throttle:10,1')
+        ->name('component.maintenance.batch');
+
+    Route::post('/table', [IssuanceController::class, 'getIssuanceTable'])
+        ->middleware('throttle:60,1');
+
+    Route::put('/acknowledge/{id}', [IssuanceController::class, 'acknowledgeIssuance'])
+        ->middleware('throttle:30,1')
+        ->name('issuance.acknowledge');
 });

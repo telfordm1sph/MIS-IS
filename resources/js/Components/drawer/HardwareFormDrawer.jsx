@@ -9,6 +9,7 @@ import {
     MinusCircleOutlined,
     PlusOutlined,
     InfoCircleOutlined,
+    PrinterOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { cn } from "@/lib/utils";
@@ -421,7 +422,17 @@ const Loader = () => (
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
+const HardwareFormDrawer = ({
+    open,
+    onClose,
+    item,
+    onSave,
+    fieldGroups,
+    includeSoftware = true,
+    includeParts = true,
+    entityType = "Hardware",
+    entityLabel = (item) => item?.hostname || "Device",
+}) => {
     const [removedItems, setRemovedItems] = useState({});
     const [loading, setLoading] = useState(false);
     const [form] = Form.useForm();
@@ -446,26 +457,30 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
         if (!open) return;
 
         // Load base data (only once)
-        partsHooks.loadPartTypes();
-        softwareHooks.loadSoftwareNames();
+        if (includeParts) partsHooks.loadPartTypes();
+        if (includeSoftware) softwareHooks.loadSoftwareNames();
 
         if (item) {
             setLoading(true);
 
             // Process parts and software
-            const flatParts = (Array.isArray(item.parts) ? item.parts : []).map(
-                (p, index) => ({
-                    ...flattenPart(p),
-                    _tempId: `part_${index}_${p.id || Date.now()}`,
-                }),
-            );
+            const flatParts = includeParts
+                ? (Array.isArray(item.parts) ? item.parts : []).map(
+                      (p, index) => ({
+                          ...flattenPart(p),
+                          _tempId: `part_${index}_${p.id || Date.now()}`,
+                      }),
+                  )
+                : [];
 
-            const flatSoftware = (
-                Array.isArray(item.software) ? item.software : []
-            ).map((s, index) => ({
-                ...flattenSoftware(s),
-                _tempId: `sw_${index}_${s.id || Date.now()}`,
-            }));
+            const flatSoftware = includeSoftware
+                ? (Array.isArray(item.software) ? item.software : []).map(
+                      (s, index) => ({
+                          ...flattenSoftware(s),
+                          _tempId: `sw_${index}_${s.id || Date.now()}`,
+                      }),
+                  )
+                : [];
 
             setPartsData(flatParts);
             setSoftwareData(flatSoftware);
@@ -496,14 +511,20 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             form.setFieldsValue(formValues);
 
             // Preload all part data in parallel (don't await)
-            const preloadPromises = flatParts
-                .filter((part) => !part.bypass_inventory)
-                .map((part) => partsHooks.preloadPartData?.(part));
+            const preloadPromises =
+                includeParts && flatParts.length > 0
+                    ? flatParts
+                          .filter((part) => !part.bypass_inventory)
+                          .map((part) => partsHooks.preloadPartData?.(part))
+                    : [];
 
             // Preload all software data in parallel
-            const preloadSoftwarePromises = flatSoftware
-                .filter((sw) => !sw.bypass_inventory)
-                .map((sw) => softwareHooks.preloadSoftwareData?.(sw));
+            const preloadSoftwarePromises =
+                includeSoftware && flatSoftware.length > 0
+                    ? flatSoftware
+                          .filter((sw) => !sw.bypass_inventory)
+                          .map((sw) => softwareHooks.preloadSoftwareData?.(sw))
+                    : [];
 
             // Wait for all preloads to complete before setting loading to false
             Promise.all([
@@ -514,7 +535,10 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             });
         } else {
             form.resetFields();
-            form.setFieldsValue({ parts: [], software: [] });
+            form.setFieldsValue({
+                parts: includeParts ? [] : undefined,
+                software: includeSoftware ? [] : undefined,
+            });
             setPartsData([]);
             setSoftwareData([]);
             setRemovedItems({});
@@ -522,7 +546,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
             setBypassSoftware({});
             setLoading(false);
         }
-    }, [open, item?.id]);
+    }, [open, item?.id, includeParts, includeSoftware]);
 
     // ─── Submit ───────────────────────────────────────────────────────────────
     const handleFinish = (values) => {
@@ -695,18 +719,22 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                     <SheetHeader className="px-6 py-3 border-b border-border/40 flex-shrink-0 space-y-0">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-                                <HddOutlined className="text-sm" />
+                                {entityType === "Printer" ? (
+                                    <PrinterOutlined className="text-sm" />
+                                ) : (
+                                    <HddOutlined className="text-sm" />
+                                )}
                             </div>
                             <div className="flex-1 min-w-0">
                                 <SheetTitle className="text-sm font-semibold leading-tight truncate">
                                     {item
-                                        ? `Edit: ${item.hostname || "Hardware"}`
-                                        : "New Hardware"}
+                                        ? `Edit: ${entityLabel(item)}`
+                                        : `New ${entityType}`}
                                 </SheetTitle>
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                     {item
-                                        ? "Update device information, parts and software"
-                                        : "Register a new device to the system"}
+                                        ? `Update ${entityType.toLowerCase()} information${includeParts ? ", parts" : ""}${includeSoftware ? " and software" : ""}`
+                                        : `Register a new ${entityType.toLowerCase()} to the system`}
                                 </p>
                             </div>
                             <Button
@@ -724,7 +752,7 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                 onClick={() => form.submit()}
                                 className="flex-shrink-0 h-8 px-4 text-xs"
                             >
-                                {item ? "Save Changes" : "Create Device"}
+                                {item ? "Save Changes" : `Create ${entityType}`}
                             </Button>
                         </div>
                     </SheetHeader>
@@ -750,19 +778,37 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                             {[
                                                 {
                                                     value: "hardware",
-                                                    icon: <HddOutlined />,
-                                                    label: "Hardware",
+                                                    icon:
+                                                        entityType ===
+                                                        "Printer" ? (
+                                                            <PrinterOutlined />
+                                                        ) : (
+                                                            <HddOutlined />
+                                                        ),
+                                                    label: entityType,
                                                 },
-                                                {
-                                                    value: "parts",
-                                                    icon: <ToolOutlined />,
-                                                    label: "Parts",
-                                                },
-                                                {
-                                                    value: "software",
-                                                    icon: <CodeOutlined />,
-                                                    label: "Software",
-                                                },
+                                                ...(includeParts
+                                                    ? [
+                                                          {
+                                                              value: "parts",
+                                                              icon: (
+                                                                  <ToolOutlined />
+                                                              ),
+                                                              label: "Parts",
+                                                          },
+                                                      ]
+                                                    : []),
+                                                ...(includeSoftware
+                                                    ? [
+                                                          {
+                                                              value: "software",
+                                                              icon: (
+                                                                  <CodeOutlined />
+                                                              ),
+                                                              label: "Software",
+                                                          },
+                                                      ]
+                                                    : []),
                                             ].map(({ value, icon, label }) => (
                                                 <TabsTrigger
                                                     key={value}
@@ -782,8 +828,14 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                         forceMount
                                     >
                                         <SectionHeader
-                                            icon={<HddOutlined />}
-                                            title="Hardware Specifications"
+                                            icon={
+                                                entityType === "Printer" ? (
+                                                    <PrinterOutlined />
+                                                ) : (
+                                                    <HddOutlined />
+                                                )
+                                            }
+                                            title={`${entityType} Specifications`}
                                             subtitle="Core device information and identifiers"
                                         />
                                         <div className="grid grid-cols-4 gap-x-3">
@@ -868,345 +920,363 @@ const HardwareFormDrawer = ({ open, onClose, item, onSave, fieldGroups }) => {
                                     </TabsContent>
 
                                     {/* ── Parts Tab ── */}
-                                    <TabsContent
-                                        value="parts"
-                                        className="px-6 pt-5 pb-6 mt-0 data-[state=inactive]:hidden"
-                                        forceMount
-                                    >
-                                        <Form.List name="parts">
-                                            {(fields, { add, remove }) => (
-                                                <>
-                                                    <SectionHeader
-                                                        icon={<ToolOutlined />}
-                                                        title="Hardware Parts"
-                                                        subtitle="Physical components attached to this device"
-                                                        count={fields.length}
-                                                    />
-                                                    {fields.length === 0 && (
-                                                        <EmptyState
-                                                            emoji="🔧"
-                                                            label="parts"
+                                    {includeParts && (
+                                        <TabsContent
+                                            value="parts"
+                                            className="px-6 pt-5 pb-6 mt-0 data-[state=inactive]:hidden"
+                                            forceMount
+                                        >
+                                            <Form.List name="parts">
+                                                {(fields, { add, remove }) => (
+                                                    <>
+                                                        <SectionHeader
+                                                            icon={
+                                                                <ToolOutlined />
+                                                            }
+                                                            title={`${entityType} Parts`}
+                                                            subtitle="Physical components attached to this device"
+                                                            count={
+                                                                fields.length
+                                                            }
                                                         />
-                                                    )}
+                                                        {fields.length ===
+                                                            0 && (
+                                                            <EmptyState
+                                                                emoji="🔧"
+                                                                label="parts"
+                                                            />
+                                                        )}
 
-                                                    {fields.map(
-                                                        (
-                                                            { key, name },
-                                                            index,
-                                                        ) => {
-                                                            const isManual =
-                                                                !!bypassParts[
-                                                                    name
-                                                                ];
-                                                            const showLabel =
-                                                                index === 0;
-                                                            return (
-                                                                <ListRowCard
-                                                                    key={key}
-                                                                    isManual={
-                                                                        isManual
-                                                                    }
-                                                                >
-                                                                    <Form.Item
-                                                                        name={[
-                                                                            name,
-                                                                            "id",
-                                                                        ]}
-                                                                        hidden
+                                                        {fields.map(
+                                                            (
+                                                                { key, name },
+                                                                index,
+                                                            ) => {
+                                                                const isManual =
+                                                                    !!bypassParts[
+                                                                        name
+                                                                    ];
+                                                                const showLabel =
+                                                                    index === 0;
+                                                                return (
+                                                                    <ListRowCard
+                                                                        key={
+                                                                            key
+                                                                        }
+                                                                        isManual={
+                                                                            isManual
+                                                                        }
                                                                     >
-                                                                        <AntInput type="hidden" />
-                                                                    </Form.Item>
-                                                                    <Form.Item
-                                                                        name={[
-                                                                            name,
-                                                                            "condition",
-                                                                        ]}
-                                                                        hidden
-                                                                    >
-                                                                        <AntInput type="hidden" />
-                                                                    </Form.Item>
+                                                                        <Form.Item
+                                                                            name={[
+                                                                                name,
+                                                                                "id",
+                                                                            ]}
+                                                                            hidden
+                                                                        >
+                                                                            <AntInput type="hidden" />
+                                                                        </Form.Item>
+                                                                        <Form.Item
+                                                                            name={[
+                                                                                name,
+                                                                                "condition",
+                                                                            ]}
+                                                                            hidden
+                                                                        >
+                                                                            <AntInput type="hidden" />
+                                                                        </Form.Item>
 
-                                                                    <div className="flex items-start gap-2">
-                                                                        <BypassToggle
-                                                                            name={
-                                                                                name
-                                                                            }
-                                                                            fieldKey="bypass_inventory"
-                                                                            showLabel={
-                                                                                showLabel
-                                                                            }
-                                                                            value={
-                                                                                isManual
-                                                                            }
-                                                                            onChange={(
-                                                                                val,
-                                                                            ) => {
-                                                                                // Update both the UI state AND the form field value
-                                                                                setBypassParts(
-                                                                                    (
-                                                                                        p,
-                                                                                    ) => ({
-                                                                                        ...p,
-                                                                                        [name]: val,
-                                                                                    }),
-                                                                                );
-                                                                                // Also update the actual form field
-                                                                                form.setFieldValue(
-                                                                                    [
-                                                                                        "parts",
-                                                                                        name,
-                                                                                        "bypass_inventory",
-                                                                                    ],
-                                                                                    val,
-                                                                                );
-                                                                            }}
-                                                                        />
-
-                                                                        {/*
-                                                                      Both ManualPartFields and CascadingPartFields now return
-                                                                      identical flex divs — no wrapper needed, alignment is native.
-                                                                    */}
-                                                                        {isManual ? (
-                                                                            <ManualPartFields
+                                                                        <div className="flex items-start gap-2">
+                                                                            <BypassToggle
                                                                                 name={
                                                                                     name
                                                                                 }
-                                                                                showLabels={
+                                                                                fieldKey="bypass_inventory"
+                                                                                showLabel={
                                                                                     showLabel
                                                                                 }
+                                                                                value={
+                                                                                    isManual
+                                                                                }
+                                                                                onChange={(
+                                                                                    val,
+                                                                                ) => {
+                                                                                    // Update both the UI state AND the form field value
+                                                                                    setBypassParts(
+                                                                                        (
+                                                                                            p,
+                                                                                        ) => ({
+                                                                                            ...p,
+                                                                                            [name]: val,
+                                                                                        }),
+                                                                                    );
+                                                                                    // Also update the actual form field
+                                                                                    form.setFieldValue(
+                                                                                        [
+                                                                                            "parts",
+                                                                                            name,
+                                                                                            "bypass_inventory",
+                                                                                        ],
+                                                                                        val,
+                                                                                    );
+                                                                                }}
                                                                             />
-                                                                        ) : (
-                                                                            <CascadingPartFields
-                                                                                fieldPrefix={`parts_${name}`}
-                                                                                form={
-                                                                                    form
-                                                                                }
-                                                                                partsHooks={
-                                                                                    partsHooks
-                                                                                }
-                                                                                layout="inline"
-                                                                                showLabels={
-                                                                                    showLabel
-                                                                                }
-                                                                                isFormList={
-                                                                                    true
-                                                                                }
-                                                                                rowIndex={
-                                                                                    name
-                                                                                }
-                                                                                rowData={
-                                                                                    partsData[
+
+                                                                            {/*
+                                                                          Both ManualPartFields and CascadingPartFields now return
+                                                                          identical flex divs — no wrapper needed, alignment is native.
+                                                                        */}
+                                                                            {isManual ? (
+                                                                                <ManualPartFields
+                                                                                    name={
                                                                                         name
-                                                                                    ] ??
-                                                                                    null
+                                                                                    }
+                                                                                    showLabels={
+                                                                                        showLabel
+                                                                                    }
+                                                                                />
+                                                                            ) : (
+                                                                                <CascadingPartFields
+                                                                                    fieldPrefix={`parts_${name}`}
+                                                                                    form={
+                                                                                        form
+                                                                                    }
+                                                                                    partsHooks={
+                                                                                        partsHooks
+                                                                                    }
+                                                                                    layout="inline"
+                                                                                    showLabels={
+                                                                                        showLabel
+                                                                                    }
+                                                                                    isFormList={
+                                                                                        true
+                                                                                    }
+                                                                                    rowIndex={
+                                                                                        name
+                                                                                    }
+                                                                                    rowData={
+                                                                                        partsData[
+                                                                                            name
+                                                                                        ] ??
+                                                                                        null
+                                                                                    }
+                                                                                />
+                                                                            )}
+
+                                                                            <RemoveBtn
+                                                                                onClick={() =>
+                                                                                    handlePartRemove(
+                                                                                        name,
+                                                                                        remove,
+                                                                                    )
                                                                                 }
                                                                             />
-                                                                        )}
+                                                                        </div>
+                                                                    </ListRowCard>
+                                                                );
+                                                            },
+                                                        )}
 
-                                                                        <RemoveBtn
-                                                                            onClick={() =>
-                                                                                handlePartRemove(
-                                                                                    name,
-                                                                                    remove,
-                                                                                )
-                                                                            }
-                                                                        />
-                                                                    </div>
-                                                                </ListRowCard>
-                                                            );
-                                                        },
-                                                    )}
-
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="w-full mt-1 h-9 border-dashed text-muted-foreground hover:text-primary hover:border-primary gap-2 text-xs font-semibold"
-                                                        onClick={() =>
-                                                            add({
-                                                                bypass_inventory: false,
-                                                            })
-                                                        }
-                                                    >
-                                                        <PlusOutlined /> Add
-                                                        Part
-                                                    </Button>
-                                                </>
-                                            )}
-                                        </Form.List>
-                                    </TabsContent>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="w-full mt-1 h-9 border-dashed text-muted-foreground hover:text-primary hover:border-primary gap-2 text-xs font-semibold"
+                                                            onClick={() =>
+                                                                add({
+                                                                    bypass_inventory: false,
+                                                                })
+                                                            }
+                                                        >
+                                                            <PlusOutlined /> Add
+                                                            Part
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </Form.List>
+                                        </TabsContent>
+                                    )}
 
                                     {/* ── Software Tab ── */}
-                                    <TabsContent
-                                        value="software"
-                                        className="px-6 pt-5 pb-6 mt-0 data-[state=inactive]:hidden"
-                                        forceMount
-                                    >
-                                        <Form.List name="software">
-                                            {(fields, { add, remove }) => (
-                                                <>
-                                                    <SectionHeader
-                                                        icon={<CodeOutlined />}
-                                                        title="Installed Software"
-                                                        subtitle="Licenses and applications on this device"
-                                                        count={fields.length}
-                                                    />
-                                                    {fields.length === 0 && (
-                                                        <EmptyState
-                                                            emoji="💿"
-                                                            label="software"
+                                    {includeSoftware && (
+                                        <TabsContent
+                                            value="software"
+                                            className="px-6 pt-5 pb-6 mt-0 data-[state=inactive]:hidden"
+                                            forceMount
+                                        >
+                                            <Form.List name="software">
+                                                {(fields, { add, remove }) => (
+                                                    <>
+                                                        <SectionHeader
+                                                            icon={
+                                                                <CodeOutlined />
+                                                            }
+                                                            title="Installed Software"
+                                                            subtitle="Licenses and applications on this device"
+                                                            count={
+                                                                fields.length
+                                                            }
                                                         />
-                                                    )}
+                                                        {fields.length ===
+                                                            0 && (
+                                                            <EmptyState
+                                                                emoji="💿"
+                                                                label="software"
+                                                            />
+                                                        )}
 
-                                                    {fields.map(
-                                                        (
-                                                            { key, name },
-                                                            index,
-                                                        ) => {
-                                                            const isManual =
-                                                                !!bypassSoftware[
-                                                                    name
-                                                                ];
-                                                            const showLabel =
-                                                                index === 0;
-                                                            return (
-                                                                <ListRowCard
-                                                                    key={key}
-                                                                    isManual={
-                                                                        isManual
-                                                                    }
-                                                                >
-                                                                    <Form.Item
-                                                                        name={[
-                                                                            name,
-                                                                            "id",
-                                                                        ]}
-                                                                        hidden
+                                                        {fields.map(
+                                                            (
+                                                                { key, name },
+                                                                index,
+                                                            ) => {
+                                                                const isManual =
+                                                                    !!bypassSoftware[
+                                                                        name
+                                                                    ];
+                                                                const showLabel =
+                                                                    index === 0;
+                                                                return (
+                                                                    <ListRowCard
+                                                                        key={
+                                                                            key
+                                                                        }
+                                                                        isManual={
+                                                                            isManual
+                                                                        }
                                                                     >
-                                                                        <AntInput type="hidden" />
-                                                                    </Form.Item>
-                                                                    <Form.Item
-                                                                        name={[
-                                                                            name,
-                                                                            "account_user",
-                                                                        ]}
-                                                                        hidden
-                                                                    >
-                                                                        <AntInput type="hidden" />
-                                                                    </Form.Item>
-                                                                    <Form.Item
-                                                                        name={[
-                                                                            name,
-                                                                            "account_password",
-                                                                        ]}
-                                                                        hidden
-                                                                    >
-                                                                        <AntInput type="hidden" />
-                                                                    </Form.Item>
+                                                                        <Form.Item
+                                                                            name={[
+                                                                                name,
+                                                                                "id",
+                                                                            ]}
+                                                                            hidden
+                                                                        >
+                                                                            <AntInput type="hidden" />
+                                                                        </Form.Item>
+                                                                        <Form.Item
+                                                                            name={[
+                                                                                name,
+                                                                                "account_user",
+                                                                            ]}
+                                                                            hidden
+                                                                        >
+                                                                            <AntInput type="hidden" />
+                                                                        </Form.Item>
+                                                                        <Form.Item
+                                                                            name={[
+                                                                                name,
+                                                                                "account_password",
+                                                                            ]}
+                                                                            hidden
+                                                                        >
+                                                                            <AntInput type="hidden" />
+                                                                        </Form.Item>
 
-                                                                    <div className="flex items-start gap-2">
-                                                                        <BypassToggle
-                                                                            name={
-                                                                                name
-                                                                            }
-                                                                            fieldKey="bypass_inventory"
-                                                                            showLabel={
-                                                                                showLabel
-                                                                            }
-                                                                            value={
-                                                                                isManual
-                                                                            }
-                                                                            onChange={(
-                                                                                val,
-                                                                            ) => {
-                                                                                // Update both the UI state AND the form field value
-                                                                                setBypassSoftware(
-                                                                                    (
-                                                                                        p,
-                                                                                    ) => ({
-                                                                                        ...p,
-                                                                                        [name]: val,
-                                                                                    }),
-                                                                                );
-                                                                                // Also update the actual form field
-                                                                                form.setFieldValue(
-                                                                                    [
-                                                                                        "software",
-                                                                                        name,
-                                                                                        "bypass_inventory",
-                                                                                    ],
-                                                                                    val,
-                                                                                );
-                                                                            }}
-                                                                        />
-
-                                                                        {isManual ? (
-                                                                            <ManualSoftwareFields
+                                                                        <div className="flex items-start gap-2">
+                                                                            <BypassToggle
                                                                                 name={
                                                                                     name
                                                                                 }
-                                                                                showLabels={
+                                                                                fieldKey="bypass_inventory"
+                                                                                showLabel={
                                                                                     showLabel
                                                                                 }
+                                                                                value={
+                                                                                    isManual
+                                                                                }
+                                                                                onChange={(
+                                                                                    val,
+                                                                                ) => {
+                                                                                    // Update both the UI state AND the form field value
+                                                                                    setBypassSoftware(
+                                                                                        (
+                                                                                            p,
+                                                                                        ) => ({
+                                                                                            ...p,
+                                                                                            [name]: val,
+                                                                                        }),
+                                                                                    );
+                                                                                    // Also update the actual form field
+                                                                                    form.setFieldValue(
+                                                                                        [
+                                                                                            "software",
+                                                                                            name,
+                                                                                            "bypass_inventory",
+                                                                                        ],
+                                                                                        val,
+                                                                                    );
+                                                                                }}
                                                                             />
-                                                                        ) : (
-                                                                            <CascadingSoftwareFields
-                                                                                fieldPrefix={`software_${name}`}
-                                                                                form={
-                                                                                    form
-                                                                                }
-                                                                                softwareHooks={
-                                                                                    softwareHooks
-                                                                                }
-                                                                                layout="inline"
-                                                                                showLabels={
-                                                                                    showLabel
-                                                                                }
-                                                                                isFormList={
-                                                                                    true
-                                                                                }
-                                                                                rowIndex={
-                                                                                    name
-                                                                                }
-                                                                                rowData={
-                                                                                    softwareData[
+
+                                                                            {isManual ? (
+                                                                                <ManualSoftwareFields
+                                                                                    name={
                                                                                         name
-                                                                                    ] ??
-                                                                                    null
+                                                                                    }
+                                                                                    showLabels={
+                                                                                        showLabel
+                                                                                    }
+                                                                                />
+                                                                            ) : (
+                                                                                <CascadingSoftwareFields
+                                                                                    fieldPrefix={`software_${name}`}
+                                                                                    form={
+                                                                                        form
+                                                                                    }
+                                                                                    softwareHooks={
+                                                                                        softwareHooks
+                                                                                    }
+                                                                                    layout="inline"
+                                                                                    showLabels={
+                                                                                        showLabel
+                                                                                    }
+                                                                                    isFormList={
+                                                                                        true
+                                                                                    }
+                                                                                    rowIndex={
+                                                                                        name
+                                                                                    }
+                                                                                    rowData={
+                                                                                        softwareData[
+                                                                                            name
+                                                                                        ] ??
+                                                                                        null
+                                                                                    }
+                                                                                />
+                                                                            )}
+
+                                                                            <RemoveBtn
+                                                                                onClick={() =>
+                                                                                    handleSoftwareRemove(
+                                                                                        name,
+                                                                                        remove,
+                                                                                    )
                                                                                 }
                                                                             />
-                                                                        )}
+                                                                        </div>
+                                                                    </ListRowCard>
+                                                                );
+                                                            },
+                                                        )}
 
-                                                                        <RemoveBtn
-                                                                            onClick={() =>
-                                                                                handleSoftwareRemove(
-                                                                                    name,
-                                                                                    remove,
-                                                                                )
-                                                                            }
-                                                                        />
-                                                                    </div>
-                                                                </ListRowCard>
-                                                            );
-                                                        },
-                                                    )}
-
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="w-full mt-1 h-9 border-dashed text-muted-foreground hover:text-primary hover:border-primary gap-2 text-xs font-semibold"
-                                                        onClick={() =>
-                                                            add({
-                                                                bypass_inventory: false,
-                                                            })
-                                                        }
-                                                    >
-                                                        <PlusOutlined /> Add
-                                                        Software
-                                                    </Button>
-                                                </>
-                                            )}
-                                        </Form.List>
-                                    </TabsContent>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            className="w-full mt-1 h-9 border-dashed text-muted-foreground hover:text-primary hover:border-primary gap-2 text-xs font-semibold"
+                                                            onClick={() =>
+                                                                add({
+                                                                    bypass_inventory: false,
+                                                                })
+                                                            }
+                                                        >
+                                                            <PlusOutlined /> Add
+                                                            Software
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </Form.List>
+                                        </TabsContent>
+                                    )}
                                 </Tabs>
                             </Form>
                         )}

@@ -55,6 +55,53 @@ class PrinterController extends Controller
     }
 
 
+    public function getPrinterParts(Request $request, $printerId)
+    {
+        try {
+            $printer = $this->printerService->findById($printerId);
+
+            if (!$printer) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Printer not found'
+                ], 404);
+            }
+
+            $parts = $printer->parts()->with('part')->get()->map(function ($printerPart) {
+                return [
+                    'id' => $printerPart->id,
+                    'part_type' => $printerPart->part_type,
+                    'brand' => $printerPart->brand,
+                    'model' => $printerPart->model,
+                    'specifications' => $printerPart->specifications,
+                    'serial_number' => $printerPart->serial_number,
+                    'condition' => $printerPart->condition ?? 'Working',
+                    'status' => $printerPart->status,
+                    'installed_date' => $printerPart->installed_date,
+                    'bypass_inventory' => !$printerPart->source_inventory_id,
+                    'part_info' => $printerPart->part ? [
+                        'part_type' => $printerPart->part->part_type,
+                        'brand' => $printerPart->part->brand,
+                        'model' => $printerPart->part->model,
+                        'specifications' => $printerPart->part->specifications,
+                    ] : null,
+                ];
+            });
+
+            return response()->json($parts);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch printer parts', [
+                'printer_id' => $printerId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function getLogs(Request $request, $printerId)
     {
         try {
@@ -101,6 +148,11 @@ class PrinterController extends Controller
 
             // BUSINESS LOGIC: Delegate to service
             $printer = $this->printerService->create($validated, $employeeId);
+
+            // Process parts if provided
+            if (isset($validated['parts']) && is_array($validated['parts'])) {
+                $this->printerService->processParts($printer, $validated['parts'], $employeeId);
+            }
 
             return response()->json([
                 'success' => true,
@@ -156,6 +208,11 @@ class PrinterController extends Controller
                     'success' => false,
                     'message' => 'Printer not found'
                 ], 404);
+            }
+
+            // Process parts if provided
+            if (isset($validated['parts']) && is_array($validated['parts'])) {
+                $this->printerService->processParts($printer, $validated['parts'], $employeeId);
             }
 
             return response()->json([
@@ -263,6 +320,21 @@ class PrinterController extends Controller
             'toner' => 'nullable|string|max:255',
             'supplier' => 'nullable|string|max:255',
             'status' => 'nullable|integer',
+
+            // Parts (optional)
+            'parts' => 'nullable|array',
+            'parts.*.id' => 'nullable|integer',
+            'parts.*.part_type' => 'required_with:parts|string|max:255',
+            'parts.*.brand' => 'required_with:parts|string|max:255',
+            'parts.*.model' => 'required_with:parts|string|max:255',
+            'parts.*.specifications' => 'nullable|string|max:255',
+            'parts.*.serial_number' => 'nullable|string|max:255',
+            'parts.*.condition' => 'nullable|string|max:255',
+            'parts.*.bypass_inventory' => 'nullable|boolean',
+            'parts.*._delete' => 'nullable|boolean',
+            'parts.*.removal_reason' => 'nullable|string|max:255',
+            'parts.*.removal_condition' => 'nullable|string|max:255',
+            'parts.*.removal_remarks' => 'nullable|string|max:500',
         ]);
     }
 
@@ -291,6 +363,21 @@ class PrinterController extends Controller
             'toner' => 'nullable|string|max:255',
             'supplier' => 'nullable|string|max:255',
             'status' => 'nullable|integer',
+
+            // Parts (optional)
+            'parts' => 'nullable|array',
+            'parts.*.id' => 'nullable|integer',
+            'parts.*.part_type' => 'required_with:parts|string|max:255',
+            'parts.*.brand' => 'required_with:parts|string|max:255',
+            'parts.*.model' => 'required_with:parts|string|max:255',
+            'parts.*.specifications' => 'nullable|string|max:255',
+            'parts.*.serial_number' => 'nullable|string|max:255',
+            'parts.*.condition' => 'nullable|string|max:255',
+            'parts.*.bypass_inventory' => 'nullable|boolean',
+            'parts.*._delete' => 'nullable|boolean',
+            'parts.*.removal_reason' => 'nullable|string|max:255',
+            'parts.*.removal_condition' => 'nullable|string|max:255',
+            'parts.*.removal_remarks' => 'nullable|string|max:500',
         ]);
     }
 }

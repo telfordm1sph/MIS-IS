@@ -27,30 +27,77 @@ import { useComponentSelection } from "@/Hooks/useComponentSelection";
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const ReplaceComponent = ({ componentOptions, hardware }) => {
+/**
+ * A reusable component for selecting a replacement item from inventory.
+ *
+ * Originally written for hardware maintenance, this component is now generic
+ * enough to be used with any "entity" that has `parts` and/or `software`
+ * arrays (e.g. printers).  Callers can supply custom fetch endpoints and
+ * column generators to adapt to different inventory types.
+ *
+ * Props:
+ *   - componentOptions: options for the select dropdown of existing components
+ *   - hardware (deprecated) / entity: the current asset whose component is
+ *     being replaced.  Either prop may be provided for backwards
+ *     compatibility; `entity` takes precedence.
+ *   - fetchEndpoints: optional map `{ part, software }` to override default
+ *     inventory API routes.
+ *   - getColumns: optional map `{ part, software }` with functions that
+ *     return column definitions for the inventory table.
+ */
+const ReplaceComponent = ({
+    componentOptions,
+    hardware, // kept for backwards compatibility
+    entity,
+    fetchEndpoints,
+    getColumns,
+}) => {
     const form = useFormContext();
+
+    const target = entity || hardware; // the object we inspect for parts/software
 
     const [selectedOldComponent, setSelectedOldComponent] = useState(null);
     const [componentType, setComponentType] = useState(null);
     const [selectedComponentInfo, setSelectedComponentInfo] = useState(null);
-    const [selectedPartType, setSelectedPartType] = useState(null);
+    const [selectedSubtype, setSelectedSubtype] = useState(null);
 
     // Live-watch the replacements array from the shared form context
     const replacements =
         useWatch({ name: "replacements", control: form.control }) || [];
+
+    // default endpoints/column generators (same as before)
+    const defaultFetch = {
+        part: route("inventory.parts.available"),
+        software: route("inventory.software.available"),
+    };
+
+    const defaultGetCols = {
+        part: getPartColumns,
+        software: getSoftwareColumns,
+    };
+
+    const endpoints = {
+        ...defaultFetch,
+        ...fetchEndpoints,
+    };
+
+    const columnsProvider = {
+        ...defaultGetCols,
+        ...getColumns,
+    };
 
     const getComponentData = useCallback(
         (componentId) => {
             if (!componentId) return null;
             const [type, id] = componentId.split("_");
             if (type === "part") {
-                const data = hardware?.parts?.find((p) => p.id == id);
+                const data = target?.parts?.find((p) => p.id == id);
                 return { type: "part", data };
             }
-            const data = hardware?.software?.find((s) => s.id == id);
+            const data = target?.software?.find((s) => s.id == id);
             return { type: "software", data };
         },
-        [hardware],
+        [target],
     );
 
     const handleOldComponentChange = (value) => {
@@ -59,7 +106,7 @@ const ReplaceComponent = ({ componentOptions, hardware }) => {
             const info = getComponentData(value);
             setComponentType(info?.type || null);
             setSelectedComponentInfo(info);
-            setSelectedPartType(
+            setSelectedSubtype(
                 info?.type === "part"
                     ? info.data?.part_info?.part_type
                     : info?.data?.inventory?.software_name,
@@ -67,7 +114,7 @@ const ReplaceComponent = ({ componentOptions, hardware }) => {
         } else {
             setComponentType(null);
             setSelectedComponentInfo(null);
-            setSelectedPartType(null);
+            setSelectedSubtype(null);
         }
     };
 
@@ -157,20 +204,12 @@ const ReplaceComponent = ({ componentOptions, hardware }) => {
                         <InventoryTable
                             key={componentType}
                             componentType={componentType}
-                            fetchEndpoint={
-                                componentType === "part"
-                                    ? route("inventory.parts.available")
-                                    : route("inventory.software.available")
-                            }
-                            selectedType={selectedPartType}
+                            fetchEndpoint={endpoints[componentType]}
+                            selectedType={selectedSubtype}
                             onSelectComponent={handleReplacementSelect}
-                            columns={
-                                componentType === "part"
-                                    ? getPartColumns(handleReplacementSelect)
-                                    : getSoftwareColumns(
-                                          handleReplacementSelect,
-                                      )
-                            }
+                            columns={columnsProvider[componentType](
+                                handleReplacementSelect,
+                            )}
                         />
                     </CardContent>
                 </Card>

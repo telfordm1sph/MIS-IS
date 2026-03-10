@@ -170,8 +170,11 @@ const SoftwareTable = () => {
                             <Table className="h-full">
                                 <TableHeader className="sticky top-0 z-30 bg-background">
                                     <TableRow className="border-border/60 hover:bg-transparent">
-                                        {COLUMNS.map((col) => (
-                                            <TableHead className="bg-background text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {COLUMNS.map((col, index) => (
+                                            <TableHead
+                                                key={index}
+                                                className="bg-background text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                                            >
                                                 {col}
                                             </TableHead>
                                         ))}

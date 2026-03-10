@@ -10,6 +10,8 @@ use App\Models\HardwareSoftware;
 use App\Models\HardwareUsers;
 use App\Models\Part;
 use App\Models\PartInventory;
+use App\Models\Printer;
+use App\Models\PrinterPart;
 use App\Models\SoftwareInventory;
 use App\Models\SoftwareLicense;
 use App\Models\User;
@@ -37,7 +39,12 @@ class HardwareRepository
             'installedByUser'
         ]);
     }
-
+    public function findEntityById(int $id, string $entityType = 'hardware')
+    {
+        return $entityType === 'printer'
+            ? Printer::find($id)
+            : Hardware::find($id);
+    }
     /**
      * Paginate query
      * DB OPERATION: Pagination
@@ -247,7 +254,14 @@ class HardwareRepository
             'installedByUser'
         ])->find($hardwareId);
     }
+    public function findEntityWithRelations(int $id, string $entityType = 'hardware')
+    {
+        if ($entityType === 'printer') {
+            return Printer::find($id);
+        }
 
+        return $this->findWithRelations($id);
+    }
     /**
      * Create hardware
      * DB OPERATION: Insert
@@ -352,7 +366,7 @@ class HardwareRepository
         int $amount,
         ?string $reason = null,
         ?int $employeeId = null,
-        ?Hardware $relatedHardware = null
+        $relatedEntity = null
     ): void {
         $inventory = PartInventory::find($inventoryId);
         if ($inventory) {
@@ -374,7 +388,7 @@ class HardwareRepository
                     $inventory->quantity,
                     $reason,
                     $employeeId,
-                    $relatedHardware
+                    $relatedEntity
                 );
             }
         }
@@ -396,7 +410,7 @@ class HardwareRepository
         int $amount,
         ?string $reason = null,
         ?int $employeeId = null,
-        ?Hardware $relatedHardware = null
+        $relatedEntity = null
     ): void {
         $inventory = PartInventory::find($inventoryId);
         if ($inventory) {
@@ -418,7 +432,7 @@ class HardwareRepository
                     $inventory->quantity,
                     $reason,
                     $employeeId,
-                    $relatedHardware
+                    $relatedEntity
                 );
             }
         }
@@ -438,7 +452,7 @@ class HardwareRepository
         int $newQuantity,
         string $reason,
         ?int $employeeId,
-        ?Hardware $relatedHardware = null
+        $relatedEntity = null
     ): void {
         // Load the part relationship if not loaded
         $inventory->loadMissing('part');
@@ -464,8 +478,8 @@ class HardwareRepository
                 'part_info' => $partInfo,
             ],
             'remarks' => $reason,
-            'related_type' => $relatedHardware ? Hardware::class : null,
-            'related_id' => $relatedHardware?->id ?? null,
+            'related_type' => $relatedEntity ? get_class($relatedEntity) : null,
+            'related_id' => $relatedEntity?->id ?? null,
         ]);
     }
 
@@ -512,7 +526,39 @@ class HardwareRepository
             $hardwarePart->delete();
         }
     }
+    public function createEntityPart(array $data, string $entityType = 'hardware')
+    {
+        if ($entityType === 'printer') {
+            $data['printer_id'] = $data['hardware_id'];
+            unset($data['hardware_id']);
+            return PrinterPart::create($data);
+        }
 
+        return HardwarePart::create($data);
+    }
+
+    public function findEntityPartById(int $id, string $entityType = 'hardware')
+    {
+        return $entityType === 'printer'
+            ? PrinterPart::find($id)
+            : HardwarePart::find($id);
+    }
+
+    public function updateEntityPart(int $id, array $data, string $entityType = 'hardware'): void
+    {
+        $part = $this->findEntityPartById($id, $entityType);
+        if ($part) {
+            $part->update($data);
+        }
+    }
+
+    public function deleteEntityPart(int $id, string $entityType = 'hardware'): void
+    {
+        $part = $this->findEntityPartById($id, $entityType);
+        if ($part) {
+            $part->delete();
+        }
+    }
     /**
      * Create log entry for hardware when parts are added/removed
      * DB OPERATION: Insert log
@@ -524,70 +570,67 @@ class HardwareRepository
      * @param string|null $remarks Additional context
      */
     public function logHardwarePartChange(
-        Hardware $hardware,
-        HardwarePart $hardwarePart,
+        $entity,
+        $hardwarePart,
         string $actionType,
         ?int $employeeId = null,
         ?string $remarks = null
     ): void {
-        // Use HardwarePart fields directly as primary source
-        // These are always populated when a part is added to hardware
         $partInfo = "{$hardwarePart->part_type} - {$hardwarePart->brand} {$hardwarePart->model}";
 
         $partDetails = [
-            'part_type' => $hardwarePart->part_type ?? 'Unknown',
-            'brand' => $hardwarePart->brand ?? 'Unknown',
-            'model' => $hardwarePart->model ?? 'Unknown',
-            'serial_number' => $hardwarePart->serial_number,
+            'part_type'      => $hardwarePart->part_type ?? 'Unknown',
+            'brand'          => $hardwarePart->brand ?? 'Unknown',
+            'model'          => $hardwarePart->model ?? 'Unknown',
+            'serial_number'  => $hardwarePart->serial_number,
             'specifications' => $hardwarePart->specifications ?? '-',
-            'quantity' => $hardwarePart->quantity,
+            'quantity'       => $hardwarePart->quantity ?? null,
         ];
 
-        // Helper to format dates properly
         $formatDate = function ($date) {
             if (!$date) return null;
-            if ($date instanceof \Carbon\Carbon) {
-                return $date->format('Y-m-d');
-            }
-            return $date; // Already a string
+            if ($date instanceof \Carbon\Carbon) return $date->format('Y-m-d');
+            return $date;
         };
+
+        $entityName = $entity->hostname ?? $entity->printer_name ?? $entity->id;
 
         if ($actionType === 'part_removed') {
             ActivityLog::create([
-                'loggable_type' => Hardware::class,
-                'loggable_id' => $hardware->id,
-                'action_type' => 'part_removed',
-                'action_by' => $employeeId ?? 'system',
-                'action_at' => now(),
-                'old_values' => [
-                    'hostname' => $hardware->hostname,
-                    'part_info' => $partInfo,
-                    'part_details' => $partDetails,
+                'loggable_type' => get_class($entity),
+                'loggable_id'   => $entity->id,
+                'action_type'   => 'part_removed',
+                'action_by'     => $employeeId ?? 'system',
+                'action_at'     => now(),
+                'old_values'    => [
+                    'entity_name'    => $entityName,
+                    'part_info'      => $partInfo,
+                    'part_details'   => $partDetails,
                     'installed_date' => $formatDate($hardwarePart->installed_date),
-                    'removed_date' => $formatDate($hardwarePart->removed_date),
+                    'removed_date'   => $formatDate($hardwarePart->removed_date),
                 ],
-                'new_values' => null,
-                'remarks' => $remarks ?? "Removed {$hardwarePart->part_type} from hardware",
-                'related_type' => HardwarePart::class,
-                'related_id' => $hardwarePart->id,
+                'new_values'    => null,
+                'remarks'       => $remarks ?? "Removed {$hardwarePart->part_type} from entity",
+                'related_type'  => get_class($hardwarePart),     // ← dynamic
+                'related_id'    => $hardwarePart->id,
             ]);
-        } else { // part_added
+        } else {
             ActivityLog::create([
-                'loggable_type' => Hardware::class,
-                'loggable_id' => $hardware->id,
-                'action_type' => 'part_added',
-                'action_by' => $employeeId ?? 'system',
-                'action_at' => now(),
-                'old_values' => null,
-                'new_values' => [
-                    'hostname' => $hardware->hostname,
-                    'part_info' => $partInfo,
-                    'part_details' => $partDetails,
+                'loggable_type' => get_class($entity),
+                'loggable_id'   => $entity->id,
+                'action_type'   => 'part_added',
+                'action_by'     => $employeeId ?? 'system',
+                'action_at'     => now(),
+                'old_values'    => null,
+                'new_values'    => [
+                    'entity_name'    => $entityName,
+                    'part_info'      => $partInfo,
+                    'part_details'   => $partDetails,
                     'installed_date' => $formatDate($hardwarePart->installed_date),
                 ],
-                'remarks' => $remarks ?? "Added {$hardwarePart->part_type} to hardware",
-                'related_type' => HardwarePart::class,
-                'related_id' => $hardwarePart->id,
+                'remarks'       => $remarks ?? "Added {$hardwarePart->part_type} to entity",
+                'related_type'  => get_class($hardwarePart),
+                'related_id'    => $hardwarePart->id,
             ]);
         }
     }

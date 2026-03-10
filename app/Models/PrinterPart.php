@@ -10,13 +10,12 @@ class PrinterPart extends Model
     use Loggable;
 
     protected $fillable = [
-        'hardware_id',
+        'printer_id',
         'part_type',
         'brand',
         'model',
         'specifications',
         'serial_number',
-        'quantity',
         'status',
         'installed_date',
         'removed_date',
