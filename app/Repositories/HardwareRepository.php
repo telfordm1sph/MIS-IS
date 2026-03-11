@@ -1115,4 +1115,46 @@ class HardwareRepository
 
         return $hardwareSoftware;
     }
+    /**
+     * Check if an active hardware with this hostname exists
+     * DB OPERATION: Existence check
+     */
+    public function activeHostnameExists(string $hostname): bool
+    {
+        return Hardware::where('hostname', $hostname)
+            ->where('status', Status::ACTIVE)
+            ->exists();
+    }
+
+    /**
+     * Check active hostname exists, excluding a specific hardware ID (for updates)
+     * DB OPERATION: Existence check with exclusion
+     */
+    public function activeHostnameExistsExcluding(string $hostname, int $excludeId): bool
+    {
+        return Hardware::where('hostname', $hostname)
+            ->where('status', Status::ACTIVE)
+            ->where('id', '!=', $excludeId)
+            ->exists();
+    }
+
+    /**
+     * Get the next available sequence number for a hostname prefix
+     * Scans ALL statuses so retired names are never reused.
+     * DB OPERATION: Aggregate with substring cast
+     */
+    public function getNextHostnameNumber(string $prefix): int
+    {
+        $latest = Hardware::where('hostname', 'like', $prefix . '%')
+            ->orderByRaw('CAST(SUBSTRING(hostname, ?) AS UNSIGNED) DESC', [strlen($prefix) + 1])
+            ->value('hostname');
+
+        if (!$latest) {
+            return 1;
+        }
+
+        $suffix = substr($latest, strlen($prefix));
+
+        return is_numeric($suffix) ? (int) $suffix + 1 : 1;
+    }
 }

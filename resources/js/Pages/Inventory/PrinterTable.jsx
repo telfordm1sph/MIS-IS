@@ -74,6 +74,7 @@ const PrinterTable = () => {
         openEdit,
         close: closeForm,
         loadingOptions,
+        employeeOptions,
         locationOptions,
     } = useFormDrawer();
 
@@ -217,6 +218,14 @@ const PrinterTable = () => {
                     label: "Category Status",
                     dataIndex: "category_status",
                     type: "input",
+                },
+                {
+                    key: "assignedUsersIds",
+                    label: "Issued To",
+                    dataIndex: "assignedUsersIds",
+                    type: "multiSelect",
+                    options: employeeOptions,
+                    loading: loadingOptions,
                 },
                 {
                     key: "status",

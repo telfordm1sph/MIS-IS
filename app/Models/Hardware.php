@@ -5,9 +5,11 @@ namespace App\Models;
 use App\Constants\Status;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Loggable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Hardware extends Model
 {
+    use HasFactory;
     use Loggable;
 
     protected $fillable = [

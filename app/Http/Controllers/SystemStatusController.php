@@ -35,7 +35,7 @@ class SystemStatusController extends Controller
     {
         $empId = session('emp_data.emp_id');
 
-        if ($empId !== 1705) {
+        if ($empId != 1705) {
             abort(403, 'Unauthorized');
         }
 

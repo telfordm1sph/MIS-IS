@@ -138,6 +138,11 @@ class HardwareUpdateService
         return DB::transaction(function () use ($data, $employeeId) {
             $hardwareData = $this->prepareHardwareData($data, $employeeId, true);
 
+            $hardwareData['hostname'] = $this->resolveHostnameForCreate(
+                $hardwareData['hostname'] ?? null,
+                $hardwareData['category'] ?? null
+            );
+
             $issuedTo = $this->extractIssuedTo($data);
 
             $hardware = $this->hardwareRepository->createHardware($hardwareData);
@@ -180,6 +185,10 @@ class HardwareUpdateService
     {
         return DB::transaction(function () use ($hardwareId, $data, $employeeId) {
             $hardwareData = $this->prepareHardwareData($data, $employeeId, false);
+
+            if (!empty($hardwareData['hostname'])) {
+                $this->validateHostnameUniquenessForUpdate($hardwareData['hostname'], $hardwareId);
+            }
 
             $issuedTo = $this->extractIssuedTo($data);
 
@@ -722,5 +731,53 @@ class HardwareUpdateService
             'software_name' => $softwareData['software_name'],
             'created_by'    => $employeeId,
         ]);
+    }
+    /**
+     * Resolve hostname for creation:
+     * - If provided, check it's not taken by an active hardware
+     * - If empty, auto-generate based on category pattern
+     */
+    private function resolveHostnameForCreate(?string $hostname, ?string $category): string
+    {
+        if (!empty($hostname)) {
+            if ($this->hardwareRepository->activeHostnameExists($hostname)) {
+                throw new \Exception("A hardware with hostname '{$hostname}' is already active.");
+            }
+            return $hostname;
+        }
+
+        return $this->generateHostname($category);
+    }
+
+    /**
+     * Validate hostname is not taken by another active hardware (excluding current)
+     */
+    private function validateHostnameUniquenessForUpdate(string $hostname, int $excludeId): void
+    {
+        if ($this->hardwareRepository->activeHostnameExistsExcluding($hostname, $excludeId)) {
+            throw new \Exception("A hardware with hostname '{$hostname}' is already active.");
+        }
+    }
+
+    /**
+     * Generate the next available hostname based on category.
+     *
+     * Desktop         → TSPI-PC-XXX   (e.g. TSPI-PC-001)
+     * Laptop          → TSPI-LAP-XXX  (e.g. TSPI-LAP-001)
+     * Promis Terminal → TELFORD-WXXX  (e.g. TELFORD-W001)
+     */
+    private function generateHostname(?string $category): string
+    {
+        $prefixMap = [
+            'Desktop'         => 'TSPI-PC-',
+            'Laptop'          => 'TSPI-LAP-',
+            'Promis Terminal' => 'TELFORD-W',
+        ];
+
+        $prefix = $prefixMap[$category] ?? strtoupper(str_replace(' ', '-', $category ?? 'HW')) . '-';
+
+        $nextNumber = $this->hardwareRepository->getNextHostnameNumber($prefix);
+
+        return $prefix . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
     }
 }

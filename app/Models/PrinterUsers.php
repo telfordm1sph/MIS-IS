@@ -5,13 +5,13 @@ namespace App\Models;
 use App\Traits\Loggable;
 use Illuminate\Database\Eloquent\Model;
 
-class HardwareUsers extends Model
+class PrinterUsers extends Model
 {
     use Loggable;
-    protected $table = 'hardware_users';
+    protected $table = 'printer_users';
     protected $connection = 'mysql';
     protected $fillable = [
-        'hardware_id',
+        'printer_id',
         'user_id',
         'date_assigned',
         'assigned_by',
@@ -21,15 +21,15 @@ class HardwareUsers extends Model
     // Relationships
 
 
-    public function hardware()
+    public function printer()
     {
-        return $this->belongsTo(Hardware::class, 'hardware_id');
+        return $this->belongsTo(Printer::class, 'printer_id');
     }
 
 
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id', 'EMPLOYID');
-        // hardware_users.user_id matches employee_masterlist.EMPLOYID
+        // printer_users.user_id matches employee_masterlist.EMPLOYID
     }
 }

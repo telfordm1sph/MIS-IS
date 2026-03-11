@@ -305,7 +305,7 @@ class PrinterController extends Controller
         return $request->validate([
             // Employee ID (optional - only for API requests without session)
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
-
+            'assignedUsersIds'   => ['nullable', 'array'],
             // Printer fields
             'printer_name' => 'required|string|max:255',
             'ip_address' => 'nullable|string|max:255',
@@ -348,7 +348,7 @@ class PrinterController extends Controller
         return $request->validate([
             // Employee ID (optional - only for API requests without session)
             'employee_id' => 'nullable|integer|exists:masterlist.employee_masterlist,EMPLOYID',
-
+            'assignedUsersIds'   => ['nullable', 'array'],
             // Printer fields (all optional for updates)
             'printer_name' => 'sometimes|required|string|max:255',
             'ip_address' => 'nullable|string|max:255',
