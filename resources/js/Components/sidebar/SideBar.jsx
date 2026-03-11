@@ -1,4 +1,4 @@
-import { Link, usePage } from "@inertiajs/react";
+import { Link, usePage, router } from "@inertiajs/react";
 import { useState, useEffect } from "react";
 import Navigation from "@/Components/sidebar/Navigation";
 import { cn } from "@/lib/utils";
@@ -11,24 +11,72 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
     Menu,
     X,
     PanelLeftClose,
     PanelLeftOpen,
     MonitorSmartphone,
+    ShieldAlert,
+    ShieldCheck,
 } from "lucide-react";
 
 export default function Sidebar() {
-    const { display_name, emp_data } = usePage().props;
+    const { display_name, emp_data, system_status } = usePage().props;
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [maintenanceMessage, setMaintenanceMessage] = useState(
+        "System is currently under maintenance.",
+    );
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const isAdmin = emp_data?.emp_id == 1705;
+    const isInMaintenance = system_status?.status === "maintenance";
 
     useEffect(() => setMounted(true), []);
+
     const formattedAppName = display_name
         ?.split(" ")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
+
+    const handleSetMaintenance = () => {
+        setIsSubmitting(true);
+        router.post(
+            route("system-status.maintenance"),
+            { message: maintenanceMessage },
+            {
+                onFinish: () => {
+                    setIsSubmitting(false);
+                    setDialogOpen(false);
+                },
+            },
+        );
+    };
+
+    const handleSetOnline = () => {
+        setIsSubmitting(true);
+        router.post(
+            route("system-status.online"),
+            {},
+            {
+                onFinish: () => setIsSubmitting(false),
+            },
+        );
+    };
+
     if (!mounted) return null;
 
     return (
@@ -113,7 +161,6 @@ export default function Sidebar() {
                                 <MonitorSmartphone className="w-4 h-4 text-white" />
                             </div>
 
-                            {/* App name — only shown when expanded */}
                             {isSidebarOpen && (
                                 <div className="flex flex-col min-w-0">
                                     <span className="text-sm font-semibold text-zinc-100 leading-tight truncate">
@@ -131,6 +178,143 @@ export default function Sidebar() {
                     <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
                         <Navigation isSidebarOpen={isSidebarOpen} />
                     </div>
+
+                    {/* ── Admin: System Status Toggle ── */}
+                    {isAdmin && (
+                        <div
+                            className={cn(
+                                "border-t border-zinc-800/60 p-3",
+                                !isSidebarOpen && "flex justify-center",
+                            )}
+                        >
+                            {isInMaintenance ? (
+                                /* ── Set Online Button ── */
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={handleSetOnline}
+                                            disabled={isSubmitting}
+                                            className={cn(
+                                                "flex items-center gap-2.5 rounded-lg",
+                                                "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20",
+                                                "hover:bg-emerald-500/20 hover:border-emerald-500/40 hover:text-emerald-300",
+                                                "disabled:opacity-50 disabled:cursor-not-allowed",
+                                                "transition-all duration-200",
+                                                isSidebarOpen
+                                                    ? "w-full px-3 py-2 text-xs font-medium"
+                                                    : "w-9 h-9 justify-center",
+                                            )}
+                                        >
+                                            <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+                                            {isSidebarOpen && (
+                                                <span>Set System Online</span>
+                                            )}
+                                        </button>
+                                    </TooltipTrigger>
+                                    {!isSidebarOpen && (
+                                        <TooltipContent side="right">
+                                            Set System Online
+                                        </TooltipContent>
+                                    )}
+                                </Tooltip>
+                            ) : (
+                                /* ── Set Maintenance Button + Dialog ── */
+                                <Dialog
+                                    open={dialogOpen}
+                                    onOpenChange={setDialogOpen}
+                                >
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <DialogTrigger asChild>
+                                                <button
+                                                    className={cn(
+                                                        "flex items-center gap-2.5 rounded-lg",
+                                                        "text-amber-400 bg-amber-500/10 border border-amber-500/20",
+                                                        "hover:bg-amber-500/20 hover:border-amber-500/40 hover:text-amber-300",
+                                                        "transition-all duration-200",
+                                                        isSidebarOpen
+                                                            ? "w-full px-3 py-2 text-xs font-medium"
+                                                            : "w-9 h-9 justify-center",
+                                                    )}
+                                                >
+                                                    <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                                                    {isSidebarOpen && (
+                                                        <span>
+                                                            Set Maintenance
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            </DialogTrigger>
+                                        </TooltipTrigger>
+                                        {!isSidebarOpen && (
+                                            <TooltipContent side="right">
+                                                Set Maintenance Mode
+                                            </TooltipContent>
+                                        )}
+                                    </Tooltip>
+
+                                    <DialogContent className="sm:max-w-md bg-zinc-900 border-zinc-700 text-zinc-100">
+                                        <DialogHeader>
+                                            <DialogTitle className="flex items-center gap-2 text-amber-400">
+                                                <ShieldAlert className="w-5 h-5" />
+                                                Enable Maintenance Mode
+                                            </DialogTitle>
+                                            <DialogDescription className="text-zinc-400">
+                                                The system will be inaccessible
+                                                to regular users. Provide an
+                                                optional message to display.
+                                            </DialogDescription>
+                                        </DialogHeader>
+
+                                        <div className="space-y-2 py-2">
+                                            <Label
+                                                htmlFor="maintenance-message"
+                                                className="text-zinc-300 text-xs font-medium"
+                                            >
+                                                Maintenance Message
+                                            </Label>
+                                            <Textarea
+                                                id="maintenance-message"
+                                                value={maintenanceMessage}
+                                                onChange={(e) =>
+                                                    setMaintenanceMessage(
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                rows={3}
+                                                maxLength={500}
+                                                className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-500 resize-none focus:border-amber-500/50 focus:ring-amber-500/20"
+                                            />
+                                            <p className="text-[11px] text-zinc-600 text-right">
+                                                {maintenanceMessage.length}/500
+                                            </p>
+                                        </div>
+
+                                        <DialogFooter className="gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                onClick={() =>
+                                                    setDialogOpen(false)
+                                                }
+                                                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                onClick={handleSetMaintenance}
+                                                disabled={isSubmitting}
+                                                className="bg-amber-500 hover:bg-amber-600 text-zinc-950 font-semibold disabled:opacity-50"
+                                            >
+                                                {isSubmitting
+                                                    ? "Enabling…"
+                                                    : "Enable Maintenance"}
+                                            </Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
+                            )}
+                        </div>
+                    )}
                 </aside>
             </div>
         </TooltipProvider>

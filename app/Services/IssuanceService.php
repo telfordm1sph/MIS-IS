@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Constants\IssuanceStatus;
 use App\Repositories\IssuanceRepository;
 use App\Repositories\HardwareDetailRepository;
+use App\Repositories\PrinterRepository;
 use App\Repositories\ReferenceRepository;
 use Illuminate\Support\Facades\Log;
 
@@ -14,16 +15,20 @@ class IssuanceService
     protected HardwareDetailRepository $hardwareDetailRepository;
     protected HardwareUpdateService $hardwareUpdateService;
     protected ReferenceRepository $referenceRepository;
+    protected PrinterRepository $printerRepository;
     public function __construct(
         IssuanceRepository $issuanceRepository,
         HardwareDetailRepository $hardwareDetailRepository,
         HardwareUpdateService $hardwareUpdateService,
-        ReferenceRepository $referenceRepository
+        ReferenceRepository $referenceRepository,
+        PrinterRepository $printerRepository
+
     ) {
         $this->issuanceRepository = $issuanceRepository;
         $this->hardwareDetailRepository = $hardwareDetailRepository;
         $this->hardwareUpdateService = $hardwareUpdateService;
         $this->referenceRepository = $referenceRepository;
+        $this->printerRepository = $printerRepository;
     }
 
     /**
@@ -290,7 +295,7 @@ class IssuanceService
                 $this->hardwareUpdateService->updateHardware($hardware->id, [
                     'location'    => $hostnameData['location'] ?? $hardware->location,
                     'date_issued' => now(),
-                    'assignedUsersIds' => [$hostnameData['issued_to']],  
+                    'assignedUsersIds' => [$hostnameData['issued_to']],
                     'status'      => 1,
                     'updated_by'  => $createdBy,
                 ], $createdBy);
@@ -298,7 +303,7 @@ class IssuanceService
                 Log::info('Hardware updated during issuance', [
                     'hardware_id' => $hardware->id,
                     'hostname'    => $hardware->hostname ?? $hardware->serial,
-                    'assignedUsersIds' => [$hostnameData['issued_to']], 
+                    'assignedUsersIds' => [$hostnameData['issued_to']],
                     'location'    => $hostnameData['location'],
                     'updated_by'  => $createdBy,
                 ]);
@@ -334,11 +339,20 @@ class IssuanceService
         try {
             $this->validateOperations($operations);
 
-            $firstOp  = $operations[0];
-            $hardware = $this->hardwareDetailRepository->getHardwareInfoById($firstOp['hardware_id']);
+            $firstOp   = $operations[0];
+            $entityType = $firstOp['entity_type'] ?? 'hardware';
 
+            $hardware = $entityType === 'printer'
+                ? $this->printerRepository->getPrinterInfoById($firstOp['hardware_id'])
+                : $this->hardwareDetailRepository->getHardwareInfoById($firstOp['hardware_id']);
+            Log::info('Entity lookup result', [
+                'entity_type' => $entityType,
+                'hardware_id' => $firstOp['hardware_id'],
+                'found'       => $hardware ? true : false,
+                'model'       => $hardware ? get_class($hardware) : null,
+            ]);
             if (!$hardware) {
-                throw new \Exception("Hardware not found: {$firstOp['hardware_id']}");
+                throw new \Exception("Entity not found: {$firstOp['hardware_id']}");
             }
 
             $issuedTo = $firstOp['issued_to'] ?? $hardware->issued_to ?? $createdBy;
@@ -430,7 +444,7 @@ class IssuanceService
             'operation'      => $operation['operation'],
             'component_type' => $operation['component_type'],
             'hardware_id'    => $hardware->id,
-            'hostname'       => $hardware->hostname ?? $hardware->serial,
+            'hostname' => $hardware->hostname ?? $hardware->printer_name ?? $hardware->serial,
             'issued_to'      => $operation['employee_id'] ?? $hardware->issued_to ?? $employeeId,
             'reason'         => $operation['reason'] ?? null,
             'remarks'        => $operation['remarks'] ?? null,
@@ -448,6 +462,7 @@ class IssuanceService
     {
         $componentData = $this->hardwareUpdateService->addComponent([
             'hardware_id'        => $hardware->id,
+            'entity_type'  => $operation['entity_type'] ?? 'hardware',
             'component_type'     => $operation['component_type'],
             'employee_id'        => $employeeId,
             'new_part_type'      => $operation['new_part_type'] ?? null,
@@ -479,6 +494,7 @@ class IssuanceService
 
         $componentData = $this->hardwareUpdateService->replaceComponent([
             'hardware_id'              => $hardware->id,
+            'entity_type'  => $operation['entity_type'] ?? 'hardware',
             'component_id'             => $operation['component_id'],
             'component_type'           => $operation['component_type'],
             'employee_id'              => $employeeId,
@@ -516,6 +532,7 @@ class IssuanceService
 
         $this->hardwareUpdateService->removeComponent([
             'hardware_id'      => $hardware->id,
+            'entity_type'  => $operation['entity_type'] ?? 'hardware',
             'component_id'     => $operation['component_id'],
             'component_type'   => $operation['component_type'],
             'employee_id'      => $employeeId,
@@ -594,7 +611,7 @@ class IssuanceService
             'issuance_number' => $issuanceNumber,
             'issuance_type'   => 2,
             'issued_to'       => $issuedTo,
-            'hostname'        => $hardware->hostname ?? $hardware->serial,
+            'hostname'        => $hardware->hostname ?? $hardware->printer_name ?? $hardware->serial,
             'hardware_id'     => $hardware->id,
             'location'        => $hardware->location,
             'remarks'         => 'Component maintenance operation',
@@ -636,11 +653,12 @@ class IssuanceService
 
     protected function prepareAcknowledgementData($hardware): array
     {
+        $name = $hardware->hostname ?? $hardware->printer_name ?? $hardware->serial ?? 'Unknown';
         return [
             'reference_type'  => 1,
             'acknowledged_by' => null,
             'status'          => 0,
-            'remarks'         => "Component maintenance on {$hardware->hostname}",
+            'remarks'         => "Component maintenance on {$name}",
         ];
     }
 }

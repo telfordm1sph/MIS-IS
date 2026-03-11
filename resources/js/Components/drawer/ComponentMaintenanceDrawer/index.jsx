@@ -68,7 +68,17 @@ const DEFAULT_VALUES = {
 // Separated so all hooks always run with a valid hardware object,
 // eliminating hook-count changes between renders.
 
-const DrawerContent = ({ open, onClose, hardware, onSave }) => {
+const DrawerContent = ({
+    open,
+    onClose,
+    hardware, // kept for compatibility
+    entity,
+    componentTypes,
+    fetchEndpoints,
+    getColumns,
+    infoFields,
+    onSave,
+}) => {
     const [action, setAction] = useState("replace");
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [pendingData, setPendingData] = useState(null);
@@ -83,7 +93,14 @@ const DrawerContent = ({ open, onClose, hardware, onSave }) => {
         handleComponentTypeSelect,
         getComponentOptions,
         handleClose,
-    } = useComponentMaintenance(form, open, hardware, action, onSave, onClose);
+    } = useComponentMaintenance(
+        form,
+        open,
+        entity || hardware,
+        action,
+        onSave,
+        onClose,
+    );
 
     const handleActionChange = useCallback(
         (val) => {
@@ -97,10 +114,17 @@ const DrawerContent = ({ open, onClose, hardware, onSave }) => {
 
     const buildPayload = useCallback(
         (values) => {
+            const subject = entity || hardware;
+
+            // Detect entity type — printers have printer_name, hardware has hostname
+            const entityType = subject?.printer_name ? "printer" : "hardware";
+
             const base = {
-                hardware_id: hardware.id,
-                hostname: hardware.hostname,
-                issued_to: hardware.issued_to,
+                hardware_id: subject?.id,
+                entity_id: subject?.id,
+                entity_type: entityType, // ← add this
+                hostname: subject?.hostname ?? subject?.printer_name, // ← fallback for printers
+                issued_to: subject?.issued_to,
             };
             const payloads = [];
 
@@ -204,7 +228,7 @@ const DrawerContent = ({ open, onClose, hardware, onSave }) => {
 
             return payloads;
         },
-        [action, hardware],
+        [action, entity, hardware],
     );
 
     // ── Save ──────────────────────────────────────────────────────────────────
@@ -259,7 +283,7 @@ const DrawerContent = ({ open, onClose, hardware, onSave }) => {
             });
 
             toast.success(
-                `Hardware ${action} completed (${payloads.length} item${payloads.length > 1 ? "s" : ""})`,
+                `Component ${action} completed (${payloads.length} item${payloads.length > 1 ? "s" : ""})`,
             );
 
             setShowConfirmModal(false);
@@ -296,14 +320,18 @@ const DrawerContent = ({ open, onClose, hardware, onSave }) => {
                 <SheetHeader className="px-6 py-4 border-b border-border/60 bg-card/80 flex-shrink-0">
                     <SheetTitle className="flex items-center gap-2 text-base">
                         <Wrench className="h-4 w-4 text-muted-foreground" />
-                        Hardware Maintenance
+                        Component Maintenance
                     </SheetTitle>
                 </SheetHeader>
 
                 {/* Body */}
                 <FormProvider {...form}>
                     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-                        <HardwareInfo hardware={hardware} />
+                        <HardwareInfo
+                            hardware={hardware}
+                            entity={entity || hardware}
+                            fields={infoFields}
+                        />
 
                         <Separator />
 
@@ -342,6 +370,9 @@ const DrawerContent = ({ open, onClose, hardware, onSave }) => {
                             <ReplaceComponent
                                 componentOptions={getComponentOptions()}
                                 hardware={hardware}
+                                entity={entity || hardware}
+                                fetchEndpoints={fetchEndpoints}
+                                getColumns={getColumns}
                             />
                         )}
                         {action === "add" && (
@@ -350,11 +381,16 @@ const DrawerContent = ({ open, onClose, hardware, onSave }) => {
                                 onComponentTypeSelect={
                                     handleComponentTypeSelect
                                 }
+                                componentTypes={componentTypes}
+                                fetchEndpoints={fetchEndpoints}
+                                getColumns={getColumns}
                             />
                         )}
                         {action === "remove" && (
                             <RemoveComponent
                                 componentOptions={getComponentOptions()}
+                                hardware={hardware}
+                                entity={entity || hardware}
                             />
                         )}
                     </div>
@@ -405,14 +441,29 @@ const DrawerContent = ({ open, onClose, hardware, onSave }) => {
 // This prevents hooks inside DrawerContent from running with null hardware,
 // which was causing the "Rendered more hooks than previous render" error.
 
-const ComponentMaintenanceDrawer = ({ open, onClose, hardware, onSave }) => {
+const ComponentMaintenanceDrawer = ({
+    open,
+    onClose,
+    hardware,
+    entity,
+    componentTypes,
+    fetchEndpoints,
+    getColumns,
+    infoFields,
+    onSave,
+}) => {
     return (
         <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-            {hardware && (
+            {(hardware || entity) && (
                 <DrawerContent
                     open={open}
                     onClose={onClose}
                     hardware={hardware}
+                    entity={entity}
+                    componentTypes={componentTypes}
+                    fetchEndpoints={fetchEndpoints}
+                    getColumns={getColumns}
+                    infoFields={infoFields}
                     onSave={onSave}
                 />
             )}

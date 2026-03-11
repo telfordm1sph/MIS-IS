@@ -2,16 +2,18 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\SystemStatusService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
-
 class AuthMiddleware
 {
-
+    public function __construct(
+        protected SystemStatusService $systemStatusService
+    ) {}
 
     public function handle(Request $request, Closure $next)
     {
@@ -48,6 +50,14 @@ class AuthMiddleware
                 return redirect($url)->withCookie($cookie);
             }
 
+            // 🔹 Check maintenance mode — skip for logout & system-status routes
+            if (!$this->isBypassRoute($request)) {
+                $maintenanceResponse = $this->checkMaintenance($request);
+                if ($maintenanceResponse) {
+                    return $maintenanceResponse;
+                }
+            }
+
             return $next($request)->withCookie($cookie);
         }
 
@@ -62,50 +72,45 @@ class AuthMiddleware
             setcookie('sso_token', '', time() - 3600, '/');
             return $this->redirectToLogin($request);
         }
-        $isFromAllowed = $currentUser->emp_from === NULL;
+
+        $isFromAllowed = $currentUser->emp_from === null;
         $hasRoleAccess = stripos($currentUser->emp_dept, 'MIS') !== false;
-        // dd($currentUser);
-        $canAccess = $isFromAllowed && $hasRoleAccess;
+        $canAccess     = $isFromAllowed && $hasRoleAccess;
+
         if (!$canAccess) {
             session()->forget('emp_data');
             session()->flush();
             $redirectUrl = urlencode(route('dashboard'));
-            $authifyUrl = "http://192.168.1.27:8080/authify/public/logout?redirect={$redirectUrl}";
+            $authifyUrl  = "http://192.168.1.27:8080/authify/public/logout?redirect={$redirectUrl}";
+
             return Inertia::render('Unauthorized', [
                 'logoutUrl' => $authifyUrl,
-                'message' => 'Access Restricted: You do not have permission to access this app.',
+                'message'   => 'Access Restricted: You do not have permission to access this app.',
             ])->toResponse($request)->setStatusCode(403);
         }
-        // 🔹 Get user roles (now returns array)
+
         $userId = $currentUser->emp_id;
-        // $userRoles = $this->userRoleService->getRole($userId);
 
-        Log::info('User roles fetched', [
-            'emp_id' => $userId,
-            // 'roles' => $userRoles,
-        ]);
+        Log::info('User roles fetched', ['emp_id' => $userId]);
 
-        // 🔹 Set session with roles array
+        // 🔹 Set session
         session(['emp_data' => [
-            'token'          => $currentUser->token,
-            'emp_id'         => $currentUser->emp_id,
-            'emp_name'       => $currentUser->emp_name,
-            'emp_firstname'  => $currentUser->emp_firstname,
-            'emp_jobtitle'   => $currentUser->emp_jobtitle,
-            'emp_dept'       => $currentUser->emp_dept,
-            'emp_prodline'   => $currentUser->emp_prodline,
-            'emp_station'    => $currentUser->emp_station,
-            'emp_position'   => $currentUser->emp_position,
-            // 'emp_user_roles' => $userRoles,
-            'generated_at'   => $currentUser->generated_at,
+            'token'         => $currentUser->token,
+            'emp_id'        => $currentUser->emp_id,
+            'emp_name'      => $currentUser->emp_name,
+            'emp_firstname' => $currentUser->emp_firstname,
+            'emp_jobtitle'  => $currentUser->emp_jobtitle,
+            'emp_dept'      => $currentUser->emp_dept,
+            'emp_prodline'  => $currentUser->emp_prodline,
+            'emp_station'   => $currentUser->emp_station,
+            'emp_position'  => $currentUser->emp_position,
+            'generated_at'  => $currentUser->generated_at,
         ]]);
 
-        session()->save(); // force immediate save
+        session()->save();
 
-        // 🔹 Set user resolver
         $request->setUserResolver(fn() => (object) session('emp_data'));
 
-        // 🔹 Set cookie for 7 days
         $cookie = cookie('sso_token', $currentUser->token, 60 * 24 * 7, '/', null, false, true);
 
         // 🔹 Redirect once if token came from query
@@ -119,8 +124,45 @@ class AuthMiddleware
             return redirect($url)->withCookie($cookie);
         }
 
-        // 🔹 Continue request with cookie
+        // 🔹 Check maintenance mode — skip for logout & system-status routes
+        if (!$this->isBypassRoute($request)) {
+            $maintenanceResponse = $this->checkMaintenance($request);
+            if ($maintenanceResponse) {
+                return $maintenanceResponse;
+            }
+        }
+
         return $next($request)->withCookie($cookie);
+    }
+
+    /**
+     * Routes that should bypass the maintenance check.
+     * Logout and system-status toggles must always be reachable.
+     */
+    private function isBypassRoute(Request $request): bool
+    {
+        return $request->routeIs('logout')
+            || $request->routeIs('system-status.online')
+            || $request->routeIs('system-status.maintenance');
+    }
+
+    /**
+     * Returns an Inertia maintenance response if system is in maintenance.
+     */
+    private function checkMaintenance(Request $request): mixed
+    {
+        if (!$this->systemStatusService->isInMaintenance()) {
+            return null;
+        }
+
+        $logoutUrl = route('logout');
+        $status    = $this->systemStatusService->getCurrent();
+
+        return Inertia::render('Maintenance', [
+            'emp_data'  => session('emp_data'),
+            'message'   => $status->message,
+            'logoutUrl' => $logoutUrl,
+        ])->toResponse($request)->setStatusCode(503);
     }
 
     private function redirectToLogin(Request $request)

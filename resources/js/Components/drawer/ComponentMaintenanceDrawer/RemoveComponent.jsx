@@ -34,7 +34,12 @@ const CONDITION_REASON_MAP = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const RemoveComponent = ({ componentOptions = [], hardware }) => {
+/**
+ * Generic UI for removing components from an asset.  The componentOptions
+ * dropdown is provided by the caller.  The `entity` prop replaces the old
+ * `hardware` prop to make this usable for printers or other asset types.
+ */
+const RemoveComponent = ({ componentOptions = [], hardware, entity }) => {
     const form = useFormContext();
     const {
         control,
@@ -44,12 +49,14 @@ const RemoveComponent = ({ componentOptions = [], hardware }) => {
         formState: { errors },
     } = form;
 
+    const target = entity || hardware; // kept for future use or compatibility
+
     const { fields, append, remove } = useFieldArray({
         control,
         name: "components_to_remove",
     });
 
-    // Helper: parse component ID into type and numeric ID
+    // Helper: parse component ID into type and numeric ID (same as before)
     const getComponentData = useCallback((componentId) => {
         if (!componentId) return null;
         const [type, id] = componentId.split("_");

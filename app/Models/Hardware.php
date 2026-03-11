@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Constants\Status;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Loggable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Hardware extends Model
 {
+    use HasFactory;
     use Loggable;
 
     protected $fillable = [
@@ -15,8 +18,8 @@ class Hardware extends Model
         'brand',
         'model',
         'serial_number',
-        'processor',
-        'motherboard',
+        // 'processor',
+        // 'motherboard',
         'ip_address',
         'wifi_mac',
         'lan_mac',
@@ -47,7 +50,7 @@ class Hardware extends Model
     // Scopes
     public function scopeActive($query)
     {
-        return $query->where('status', \App\Constants\Status::ACTIVE);
+        return $query->where('status', Status::ACTIVE);
     }
 
     // Relationships

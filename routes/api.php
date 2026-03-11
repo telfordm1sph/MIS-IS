@@ -11,7 +11,7 @@ require __DIR__ . '/api/apiPrinter.php';
 require __DIR__ . '/api/apicctv.php';
 require __DIR__ . '/api/apiIssuance.php';
 require __DIR__ . '/api/apiEmp.php';
-require __DIR__ . '/api/apiPromis.php';
+
 require __DIR__ . '/api/apiDashboard.php';
 
 

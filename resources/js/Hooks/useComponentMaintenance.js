@@ -15,7 +15,7 @@ const DEFAULT_VALUES = {
 export const useComponentMaintenance = (
     form,
     open,
-    hardware,
+    entity, // formerly "hardware"
     action,
     onSave,
     onClose,
@@ -54,7 +54,7 @@ export const useComponentMaintenance = (
 
     // Reset and load inventory when drawer opens — guard inside effect, not around hooks
     useEffect(() => {
-        if (!open || !hardware) return;
+        if (!open || !entity) return;
 
         form.reset(DEFAULT_VALUES);
         resetAddSelection();
@@ -63,24 +63,24 @@ export const useComponentMaintenance = (
         partsHooks.loadPartTypes();
         softwareHooks.loadSoftwareNames();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, hardware?.id, action]);
+    }, [open, entity?.id, action]);
 
     const getComponentOptions = useCallback(() => {
         const options = [];
-        hardware?.parts?.forEach((part) => {
+        entity?.parts?.forEach((part) => {
             options.push({
                 label: `[Part] ${part.part_info?.part_type || "Part"}: ${part.part_info?.brand || ""} ${part.part_info?.model || ""} - ${part.part_info?.specifications || ""} - ${part?.serial_number || ""}`,
                 value: `part_${part.id}`,
             });
         });
-        hardware?.software?.forEach((sw) => {
+        entity?.software?.forEach((sw) => {
             options.push({
                 label: `[Software] ${sw.inventory?.software_name || "Software"} ${sw.inventory?.version || ""} (${sw.inventory?.software_type || ""})`,
                 value: `software_${sw.id}`,
             });
         });
         return options;
-    }, [hardware]);
+    }, [entity]);
 
     const handleComponentTypeSelect = useCallback((componentType) => {
         setSelectedComponentType(componentType);
@@ -142,15 +142,17 @@ export const useComponentMaintenance = (
             setLoading(true);
             try {
                 let payload = {
-                    hardware_id: hardware?.id,
-                    hostname: hardware?.hostname,
+                    // maintain the old field for backward compatibility
+                    hardware_id: entity?.id,
+                    entity_id: entity?.id,
+                    hostname: entity?.hostname,
                     action,
                     component_type: selectedComponentType,
                     employee_id: emp_data?.emp_id,
                     ...values,
                 };
                 payload = parseSpecsAndCondition(payload);
-                toast.success(`Hardware ${action}d successfully`);
+                toast.success(`Item ${action}d successfully`);
                 onSave?.(payload);
                 handleClose();
             } catch (err) {
@@ -161,7 +163,7 @@ export const useComponentMaintenance = (
             }
             // eslint-disable-next-line react-hooks/exhaustive-deps
         },
-        [hardware, action, selectedComponentType, emp_data],
+        [entity, action, selectedComponentType, emp_data],
     );
 
     return {

@@ -18,10 +18,18 @@ class Printer extends Model
         'brand',
         'model',
         'serial_number',
-        'dpi',
         'category_status',
-        'toner',
         'supplier',
         'status',
     ];
+
+    // Relationships
+    public function parts()
+    {
+        return $this->hasMany(PrinterPart::class, 'printer_id', 'id');
+    }
+    public function locationDetail()
+    {
+        return $this->belongsTo(Locations::class, 'location', 'id');
+    }
 }

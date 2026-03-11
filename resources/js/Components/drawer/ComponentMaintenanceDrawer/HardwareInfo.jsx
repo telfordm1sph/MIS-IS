@@ -1,14 +1,19 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 
-const HardwareInfo = ({ hardware }) => {
-    const fields = [
-        { label: "Hostname", value: hardware?.hostname },
-        { label: "Brand", value: hardware?.brand },
-        { label: "Model", value: hardware?.model },
-        { label: "Category", value: hardware?.category },
-        { label: "Issued To", value: hardware?.issued_to_label },
+const HardwareInfo = ({ hardware, entity, fields }) => {
+    const target = entity || hardware;
+
+    // Default fields for hardware if not provided
+    const defaultFields = [
+        { label: "Hostname", key: "hostname" },
+        { label: "Brand", key: "brand" },
+        { label: "Model", key: "model" },
+        { label: "Category", key: "category" },
+        { label: "Issued To", key: "issued_to_label" },
     ];
+
+    const displayFields = fields || defaultFields;
 
     // Map Ant Design color names → Tailwind badge variants / custom classes
     const statusColorMap = {
@@ -36,31 +41,31 @@ const HardwareInfo = ({ hardware }) => {
     };
 
     const statusClass =
-        statusColorMap[hardware?.status_color] || statusColorMap.default;
+        statusColorMap[target?.status_color] || statusColorMap.default;
 
     return (
         <div className="rounded-lg border border-border bg-card overflow-hidden">
             {/* Header */}
             <div className="px-4 py-3 bg-muted/40 border-b border-border">
                 <h3 className="text-sm font-semibold text-foreground">
-                    Hardware Information
+                    Asset Information
                 </h3>
             </div>
 
             {/* Grid */}
             <div className="grid grid-cols-3 divide-x divide-y divide-border/60">
-                {fields.map(({ label, value }) => (
-                    <div key={label} className="px-4 py-3">
+                {displayFields.map(({ label, key }) => (
+                    <div key={key} className="px-4 py-3">
                         <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
                             {label}
                         </p>
                         <p className="text-sm font-medium text-foreground">
-                            {value || "—"}
+                            {target?.[key] || "—"}
                         </p>
                     </div>
                 ))}
 
-                {/* Status spans full width if odd number */}
+                {/* Status spans another row */}
                 <div className="px-4 py-3">
                     <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
                         Status
@@ -68,7 +73,7 @@ const HardwareInfo = ({ hardware }) => {
                     <span
                         className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusClass}`}
                     >
-                        {hardware?.status_label || "—"}
+                        {target?.status_label || "—"}
                     </span>
                 </div>
             </div>

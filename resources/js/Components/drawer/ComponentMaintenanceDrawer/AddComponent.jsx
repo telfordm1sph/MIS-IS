@@ -17,15 +17,47 @@ import { getPartColumns, getSoftwareColumns } from "@/Utils/inventoryColumns";
 import { useComponentManagement } from "@/Hooks/useComponentManagement";
 import { useComponentSelection } from "@/Hooks/useComponentSelection";
 
-const COMPONENT_TYPES = [
+// default component type options used when caller does not supply their own
+const DEFAULT_COMPONENT_TYPES = [
     { label: "Hardware Part", value: "part" },
     { label: "Software", value: "software" },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const AddComponent = ({ selectedComponentType, onComponentTypeSelect }) => {
+/**
+ * Generic component addition UI.  Caller can override available types,
+ * inventory endpoints, and column definitions.  Defaults assume hardware with
+ * both parts and software inventories, but printers may only supply a single
+ * "part" type and custom endpoints.
+ *
+ * Props:
+ *   - selectedComponentType, onComponentTypeSelect: controlled selection state
+ *   - componentTypes: array of {label,value} pairs for the type selector
+ *   - fetchEndpoints: map `{ part, software }` to override inventory routes
+ *   - getColumns: map `{ part, software }` of functions returning column defs
+ */
+const AddComponent = ({
+    selectedComponentType,
+    onComponentTypeSelect,
+    componentTypes = DEFAULT_COMPONENT_TYPES,
+    fetchEndpoints,
+    getColumns,
+}) => {
     const form = useFormContext();
+
+    // allow caller to provide custom endpoints/columns; fall back to hardware defaults
+    const defaultFetch = {
+        part: route("inventory.parts.available"),
+        software: route("inventory.software.available"),
+    };
+    const endpoints = { ...defaultFetch, ...fetchEndpoints };
+
+    const defaultGetCols = {
+        part: getPartColumns,
+        software: getSoftwareColumns,
+    };
+    const columnsProvider = { ...defaultGetCols, ...getColumns };
 
     // Live-watch the components array
     const selectedComponents =
@@ -76,7 +108,7 @@ const AddComponent = ({ selectedComponentType, onComponentTypeSelect }) => {
                                 <SelectValue placeholder="Select type" />
                             </SelectTrigger>
                             <SelectContent>
-                                {COMPONENT_TYPES.map((t) => (
+                                {componentTypes.map((t) => (
                                     <SelectItem key={t.value} value={t.value}>
                                         {t.label}
                                     </SelectItem>
@@ -99,17 +131,11 @@ const AddComponent = ({ selectedComponentType, onComponentTypeSelect }) => {
                         <InventoryTable
                             key={selectedComponentType}
                             componentType={selectedComponentType}
-                            fetchEndpoint={
-                                selectedComponentType === "part"
-                                    ? route("inventory.parts.available")
-                                    : route("inventory.software.available")
-                            }
+                            fetchEndpoint={endpoints[selectedComponentType]}
                             onSelectComponent={handleAddSelect}
-                            columns={
-                                selectedComponentType === "part"
-                                    ? getPartColumns(handleAddSelect)
-                                    : getSoftwareColumns(handleAddSelect)
-                            }
+                            columns={columnsProvider[selectedComponentType](
+                                handleAddSelect,
+                            )}
                         />
                     </CardContent>
                 </Card>

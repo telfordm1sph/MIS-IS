@@ -59,7 +59,7 @@ import CategoryBadge from "@/Components/inventory/CategoryBadge";
 import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
 import ComponentMaintenanceDrawer from "@/Components/drawer/ComponentMaintenanceDrawer";
 import axios from "axios";
-import { TablePagination } from "@/Components/TablePagination";
+import TablePagination from "@/Components/TablePagination";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -128,7 +128,7 @@ const HardwareTable = () => {
     } = useLogsModal();
 
     const [maintenanceDrawerOpen, setMaintenanceDrawerOpen] = useState(false);
-    const [selectedHardware, setSelectedHardware] = useState(null);
+    const [selectedEntity, setSelectedEntity] = useState(null); // generic entity (hardware/printer/etc)
 
     const {
         searchText,
@@ -162,7 +162,7 @@ const HardwareTable = () => {
         if (result?.success) closeForm();
     };
 
-    const fetchHardwareDetails = async (id) => {
+    const fetchEntityDetails = async (id) => {
         try {
             const [partsRes, softwareRes] = await Promise.all([
                 axios.get(route("hardware.parts.list", id)),
@@ -178,21 +178,21 @@ const HardwareTable = () => {
     };
     const handleMaintenanceClose = useCallback(() => {
         setMaintenanceDrawerOpen(false);
-        setTimeout(() => setSelectedHardware(null), 300); // wait for Sheet animation
+        setTimeout(() => setSelectedEntity(null), 300); // wait for Sheet animation
     }, []);
     const handleView = async (record) => {
-        const details = await fetchHardwareDetails(record.id);
+        const details = await fetchEntityDetails(record.id);
         openDrawer({ ...record, ...details });
     };
 
     const handleEdit = async (record) => {
-        const details = await fetchHardwareDetails(record.id);
+        const details = await fetchEntityDetails(record.id);
         openEdit({ ...record, ...details });
     };
 
     const handleOpenMaintenance = async (record) => {
-        const details = await fetchHardwareDetails(record.id);
-        setSelectedHardware({ ...record, ...details });
+        const details = await fetchEntityDetails(record.id);
+        setSelectedEntity({ ...record, ...details });
         setMaintenanceDrawerOpen(true);
     };
 
@@ -735,11 +735,23 @@ const HardwareTable = () => {
                         fieldGroups={formFieldGroups}
                     />
 
-                    {selectedHardware && ( // ✅ FIX 1: don't mount until hardware exists
+                    {selectedEntity && ( // generic entity exists
                         <ComponentMaintenanceDrawer
                             open={maintenanceDrawerOpen}
-                            onClose={handleMaintenanceClose} // ✅ FIX 2: delayed null
-                            hardware={selectedHardware}
+                            onClose={handleMaintenanceClose} // delayed null
+                            hardware={selectedEntity} // legacy prop
+                            entity={selectedEntity} // generic prop
+                            componentTypes={[
+                                { label: "Hardware Part", value: "part" },
+                                { label: "Software", value: "software" },
+                            ]}
+                            infoFields={[
+                                { label: "Hostname", key: "hostname" },
+                                { label: "Brand", key: "brand" },
+                                { label: "Model", key: "model" },
+                                { label: "Category", key: "category" },
+                                { label: "Issued To", key: "issued_to_label" },
+                            ]}
                             onSave={() => router.reload({ only: ["hardware"] })}
                         />
                     )}

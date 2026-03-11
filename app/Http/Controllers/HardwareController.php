@@ -103,7 +103,7 @@ class HardwareController extends Controller
      */
     public function store(Request $request)
     {
-        dd($request->all());
+        // dd($request->all());
         try {
             // Get employee ID from either session or request
             $employeeId = $this->getEmployeeId($request);

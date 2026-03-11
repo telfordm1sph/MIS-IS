@@ -76,6 +76,7 @@ class IssuanceController extends Controller
                 'operations.*.reason' => 'nullable|string',
                 'operations.*.remarks' => 'nullable|string',
 
+                'operations.*.entity_type' => 'nullable|string|in:hardware,printer',
                 // ADD operation fields
                 'operations.*.new_component_id' => 'nullable|integer',
                 'operations.*.new_part_type' => 'nullable|string',
