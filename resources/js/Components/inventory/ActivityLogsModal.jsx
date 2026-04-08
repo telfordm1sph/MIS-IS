@@ -5,10 +5,10 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@/Components/ui/dialog";
+import { Badge } from "@/Components/ui/badge";
+import { Avatar, AvatarFallback } from "@/Components/ui/avatar";
+import { Skeleton } from "@/Components/ui/skeleton";
 import {
     Clock,
     PlusCircle,

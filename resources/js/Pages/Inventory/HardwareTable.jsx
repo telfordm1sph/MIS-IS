@@ -2,10 +2,10 @@ import React, { useCallback, useMemo, useState } from "react";
 import { usePage, router } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/Components/ui/button";
+import { Badge } from "@/Components/ui/badge";
+import { Avatar, AvatarFallback } from "@/Components/ui/avatar";
+import { Card, CardContent, CardHeader } from "@/Components/ui/card";
 import {
     Table,
     TableBody,
@@ -13,20 +13,20 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "@/components/ui/table";
+} from "@/Components/ui/table";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/Components/ui/dropdown-menu";
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@/Components/ui/tooltip";
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -34,7 +34,7 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
     BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+} from "@/Components/ui/breadcrumb";
 import {
     Plus,
     Eye,
@@ -212,8 +212,8 @@ const HardwareTable = () => {
             { label: "Model", value: item.model || "-" },
             { label: "Category", value: item.category || "-" },
             { label: "Serial Number", value: item.serial_number || "-" },
-            { label: "Processor", value: item.processor || "-" },
-            { label: "Motherboard", value: item.motherboard || "-" },
+            // { label: "Processor", value: item.processor || "-" },
+            // { label: "Motherboard", value: item.motherboard || "-" },
             { label: "IP Address", value: item.ip_address || "-" },
             { label: "Wifi MAC", value: item.wifi_mac || "-" },
             { label: "LAN MAC", value: item.lan_mac || "-" },
@@ -346,18 +346,18 @@ const HardwareTable = () => {
                         dataIndex: "serial_number",
                         type: "input",
                     },
-                    {
-                        key: "processor",
-                        label: "Processor",
-                        dataIndex: "processor",
-                        type: "input",
-                    },
-                    {
-                        key: "motherboard",
-                        label: "Motherboard",
-                        dataIndex: "motherboard",
-                        type: "input",
-                    },
+                    // {
+                    //     key: "processor",
+                    //     label: "Processor",
+                    //     dataIndex: "processor",
+                    //     type: "input",
+                    // },
+                    // {
+                    //     key: "motherboard",
+                    //     label: "Motherboard",
+                    //     dataIndex: "motherboard",
+                    //     type: "input",
+                    // },
                     {
                         key: "ip_address",
                         label: "IP Address",

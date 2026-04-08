@@ -19,19 +19,19 @@ import {
     SheetContent,
     SheetHeader,
     SheetTitle,
-} from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+} from "@/Components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/Components/ui/tabs";
+import { Button } from "@/Components/ui/button";
+import { Input } from "@/Components/ui/input";
+import { Label } from "@/Components/ui/label";
+import { Badge } from "@/Components/ui/badge";
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Combobox, MultiCombobox } from "@/Components/ui/Combobox";
+} from "@/Components/ui/tooltip";
+import { Combobox, MultiCombobox } from "@/Components/ui/combobox";
 
 import RemovalReasonModal from "../modal/RemovalReasonModal";
 import { useHardwareParts } from "@/Hooks/useHardwareParts";
@@ -515,7 +515,9 @@ const HardwareFormDrawer = ({
                 includeParts && flatParts.length > 0
                     ? flatParts
                           .filter((part) => !part.bypass_inventory)
-                          .map((part) => partsHooks.preloadPartData?.(part))
+                          .map((part, index) =>
+                              partsHooks.preloadPartData?.(part, index),
+                          )
                     : [];
 
             // Preload all software data in parallel
@@ -523,7 +525,9 @@ const HardwareFormDrawer = ({
                 includeSoftware && flatSoftware.length > 0
                     ? flatSoftware
                           .filter((sw) => !sw.bypass_inventory)
-                          .map((sw) => softwareHooks.preloadSoftwareData?.(sw))
+                          .map((sw, index) =>
+                              softwareHooks.preloadSoftwareData?.(sw, index),
+                          )
                     : [];
 
             // Wait for all preloads to complete before setting loading to false
@@ -766,6 +770,19 @@ const HardwareFormDrawer = ({
                                 form={form}
                                 layout="vertical"
                                 onFinish={handleFinish}
+                                onFinishFailed={(errorInfo) => {
+                                    console.log(
+                                        "Form validation failed:",
+                                        errorInfo,
+                                    );
+                                    // Log each field error
+                                    errorInfo.errorFields.forEach((field) => {
+                                        console.log(
+                                            `Field ${field.name.join(".")} failed:`,
+                                            field.errors,
+                                        );
+                                    });
+                                }}
                                 autoComplete="off"
                             >
                                 <Tabs

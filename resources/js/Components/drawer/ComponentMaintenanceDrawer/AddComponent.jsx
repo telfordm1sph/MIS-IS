@@ -7,9 +7,9 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+} from "@/Components/ui/select";
+import { Label } from "@/Components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/Components/ui/card";
 
 import InventoryTable from "./InventoryTable";
 import ComponentsReviewTable from "./ComponentsReviewTable";

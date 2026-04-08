@@ -5,13 +5,13 @@ import {
     SheetHeader,
     SheetTitle,
     SheetDescription,
-} from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+} from "@/Components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/Components/ui/tabs";
+import { Badge } from "@/Components/ui/badge";
+import { Skeleton } from "@/Components/ui/skeleton";
+import { Separator } from "@/Components/ui/separator";
+import { ScrollArea } from "@/Components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/Components/ui/card";
 import { Cpu, Package, Code2, ServerCrash } from "lucide-react";
 
 // ---------------------------------------------------------------------------

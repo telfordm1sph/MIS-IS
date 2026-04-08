@@ -1,11 +1,11 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/Components/ui/skeleton";
 import {
     ChartContainer,
     ChartTooltip,
     ChartTooltipContent,
     ChartLegend,
     ChartLegendContent,
-} from "@/components/ui/chart";
+} from "@/Components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 // ─── Condition meta ───────────────────────────────────────────────────────────

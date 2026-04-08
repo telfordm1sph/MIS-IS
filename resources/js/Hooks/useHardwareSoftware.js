@@ -1,49 +1,46 @@
 import { useSoftwareStore } from "@/store/useSoftwareStore";
 
-// form param removed — store actions no longer call form.setFieldsValue
 export const useHardwareSoftware = () => {
-    const options = useSoftwareStore((state) => state.options);
-    const loading = useSoftwareStore((state) => state.loading);
-    const loadSoftwareNames = useSoftwareStore(
-        (state) => state.loadSoftwareNames,
-    );
-    const loadSoftwareTypes = useSoftwareStore(
-        (state) => state.loadSoftwareTypes,
-    );
-    const loadSoftwareVersions = useSoftwareStore(
-        (state) => state.loadSoftwareVersions,
-    );
-    const loadSoftwareLicenses = useSoftwareStore(
-        (state) => state.loadSoftwareLicenses,
-    );
-    const resetTypes = useSoftwareStore((state) => state.resetTypes);
-    const resetVersions = useSoftwareStore((state) => state.resetVersions);
-    const resetLicenses = useSoftwareStore((state) => state.resetLicenses);
+    const {
+        options,
+        loading,
+        loadSoftwareNames,
+        loadSoftwareTypes,
+        loadSoftwareVersions,
+        loadSoftwareLicenses,
+        resetTypes,
+        resetVersions,
+        resetLicenses,
+        preloadSoftwareData,
+    } = useSoftwareStore((state) => state);
 
     const getSoftwareOptions = (fieldName, dataIndex) => {
-        if (dataIndex === "software_name") return options.names || [];
-        if (dataIndex === "software_type")
-            return options.types[fieldName] || [];
-        if (dataIndex === "version") return options.versions[fieldName] || [];
-        if (dataIndex === "license_key")
-            return options.licenses[fieldName] || [];
-        return [];
+        const map = {
+            software_name: options?.names || [],
+            software_type: options?.types?.[fieldName] || [],
+            version: options?.versions?.[fieldName] || [],
+            license_key: options?.licenses?.[fieldName] || [],
+        };
+
+        return map[dataIndex] || [];
     };
 
     return {
         softwareOptions: options,
         loading,
+
+        // Directly expose store functions (no wrapping needed)
         loadSoftwareNames,
-        loadSoftwareTypes: (name, fieldName) =>
-            loadSoftwareTypes(name, fieldName),
-        loadSoftwareVersions: (name, type, fieldName) =>
-            loadSoftwareVersions(name, type, fieldName),
-        // Store handles its own state — no form injection needed
-        loadSoftwareLicenses: (name, type, version, fieldName, rowIndex) =>
-            loadSoftwareLicenses(name, type, version, fieldName, rowIndex),
+        loadSoftwareTypes,
+        loadSoftwareVersions,
+        loadSoftwareLicenses,
+
         getSoftwareOptions,
+
         resetTypes,
         resetVersions,
         resetLicenses,
+
+        preloadSoftwareData,
     };
 };

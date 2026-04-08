@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from "react";
 import { Form, Input as AntInput } from "antd";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Combobox } from "@/Components/ui/Combobox";
+import { Input } from "@/Components/ui/input";
+import { Label } from "@/Components/ui/label";
+import { Combobox } from "@/Components/ui/combobox";
 
 // ─── Design tokens (must match HardwareFormDrawer) ────────────────────────────
 const LABEL_H = 18;
@@ -83,35 +83,38 @@ const CascadingPartFields = ({
 
     // Load brands when part type changes
     useEffect(() => {
-        const partType = rowData?.part_type;
+        const partType = getFieldValue("part_type");
+
         if (partType && partType !== loadedRef.current.partType) {
             loadedRef.current.partType = partType;
             loadBrands(partType, fieldPrefix);
         }
-    }, [rowData?.part_type, fieldPrefix, loadBrands]);
+    }, []);
 
     // Load models when part type AND brand are available
     useEffect(() => {
-        const partType = rowData?.part_type;
-        const brand = rowData?.brand;
+        const partType = getFieldValue("part_type");
+        const brand = getFieldValue("brand");
 
         if (partType && brand) {
             const key = `${partType}|${brand}`;
+
             if (key !== loadedRef.current.brand) {
                 loadedRef.current.brand = key;
                 loadModels(partType, brand, fieldPrefix);
             }
         }
-    }, [rowData?.part_type, rowData?.brand, fieldPrefix, loadModels]);
+    }, []);
 
     // Load specifications when part type, brand, AND model are available
     useEffect(() => {
-        const partType = rowData?.part_type;
-        const brand = rowData?.brand;
-        const model = rowData?.model;
+        const partType = getFieldValue("part_type");
+        const brand = getFieldValue("brand");
+        const model = getFieldValue("model");
 
         if (partType && brand && model) {
             const key = `${partType}|${brand}|${model}`;
+
             if (key !== loadedRef.current.model) {
                 loadedRef.current.model = key;
                 loadSpecifications(
@@ -123,14 +126,7 @@ const CascadingPartFields = ({
                 );
             }
         }
-    }, [
-        rowData?.part_type,
-        rowData?.brand,
-        rowData?.model,
-        fieldPrefix,
-        rowIndex,
-        loadSpecifications,
-    ]);
+    }, []);
 
     const handlePartTypeChange = (val) => {
         // Reset loaded refs when part type changes
@@ -296,11 +292,7 @@ const CascadingPartFields = ({
 
                 {/* Serial Number (keep as is - it's an Input, not Combobox) */}
                 <Cell label="Serial No." showLabel={showLabels} flex={1.3}>
-                    <Form.Item
-                        name={[rowIndex, "serial_number"]}
-                        noStyle
-                        rules={[{ required: true, message: "Required" }]}
-                    >
+                    <Form.Item name={[rowIndex, "serial_number"]} noStyle>
                         <Input
                             placeholder="Serial No."
                             value={rowData?.serial_number} // Add this if Input component supports it

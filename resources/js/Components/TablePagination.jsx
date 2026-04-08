@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@/Components/ui/button";
 import React from "react";
 import {
     Select,
@@ -6,7 +6,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
+} from "@/Components/ui/select";
 
 const TablePagination = ({ pagination, onChange, onChangePerPage }) => {
     if (!pagination) return null;

@@ -24,9 +24,12 @@ export const usePartsStore = create(
             // Cache to prevent duplicate API calls
             cache: {},
 
+            // In-flight promises to prevent duplicate concurrent requests
+            inFlight: {},
+
             // Actions
             loadPartTypes: async () => {
-                const { cache } = get();
+                const { cache, inFlight } = get();
                 const cacheKey = "types";
 
                 if (cache[cacheKey]) {
@@ -36,58 +39,75 @@ export const usePartsStore = create(
                     return;
                 }
 
+                if (inFlight[cacheKey]) {
+                    await inFlight[cacheKey];
+                    return;
+                }
+
                 set((state) => ({
                     loading: { ...state.loading, types: true },
                 }));
 
-                try {
-                    const { data } = await axios.get(
-                        route("hardware.parts.options"),
-                    );
+                const promise = (async () => {
+                    try {
+                        const { data } = await axios.get(
+                            route("hardware.parts.options"),
+                        );
 
-                    const types = Array.isArray(data.types) ? data.types : [];
-                    const options = types.map((t) => ({ label: t, value: t }));
+                        const types = Array.isArray(data.types)
+                            ? data.types
+                            : [];
+                        const options = types.map((t) => ({
+                            label: t,
+                            value: t,
+                        }));
 
-                    set((state) => ({
-                        options: { ...state.options, types: options },
-                        cache: { ...state.cache, [cacheKey]: options },
-                        loading: { ...state.loading, types: false },
-                    }));
-                } catch (error) {
-                    console.error("Error loading part types:", error);
-                    set((state) => ({
-                        loading: { ...state.loading, types: false },
-                    }));
-                }
+                        set((state) => ({
+                            options: { ...state.options, types: options },
+                            cache: { ...state.cache, [cacheKey]: options },
+                            loading: { ...state.loading, types: false },
+                            inFlight: { ...state.inFlight, [cacheKey]: null },
+                        }));
+
+                        return options;
+                    } catch (error) {
+                        console.error("Error loading part types:", error);
+                        set((state) => ({
+                            loading: { ...state.loading, types: false },
+                            inFlight: { ...state.inFlight, [cacheKey]: null },
+                        }));
+                        return [];
+                    }
+                })();
+
+                set((state) => ({
+                    inFlight: { ...state.inFlight, [cacheKey]: promise },
+                }));
+
+                return promise;
             },
 
-            // Preload all data for a part (for editing)
-            preloadPartData: async (part) => {
+            // Preload all cascading options for a part row (uses correct fieldPrefix)
+            preloadPartData: async (part, rowIndex) => {
                 if (!part || part.bypass_inventory) return;
 
                 const { part_type, brand, model } = part;
+                const prefix = `parts_${rowIndex}`; // must match fieldPrefix in CascadingPartFields
 
                 if (part_type) {
-                    // Load brands for this part type
-                    await get().loadBrands(part_type, `preload_${part_type}`);
+                    await get().loadBrands(part_type, prefix);
 
                     if (brand) {
-                        // Load models for this brand
-                        await get().loadModels(
-                            part_type,
-                            brand,
-                            `preload_${part_type}_${brand}`,
-                        );
+                        await get().loadModels(part_type, brand, prefix);
 
                         if (model) {
-                            // Load specifications for this model
                             await get().loadSpecifications(
                                 part_type,
                                 brand,
                                 model,
-                                "preload",
-                                0,
-                                null,
+                                prefix,
+                                rowIndex,
+                                null, // safe — guard handles null form
                             );
                         }
                     }
@@ -97,7 +117,7 @@ export const usePartsStore = create(
             loadBrands: async (partType, fieldName) => {
                 if (!partType) return;
 
-                const { cache } = get();
+                const { cache, inFlight } = get();
                 const cacheKey = `brands_${partType}`;
 
                 if (cache[cacheKey]) {
@@ -108,7 +128,6 @@ export const usePartsStore = create(
                                 ...state.options.brands,
                                 [fieldName]: cache[cacheKey],
                             },
-                            // Don't reset if we're preloading
                             ...(fieldName !== "preload" && {
                                 models: {
                                     ...state.options.models,
@@ -124,6 +143,20 @@ export const usePartsStore = create(
                     return cache[cacheKey];
                 }
 
+                if (inFlight[cacheKey]) {
+                    const result = await inFlight[cacheKey];
+                    set((state) => ({
+                        options: {
+                            ...state.options,
+                            brands: {
+                                ...state.options.brands,
+                                [fieldName]: result,
+                            },
+                        },
+                    }));
+                    return result;
+                }
+
                 set((state) => ({
                     loading: {
                         ...state.loading,
@@ -131,65 +164,89 @@ export const usePartsStore = create(
                     },
                 }));
 
-                try {
-                    const filters = btoa(JSON.stringify({ type: partType }));
-                    const { data } = await axios.get(
-                        route("hardware.parts.options", filters),
-                    );
+                const promise = (async () => {
+                    try {
+                        const filters = btoa(
+                            JSON.stringify({ type: partType }),
+                        );
+                        const { data } = await axios.get(
+                            route("hardware.parts.options", filters),
+                        );
 
-                    const brands = Array.isArray(data.brands)
-                        ? data.brands
-                        : [];
-                    const options = brands.map((b) => ({ label: b, value: b }));
+                        const brands = Array.isArray(data.brands)
+                            ? data.brands
+                            : [];
+                        const options = brands.map((b) => ({
+                            label: b,
+                            value: b,
+                        }));
 
-                    set((state) => ({
-                        options: {
-                            ...state.options,
-                            brands: {
-                                ...state.options.brands,
-                                [fieldName]: options,
-                            },
-                            // Only reset if not preloading
-                            ...(fieldName !== "preload" && {
-                                models: {
-                                    ...state.options.models,
-                                    [fieldName]: [],
+                        set((state) => ({
+                            cache: { ...state.cache, [cacheKey]: options },
+                            loading: {
+                                ...state.loading,
+                                brands: {
+                                    ...state.loading.brands,
+                                    [fieldName]: false,
                                 },
-                                specifications: {
-                                    ...state.options.specifications,
-                                    [fieldName]: [],
-                                },
-                            }),
-                        },
-                        cache: { ...state.cache, [cacheKey]: options },
-                        loading: {
-                            ...state.loading,
-                            brands: {
-                                ...state.loading.brands,
-                                [fieldName]: false,
                             },
-                        },
-                    }));
+                            inFlight: {
+                                ...state.inFlight,
+                                [cacheKey]: null,
+                            },
+                        }));
 
-                    return options;
-                } catch (error) {
-                    console.error("Error loading brands:", error);
-                    set((state) => ({
-                        loading: {
-                            ...state.loading,
-                            brands: {
-                                ...state.loading.brands,
-                                [fieldName]: false,
+                        return options;
+                    } catch (error) {
+                        console.error("Error loading brands:", error);
+                        set((state) => ({
+                            loading: {
+                                ...state.loading,
+                                brands: {
+                                    ...state.loading.brands,
+                                    [fieldName]: false,
+                                },
                             },
+                            inFlight: {
+                                ...state.inFlight,
+                                [cacheKey]: null,
+                            },
+                        }));
+                        return [];
+                    }
+                })();
+
+                set((state) => ({
+                    inFlight: { ...state.inFlight, [cacheKey]: promise },
+                }));
+
+                const result = await promise;
+                set((state) => ({
+                    options: {
+                        ...state.options,
+                        brands: {
+                            ...state.options.brands,
+                            [fieldName]: result,
                         },
-                    }));
-                }
+                        ...(fieldName !== "preload" && {
+                            models: {
+                                ...state.options.models,
+                                [fieldName]: [],
+                            },
+                            specifications: {
+                                ...state.options.specifications,
+                                [fieldName]: [],
+                            },
+                        }),
+                    },
+                }));
+                return result;
             },
 
             loadModels: async (partType, brand, fieldName) => {
                 if (!partType || !brand) return;
 
-                const { cache } = get();
+                const { cache, inFlight } = get();
                 const cacheKey = `models_${partType}_${brand}`;
 
                 if (cache[cacheKey]) {
@@ -200,7 +257,6 @@ export const usePartsStore = create(
                                 ...state.options.models,
                                 [fieldName]: cache[cacheKey],
                             },
-                            // Only reset if not preloading
                             ...(fieldName !== "preload" && {
                                 specifications: {
                                     ...state.options.specifications,
@@ -212,6 +268,20 @@ export const usePartsStore = create(
                     return cache[cacheKey];
                 }
 
+                if (inFlight[cacheKey]) {
+                    const result = await inFlight[cacheKey];
+                    set((state) => ({
+                        options: {
+                            ...state.options,
+                            models: {
+                                ...state.options.models,
+                                [fieldName]: result,
+                            },
+                        },
+                    }));
+                    return result;
+                }
+
                 set((state) => ({
                     loading: {
                         ...state.loading,
@@ -219,57 +289,79 @@ export const usePartsStore = create(
                     },
                 }));
 
-                try {
-                    const filters = btoa(
-                        JSON.stringify({ type: partType, brand }),
-                    );
-                    const { data } = await axios.get(
-                        route("hardware.parts.options", filters),
-                    );
+                const promise = (async () => {
+                    try {
+                        const filters = btoa(
+                            JSON.stringify({ type: partType, brand }),
+                        );
+                        const { data } = await axios.get(
+                            route("hardware.parts.options", filters),
+                        );
 
-                    const models = Array.isArray(data.models)
-                        ? data.models
-                        : [];
-                    const options = models.map((m) => ({ label: m, value: m }));
+                        const models = Array.isArray(data.models)
+                            ? data.models
+                            : [];
+                        const options = models.map((m) => ({
+                            label: m,
+                            value: m,
+                        }));
 
-                    set((state) => ({
-                        options: {
-                            ...state.options,
-                            models: {
-                                ...state.options.models,
-                                [fieldName]: options,
-                            },
-                            // Only reset if not preloading
-                            ...(fieldName !== "preload" && {
-                                specifications: {
-                                    ...state.options.specifications,
-                                    [fieldName]: [],
+                        set((state) => ({
+                            cache: { ...state.cache, [cacheKey]: options },
+                            loading: {
+                                ...state.loading,
+                                models: {
+                                    ...state.loading.models,
+                                    [fieldName]: false,
                                 },
-                            }),
-                        },
-                        cache: { ...state.cache, [cacheKey]: options },
-                        loading: {
-                            ...state.loading,
-                            models: {
-                                ...state.loading.models,
-                                [fieldName]: false,
                             },
-                        },
-                    }));
+                            inFlight: {
+                                ...state.inFlight,
+                                [cacheKey]: null,
+                            },
+                        }));
 
-                    return options;
-                } catch (error) {
-                    console.error("Error loading models:", error);
-                    set((state) => ({
-                        loading: {
-                            ...state.loading,
-                            models: {
-                                ...state.loading.models,
-                                [fieldName]: false,
+                        return options;
+                    } catch (error) {
+                        console.error("Error loading models:", error);
+                        set((state) => ({
+                            loading: {
+                                ...state.loading,
+                                models: {
+                                    ...state.loading.models,
+                                    [fieldName]: false,
+                                },
                             },
+                            inFlight: {
+                                ...state.inFlight,
+                                [cacheKey]: null,
+                            },
+                        }));
+                        return [];
+                    }
+                })();
+
+                set((state) => ({
+                    inFlight: { ...state.inFlight, [cacheKey]: promise },
+                }));
+
+                const result = await promise;
+                set((state) => ({
+                    options: {
+                        ...state.options,
+                        models: {
+                            ...state.options.models,
+                            [fieldName]: result,
                         },
-                    }));
-                }
+                        ...(fieldName !== "preload" && {
+                            specifications: {
+                                ...state.options.specifications,
+                                [fieldName]: [],
+                            },
+                        }),
+                    },
+                }));
+                return result;
             },
 
             loadSpecifications: async (
@@ -278,14 +370,13 @@ export const usePartsStore = create(
                 model,
                 fieldName,
                 rowIndex,
-                form,
+                form, // optional — pass null when preloading
             ) => {
                 if (!partType || !brand || !model) return;
 
                 const { cache } = get();
                 const cacheKey = `specs_${partType}_${brand}_${model}`;
 
-                // Check cache first
                 if (cache[cacheKey] && fieldName === "preload") {
                     return cache[cacheKey];
                 }
@@ -332,7 +423,7 @@ export const usePartsStore = create(
                         inventoryMap[spec][condition] += quantity;
                     });
 
-                    // Only check used specs if form is provided
+                    // Only check used specs if form is provided (guard matches software pattern)
                     const usedSpecsByCondition = {};
                     if (form) {
                         const currentParts = form.getFieldValue("parts") || [];
@@ -481,6 +572,7 @@ export const usePartsStore = create(
                         specifications: {},
                     },
                     cache: {},
+                    inFlight: {},
                 }),
         }),
         { name: "PartsStore" },

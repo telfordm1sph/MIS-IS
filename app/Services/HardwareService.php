@@ -35,7 +35,8 @@ class HardwareService
     {
         $tableQuery = $this->hardwareRepository->query();
         $tableQuery = $this->applyFilters($tableQuery, $filters);
-        $tableQuery->orderBy($filters['sortField'] ?? 'created_at', $filters['sortOrder'] ?? 'desc');
+      
+        $tableQuery->orderBy('id', $filters['sortOrder'] ?? 'asc');
 
         $paginated = $this->hardwareRepository->paginate(
             $tableQuery,

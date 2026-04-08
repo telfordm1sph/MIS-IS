@@ -18,7 +18,7 @@ export default function NewAdmin({ tableData, tableFilters, emp_data }) {
                     onSuccess: () => {
                         router.visit(route("admin"));
                     },
-                }
+                },
             );
     }
 

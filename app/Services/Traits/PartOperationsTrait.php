@@ -127,6 +127,8 @@ trait PartOperationsTrait
         }
 
         $updateData = [
+            'id' => $partData['id'] ?? $partRecord->id,
+            'brand'=> $partData['brand'] ?? $partRecord->brand,
             'serial_number' => $partData['serial_number'] ?? $partRecord->serial_number,
             'remarks' => $partData['remarks'] ?? $partRecord->remarks,
             'updated_by' => $employeeId,

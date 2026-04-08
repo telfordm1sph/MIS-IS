@@ -2,9 +2,9 @@ import React, { useMemo, useState } from "react";
 import { usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/Components/ui/button";
+import { Input } from "@/Components/ui/input";
+import { Card, CardContent, CardHeader } from "@/Components/ui/card";
 import {
     Table,
     TableBody,
@@ -12,14 +12,14 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "@/components/ui/table";
+} from "@/Components/ui/table";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/Components/ui/dropdown-menu";
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -27,8 +27,8 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
     BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { Badge } from "@/components/ui/badge";
+} from "@/Components/ui/breadcrumb";
+import { Badge } from "@/Components/ui/badge";
 
 import {
     Plus,
@@ -44,7 +44,7 @@ import { useFormDrawer } from "@/Hooks/useFormDrawer";
 import { useLogsModal } from "@/Hooks/useLogsModal";
 import { useCrudOperations } from "@/Hooks/useCrudOperations";
 
-import FormDrawer from "@/Components/Drawer/FormDrawer";
+import FormDrawer from "@/Components/drawer/FormDrawer";
 import ActivityLogsModal from "@/Components/inventory/ActivityLogsModal";
 import { DeleteConfirm } from "@/Components/DeleteConfirm";
 import TablePagination from "@/Components/TablePagination";

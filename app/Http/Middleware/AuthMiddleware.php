@@ -17,11 +17,14 @@ class AuthMiddleware
 
     public function handle(Request $request, Closure $next)
     {
-        // 🔹 Get token from query, session, or cookie
+    $cookieName = env('SSO_COOKIE_NAME', 'sso_token');
+
+        // 1️⃣ Get token sources (priority: query → cookie → session)
         $tokenFromQuery   = $request->query('key');
+        $tokenFromCookie  = $request->cookie($cookieName);
         $tokenFromSession = session('emp_data.token');
-        $tokenFromCookie  = $request->cookie('sso_token');
-        $token = $tokenFromQuery ?? $tokenFromSession ?? $tokenFromCookie;
+
+        $token = $tokenFromQuery ?? $tokenFromCookie ?? $tokenFromSession;
 
         Log::info('AuthMiddleware token check', [
             'query'   => $tokenFromQuery,
@@ -37,7 +40,7 @@ class AuthMiddleware
 
         // 🔹 Session exists & token matches → continue
         if (session()->has('emp_data') && session('emp_data.token') === $token) {
-            $cookie = cookie('sso_token', $token, 60 * 24 * 7, '/', null, false, true);
+         $cookie = cookie($cookieName, $token, 60 * 24 * 7);
 
             // Remove ?key from URL if present (only once)
             if ($tokenFromQuery) {
@@ -69,8 +72,9 @@ class AuthMiddleware
 
         if (!$currentUser) {
             session()->forget('emp_data');
-            setcookie('sso_token', '', time() - 3600, '/');
-            return $this->redirectToLogin($request);
+            // Clear this system's own cookie only
+            $expiredCookie = cookie()->forget($cookieName);
+            return $this->redirectToLogin($request)->withCookie($expiredCookie);
         }
 
         $isFromAllowed = $currentUser->emp_from === null;
@@ -81,7 +85,7 @@ class AuthMiddleware
             session()->forget('emp_data');
             session()->flush();
             $redirectUrl = urlencode(route('dashboard'));
-            $authifyUrl  = "http://192.168.1.27:8080/authify/public/logout?redirect={$redirectUrl}";
+            $authifyUrl  = "http://192.168.2.221:8200/logout?redirect={$redirectUrl}";
 
             return Inertia::render('Unauthorized', [
                 'logoutUrl' => $authifyUrl,
@@ -111,7 +115,7 @@ class AuthMiddleware
 
         $request->setUserResolver(fn() => (object) session('emp_data'));
 
-        $cookie = cookie('sso_token', $currentUser->token, 60 * 24 * 7, '/', null, false, true);
+         $cookie = cookie($cookieName, $currentUser->token, 60 * 24 * 7);
 
         // 🔹 Redirect once if token came from query
         if ($tokenFromQuery) {
@@ -168,6 +172,6 @@ class AuthMiddleware
     private function redirectToLogin(Request $request)
     {
         $redirectUrl = urlencode($request->fullUrl());
-        return redirect("http://192.168.1.27:8080/authify/public/login?redirect={$redirectUrl}");
+        return redirect("http://192.168.2.221:8200/login?redirect={$redirectUrl}");
     }
 }

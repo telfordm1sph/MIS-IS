@@ -5,17 +5,20 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('issuance')->middleware(['api.token'])->group(function () {
 
+    // STRICT (was 10/min)
     Route::post('/create', [IssuanceController::class, 'createIssuance'])
-        ->middleware('throttle:10,1');
+        ->middleware('throttle:very-low');
 
     Route::post('/component/maintenance/batch', [IssuanceController::class, 'createComponentMaintenanceIssuance'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:very-low')
         ->name('component.maintenance.batch');
 
+    // MEDIUM (was 60/min)
     Route::post('/table', [IssuanceController::class, 'getIssuanceTable'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:medium');
 
+    // LOW/MEDIUM (was 30/min → closest is low or medium)
     Route::put('/acknowledge/{id}', [IssuanceController::class, 'acknowledgeIssuance'])
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:low')
         ->name('issuance.acknowledge');
 });

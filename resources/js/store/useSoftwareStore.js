@@ -24,9 +24,12 @@ export const useSoftwareStore = create(
             // Cache to prevent duplicate API calls
             cache: {},
 
+            // In-flight promises to prevent duplicate concurrent requests
+            inFlight: {},
+
             // Actions
             loadSoftwareNames: async () => {
-                const { cache } = get();
+                const { cache, inFlight } = get();
                 const cacheKey = "names";
 
                 if (cache[cacheKey]) {
@@ -36,36 +39,57 @@ export const useSoftwareStore = create(
                     return;
                 }
 
+                if (inFlight[cacheKey]) {
+                    const result = await inFlight[cacheKey];
+                    set((state) => ({
+                        options: { ...state.options, names: result },
+                    }));
+                    return;
+                }
+
                 set((state) => ({
                     loading: { ...state.loading, names: true },
                 }));
 
-                try {
-                    const { data } = await axios.get(
-                        route("hardware.software.options"),
-                    );
-                    const names = data.names.map((n) => ({
-                        label: n,
-                        value: n,
-                    }));
+                const promise = (async () => {
+                    try {
+                        const { data } = await axios.get(
+                            route("hardware.software.options"),
+                        );
+                        const names = data.names.map((n) => ({
+                            label: n,
+                            value: n,
+                        }));
 
-                    set((state) => ({
-                        options: { ...state.options, names },
-                        cache: { ...state.cache, [cacheKey]: names },
-                        loading: { ...state.loading, names: false },
-                    }));
-                } catch (error) {
-                    console.error("Error loading software names:", error);
-                    set((state) => ({
-                        loading: { ...state.loading, names: false },
-                    }));
-                }
+                        set((state) => ({
+                            options: { ...state.options, names },
+                            cache: { ...state.cache, [cacheKey]: names },
+                            loading: { ...state.loading, names: false },
+                            inFlight: { ...state.inFlight, [cacheKey]: null },
+                        }));
+
+                        return names;
+                    } catch (error) {
+                        console.error("Error loading software names:", error);
+                        set((state) => ({
+                            loading: { ...state.loading, names: false },
+                            inFlight: { ...state.inFlight, [cacheKey]: null },
+                        }));
+                        return [];
+                    }
+                })();
+
+                set((state) => ({
+                    inFlight: { ...state.inFlight, [cacheKey]: promise },
+                }));
+
+                return promise;
             },
 
             loadSoftwareTypes: async (softwareName, fieldName) => {
                 if (!softwareName) return;
 
-                const { cache } = get();
+                const { cache, inFlight } = get();
                 const cacheKey = `types_${softwareName}`;
 
                 if (cache[cacheKey]) {
@@ -86,7 +110,21 @@ export const useSoftwareStore = create(
                             },
                         },
                     }));
-                    return;
+                    return cache[cacheKey];
+                }
+
+                if (inFlight[cacheKey]) {
+                    const result = await inFlight[cacheKey];
+                    set((state) => ({
+                        options: {
+                            ...state.options,
+                            types: {
+                                ...state.options.types,
+                                [fieldName]: result,
+                            },
+                        },
+                    }));
+                    return result;
                 }
 
                 set((state) => ({
@@ -96,56 +134,78 @@ export const useSoftwareStore = create(
                     },
                 }));
 
-                try {
-                    const filters = btoa(
-                        JSON.stringify({ name: softwareName }),
-                    );
-                    const { data } = await axios.get(
-                        route("hardware.software.options", filters),
-                    );
+                const promise = (async () => {
+                    try {
+                        const filters = btoa(
+                            JSON.stringify({ name: softwareName }),
+                        );
+                        const { data } = await axios.get(
+                            route("hardware.software.options", filters),
+                        );
 
-                    const types = data.types.map((t) => ({
-                        label: t,
-                        value: t,
-                    }));
+                        const types = data.types.map((t) => ({
+                            label: t,
+                            value: t,
+                        }));
 
-                    set((state) => ({
-                        options: {
-                            ...state.options,
-                            types: {
-                                ...state.options.types,
-                                [fieldName]: types,
+                        set((state) => ({
+                            cache: { ...state.cache, [cacheKey]: types },
+                            loading: {
+                                ...state.loading,
+                                types: {
+                                    ...state.loading.types,
+                                    [fieldName]: false,
+                                },
                             },
-                            versions: {
-                                ...state.options.versions,
-                                [fieldName]: [],
+                            inFlight: {
+                                ...state.inFlight,
+                                [cacheKey]: null,
                             },
-                            licenses: {
-                                ...state.options.licenses,
-                                [fieldName]: [],
+                        }));
+
+                        return types;
+                    } catch (error) {
+                        console.error("Error loading software types:", error);
+                        set((state) => ({
+                            loading: {
+                                ...state.loading,
+                                types: {
+                                    ...state.loading.types,
+                                    [fieldName]: false,
+                                },
                             },
+                            inFlight: {
+                                ...state.inFlight,
+                                [cacheKey]: null,
+                            },
+                        }));
+                        return [];
+                    }
+                })();
+
+                set((state) => ({
+                    inFlight: { ...state.inFlight, [cacheKey]: promise },
+                }));
+
+                const result = await promise;
+                set((state) => ({
+                    options: {
+                        ...state.options,
+                        types: {
+                            ...state.options.types,
+                            [fieldName]: result,
                         },
-                        cache: { ...state.cache, [cacheKey]: types },
-                        loading: {
-                            ...state.loading,
-                            types: {
-                                ...state.loading.types,
-                                [fieldName]: false,
-                            },
+                        versions: {
+                            ...state.options.versions,
+                            [fieldName]: [],
                         },
-                    }));
-                } catch (error) {
-                    console.error("Error loading software types:", error);
-                    set((state) => ({
-                        loading: {
-                            ...state.loading,
-                            types: {
-                                ...state.loading.types,
-                                [fieldName]: false,
-                            },
+                        licenses: {
+                            ...state.options.licenses,
+                            [fieldName]: [],
                         },
-                    }));
-                }
+                    },
+                }));
+                return result;
             },
 
             loadSoftwareVersions: async (
@@ -155,7 +215,7 @@ export const useSoftwareStore = create(
             ) => {
                 if (!softwareName || !softwareType) return;
 
-                const { cache } = get();
+                const { cache, inFlight } = get();
                 const cacheKey = `versions_${softwareName}_${softwareType}`;
 
                 if (cache[cacheKey]) {
@@ -172,7 +232,21 @@ export const useSoftwareStore = create(
                             },
                         },
                     }));
-                    return;
+                    return cache[cacheKey];
+                }
+
+                if (inFlight[cacheKey]) {
+                    const result = await inFlight[cacheKey];
+                    set((state) => ({
+                        options: {
+                            ...state.options,
+                            versions: {
+                                ...state.options.versions,
+                                [fieldName]: result,
+                            },
+                        },
+                    }));
+                    return result;
                 }
 
                 set((state) => ({
@@ -185,55 +259,80 @@ export const useSoftwareStore = create(
                     },
                 }));
 
-                try {
-                    const filters = btoa(
-                        JSON.stringify({
-                            name: softwareName,
-                            type: softwareType,
-                        }),
-                    );
-                    const { data } = await axios.get(
-                        route("hardware.software.options", filters),
-                    );
+                const promise = (async () => {
+                    try {
+                        const filters = btoa(
+                            JSON.stringify({
+                                name: softwareName,
+                                type: softwareType,
+                            }),
+                        );
+                        const { data } = await axios.get(
+                            route("hardware.software.options", filters),
+                        );
 
-                    const versions = data.versions.map((v) => ({
-                        label: v,
-                        value: v,
-                    }));
+                        const versions = data.versions.map((v) => ({
+                            label: v,
+                            value: v,
+                        }));
 
-                    set((state) => ({
-                        options: {
-                            ...state.options,
-                            versions: {
-                                ...state.options.versions,
-                                [fieldName]: versions,
+                        set((state) => ({
+                            cache: { ...state.cache, [cacheKey]: versions },
+                            loading: {
+                                ...state.loading,
+                                versions: {
+                                    ...state.loading.versions,
+                                    [fieldName]: false,
+                                },
                             },
-                            licenses: {
-                                ...state.options.licenses,
-                                [fieldName]: [],
+                            inFlight: {
+                                ...state.inFlight,
+                                [cacheKey]: null,
                             },
+                        }));
+
+                        return versions;
+                    } catch (error) {
+                        console.error(
+                            "Error loading software versions:",
+                            error,
+                        );
+                        set((state) => ({
+                            loading: {
+                                ...state.loading,
+                                versions: {
+                                    ...state.loading.versions,
+                                    [fieldName]: false,
+                                },
+                            },
+                            inFlight: {
+                                ...state.inFlight,
+                                [cacheKey]: null,
+                            },
+                        }));
+                        return [];
+                    }
+                })();
+
+                set((state) => ({
+                    inFlight: { ...state.inFlight, [cacheKey]: promise },
+                }));
+
+                const result = await promise;
+                set((state) => ({
+                    options: {
+                        ...state.options,
+                        versions: {
+                            ...state.options.versions,
+                            [fieldName]: result,
                         },
-                        cache: { ...state.cache, [cacheKey]: versions },
-                        loading: {
-                            ...state.loading,
-                            versions: {
-                                ...state.loading.versions,
-                                [fieldName]: false,
-                            },
+                        licenses: {
+                            ...state.options.licenses,
+                            [fieldName]: [],
                         },
-                    }));
-                } catch (error) {
-                    console.error("Error loading software versions:", error);
-                    set((state) => ({
-                        loading: {
-                            ...state.loading,
-                            versions: {
-                                ...state.loading.versions,
-                                [fieldName]: false,
-                            },
-                        },
-                    }));
-                }
+                    },
+                }));
+                return result;
             },
 
             loadSoftwareLicenses: async (
@@ -242,7 +341,7 @@ export const useSoftwareStore = create(
                 version,
                 fieldName,
                 currentRowIndex,
-                form,
+                form, // optional — pass null when preloading
             ) => {
                 if (!softwareName || !softwareType || !version) return;
 
@@ -283,25 +382,26 @@ export const useSoftwareStore = create(
                         };
                     });
 
-                    const currentSoftware =
-                        form.getFieldValue("software") || [];
-                    const usedLicenses = currentSoftware
-                        .map((sw, idx) => {
-                            if (
-                                idx !== currentRowIndex &&
-                                sw?.software_name === softwareName &&
-                                sw?.software_type === softwareType &&
-                                sw?.version === version
-                            ) {
-                                return (
-                                    sw._license_identifier ||
-                                    sw.license_key ||
-                                    sw.account_user
-                                );
-                            }
-                            return null;
-                        })
-                        .filter(Boolean);
+                    // Only filter used licenses if form is available
+                    const usedLicenses = form
+                        ? (form.getFieldValue("software") || [])
+                              .map((sw, idx) => {
+                                  if (
+                                      idx !== currentRowIndex &&
+                                      sw?.software_name === softwareName &&
+                                      sw?.software_type === softwareType &&
+                                      sw?.version === version
+                                  ) {
+                                      return (
+                                          sw._license_identifier ||
+                                          sw.license_key ||
+                                          sw.account_user
+                                      );
+                                  }
+                                  return null;
+                              })
+                              .filter(Boolean)
+                        : [];
 
                     const licenseCounts = {};
                     usedLicenses.forEach((key) => {
@@ -374,6 +474,37 @@ export const useSoftwareStore = create(
                 }
             },
 
+            // Preload all cascading options for a software row (mirrors preloadPartData)
+            preloadSoftwareData: async (sw, rowIndex) => {
+                if (!sw || sw.bypass_inventory) return;
+
+                const { software_name, software_type, version } = sw;
+                const prefix = `software_${rowIndex}`;
+
+                if (!software_name) return;
+
+                await get().loadSoftwareTypes(software_name, prefix);
+
+                if (software_type) {
+                    await get().loadSoftwareVersions(
+                        software_name,
+                        software_type,
+                        prefix,
+                    );
+
+                    if (version) {
+                        await get().loadSoftwareLicenses(
+                            software_name,
+                            software_type,
+                            version,
+                            prefix,
+                            rowIndex,
+                            null, // safe — guard handles null form
+                        );
+                    }
+                }
+            },
+
             // Reset functions
             resetTypes: (fieldName) =>
                 set((state) => ({
@@ -418,6 +549,7 @@ export const useSoftwareStore = create(
                         licenses: {},
                     },
                     cache: {},
+                    inFlight: {},
                 }),
         }),
         { name: "SoftwareStore" },

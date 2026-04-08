@@ -1,8 +1,8 @@
 import React, { useEffect } from "react";
 import { Form } from "antd";
 import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label";
-import { Combobox } from "@/Components/ui/Combobox";
+import { Label } from "@/Components/ui/label";
+import { Combobox } from "@/Components/ui/combobox";
 
 // ─── Design tokens (must match HardwareFormDrawer) ────────────────────────────
 const LABEL_H = 18;
@@ -78,9 +78,13 @@ const CascadingSoftwareFields = ({
     };
 
     useEffect(() => {
+        // Guard: don't run if form or rowIndex isn't ready
+        if (!form || rowIndex === null || rowIndex === undefined) return;
+
         const name = rowData?.software_name;
         const type = rowData?.software_type;
         const version = rowData?.version;
+
         if (name) loadSoftwareTypes(name, fieldPrefix);
         if (name && type) loadSoftwareVersions(name, type, fieldPrefix);
         if (name && type && version)
@@ -89,10 +93,14 @@ const CascadingSoftwareFields = ({
                 type,
                 version,
                 fieldPrefix,
-                rowIndex || 0,
+                rowIndex ?? 0,
             );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [rowData?.software_name, rowData?.software_type, rowData?.version]);
+    }, [
+        rowData?.software_name,
+        rowData?.software_type,
+        rowData?.version,
+        rowIndex,
+    ]);
 
     const handleNameChange = (val) => {
         setFieldValues({

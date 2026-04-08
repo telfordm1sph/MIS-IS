@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Check, ChevronsUpDown, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/Components/ui/badge";
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/Components/ui/popover";
 import {
     Command,
     CommandEmpty,
@@ -14,7 +14,7 @@ import {
     CommandInput,
     CommandItem,
     CommandList,
-} from "@/components/ui/command";
+} from "@/Components/ui/command";
 
 // ─── Single Combobox ──────────────────────────────────────────────────────────
 // Fully compatible with AntD Form.Item noStyle (value + onChange props).
@@ -36,7 +36,9 @@ export const Combobox = ({
     const [open, setOpen] = useState(false);
 
     // Find matching option, but if not found, create a temporary option for display
-    const matchedOption = options.find((o) => String(o.value) === String(value));
+    const matchedOption = options.find(
+        (o) => String(o.value) === String(value),
+    );
     const selectedLabel = matchedOption?.label ?? (value ? String(value) : "");
 
     const handleSelect = (optValue) => {
@@ -55,9 +57,10 @@ export const Combobox = ({
     };
 
     // Combine options with current value if it doesn't exist and allowCustomValue is true
-    const displayOptions = allowCustomValue && value && !matchedOption
-        ? [...options, { value, label: value }]
-        : options;
+    const displayOptions =
+        allowCustomValue && value && !matchedOption
+            ? [...options, { value, label: value }]
+            : options;
 
     return (
         <Popover

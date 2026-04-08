@@ -4,9 +4,9 @@ import { debounce } from "lodash";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
 
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/Components/ui/input";
+import { Button } from "@/Components/ui/button";
+import { Skeleton } from "@/Components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
     ChevronLeft,

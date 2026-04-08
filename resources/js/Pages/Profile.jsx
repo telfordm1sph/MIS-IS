@@ -28,10 +28,10 @@ export default function Profile({ profile, errors }) {
                     localStorage.removeItem("authify-token");
                     router.get(route("logout"));
                     window.location.href = `http://192.168.2.221/authify/public/logout?key=${encodeURIComponent(
-                        token
+                        token,
                     )}&redirect=${encodeURIComponent(route("dashboard"))}`;
                 },
-            }
+            },
         );
     };
 

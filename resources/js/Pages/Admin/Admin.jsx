@@ -17,7 +17,7 @@ export default function Admin({ tableData, tableFilters, emp_data }) {
                 onSuccess: () => {
                     console.log("Admin removed");
                 },
-            }
+            },
         );
     }
 
@@ -31,7 +31,7 @@ export default function Admin({ tableData, tableFilters, emp_data }) {
                     onSuccess: () => {
                         console.log("Admin role changed");
                     },
-                }
+                },
             );
     }
 
@@ -48,7 +48,7 @@ export default function Admin({ tableData, tableFilters, emp_data }) {
                 <h1 className="text-2xl font-bold">Administrators</h1>
 
                 {["superadmin", "admin"].includes(
-                    emp_data?.emp_system_role
+                    emp_data?.emp_system_role,
                 ) && (
                     <button
                         className="text-blue-600 border-blue-600 btn"
@@ -56,7 +56,7 @@ export default function Admin({ tableData, tableFilters, emp_data }) {
                             router.get(
                                 route("index_addAdmin"),
                                 {},
-                                { preserveScroll: true }
+                                { preserveScroll: true },
                             )
                         }
                     >
@@ -104,7 +104,7 @@ export default function Admin({ tableData, tableFilters, emp_data }) {
                             <strong>Role:</strong> {row.emp_role}
                         </p>
                         {["superadmin", "admin"].includes(
-                            emp_data?.emp_system_role
+                            emp_data?.emp_system_role,
                         ) && (
                             <div>
                                 <select

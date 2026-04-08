@@ -547,6 +547,7 @@ class HardwareRepository
     public function updateEntityPart(int $id, array $data, string $entityType = 'hardware'): void
     {
         $part = $this->findEntityPartById($id, $entityType);
+       
         if ($part) {
             $part->update($data);
         }
@@ -847,7 +848,10 @@ class HardwareRepository
             $hardwareSoftware->update($data);
         }
     }
-
+public function updateSoftwareInventory(int $softwareInventoryId, array $data): void
+{
+    SoftwareInventory::where('id', $softwareInventoryId)->update($data);
+}
     /**
      * Delete hardware software
      * DB OPERATION: Delete
@@ -1156,5 +1160,44 @@ class HardwareRepository
         $suffix = substr($latest, strlen($prefix));
 
         return is_numeric($suffix) ? (int) $suffix + 1 : 1;
+    }
+
+
+
+      public function updateHardwareSoftwareManual(Hardware $hardware, array $softwareData, int $employeeId): HardwareSoftware
+    {
+        // We still need a SoftwareInventory row to satisfy the FK.
+        // Find existing; if not found, create a "manual" stub so we never
+        // break the relationship.
+        $softwareInventory = SoftwareInventory::firstOrCreate(
+            [
+                'software_name' => $softwareData['software_name'],
+                'software_type' => $softwareData['software_type'],
+                'version'       => $softwareData['version'],
+            ],
+            [
+                'requires_key_tracking' => false,
+                'remarks'               => 'Auto-created (manual entry)',
+            ]
+        );
+
+        $hardwareSoftware = HardwareSoftware::create([
+            'hardware_id'            => $hardware->id,
+            'software_inventory_id'  => $softwareInventory->id,
+            'software_license_id'    => null,   // ← no license consumed
+            'installation_date'      => now(),
+            'installed_by'           => $employeeId,
+            'status'                 => 'Active',
+        ]);
+
+        $this->logHardwareSoftwareChange(
+            $hardware,
+            $hardwareSoftware,
+            'software_installed',
+            $employeeId,
+            "[Manual] Installed {$softwareInventory->software_name} ({$softwareInventory->software_type}) v{$softwareInventory->version}"
+        );
+
+        return $hardwareSoftware;
     }
 }

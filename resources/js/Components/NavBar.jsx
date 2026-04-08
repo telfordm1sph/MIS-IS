@@ -2,15 +2,15 @@ import { usePage } from "@inertiajs/react";
 import { useState, useContext } from "react";
 import { ThemeContext } from "./ThemeContext";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/Components/ui/button";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+} from "@/Components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/Components/ui/avatar";
 import { ChevronDown, User, LogOut, Loader2, Sun, Moon } from "lucide-react";
 
 export default function NavBar() {
@@ -41,7 +41,7 @@ export default function NavBar() {
     const isDark = theme === "dark";
 
     return (
-        <nav className="sticky top-0 z-50 bg-background/70 backdrop-blur-md border-b border-border/40 shadow-sm">
+        <nav className="sticky top-0 z-50 bg-background/70 backdrop-blur-md h-14 border-b border-border/40 shadow-sm">
             <div className="px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-end h-[54px] gap-2">
                     {/* ── Theme Toggle Pill ── */}

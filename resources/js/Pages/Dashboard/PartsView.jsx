@@ -7,7 +7,7 @@ import {
     CardHeader,
     CardTitle,
     CardDescription,
-} from "@/components/ui/card";
+} from "@/Components/ui/card";
 
 const COLORS = [
     "#6366f1",

@@ -7,16 +7,16 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from "@/Components/ui/select";
+import { Label } from "@/Components/ui/label";
+import { Alert, AlertDescription } from "@/Components/ui/alert";
 import {
     Card,
     CardContent,
     CardHeader,
     CardTitle,
     CardDescription,
-} from "@/components/ui/card";
+} from "@/Components/ui/card";
 import { Info } from "lucide-react";
 
 import InventoryTable from "./InventoryTable";

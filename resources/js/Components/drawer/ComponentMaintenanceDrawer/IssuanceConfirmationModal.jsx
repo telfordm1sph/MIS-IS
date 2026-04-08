@@ -5,12 +5,12 @@ import {
     DialogHeader,
     DialogTitle,
     DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent } from "@/components/ui/card";
+} from "@/Components/ui/dialog";
+import { Button } from "@/Components/ui/button";
+import { Badge } from "@/Components/ui/badge";
+import { Separator } from "@/Components/ui/separator";
+import { Alert, AlertDescription } from "@/Components/ui/alert";
+import { Card, CardContent } from "@/Components/ui/card";
 import { cn } from "@/lib/utils";
 import {
     CheckCircle2,

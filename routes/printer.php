@@ -11,7 +11,7 @@ Route::prefix($app_name)
         Route::get('/printers', [PrinterController::class, 'getPrinterTable'])->name('printers.table');
 
         // Printer CRUD routes
-        Route::post('/printers', [PrinterController::class, 'store'])->name('printers.store');
+        Route::post('/printers/store', [PrinterController::class, 'store'])->name('printers.store');
         Route::put('/printers/{id}', [PrinterController::class, 'update'])->name('printers.update');
         Route::delete('/printers/{id}', [PrinterController::class, 'destroy'])->name('printers.destroy');
 

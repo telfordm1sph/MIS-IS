@@ -282,20 +282,23 @@ class HardwareUpdateService
     /**
      * Process hardware software (create, update, delete)
      */
-    public function processSoftware(Hardware $hardware, array $softwareList, int $employeeId): void
-    {
-        foreach ($softwareList as $softwareData) {
-            if (isset($softwareData['_delete']) && $softwareData['_delete'] === true) {
-                $this->deleteSoftware($hardware, $softwareData, $employeeId);
-            } elseif (isset($softwareData['id'])) {
-                $this->updateSoftware($softwareData, $employeeId);
-            } elseif (!empty($softwareData['bypass_inventory'])) {
-                $this->createSoftwareManual($hardware, $softwareData, $employeeId);
-            } else {
-                $this->createSoftware($hardware, $softwareData, $employeeId);
-            }
+  public function processSoftware(Hardware $hardware, array $softwareList, int $employeeId): void
+{
+    foreach ($softwareList as $softwareData) {
+        if (isset($softwareData['_delete']) && $softwareData['_delete'] === true) {
+            $this->deleteSoftware($hardware, $softwareData, $employeeId);
+        } elseif (isset($softwareData['id']) && !empty($softwareData['bypass_inventory'])) {
+            // Update the software inventory record itself
+            $this->updateSoftwareManual($softwareData, $employeeId);
+        } elseif (isset($softwareData['id'])) {
+            $this->updateSoftware($softwareData, $employeeId);
+        } elseif (!empty($softwareData['bypass_inventory'])) {
+            $this->createSoftwareManual($hardware, $softwareData, $employeeId);
+        } else {
+            $this->createSoftware($hardware, $softwareData, $employeeId);
         }
     }
+}
 
     /**
      * Create a new software installation
@@ -368,11 +371,12 @@ class HardwareUpdateService
         if (!$hardwareSoftware) {
             throw new \Exception("Hardware software not found: {$softwareData['id']}");
         }
-
+    //   dd($softwareData);
         $updateData = [
+          
             'remarks' => $softwareData['remarks'] ?? $hardwareSoftware->remarks,
         ];
-
+  
         $this->hardwareRepository->updateHardwareSoftware($hardwareSoftware->id, $updateData);
 
         Log::info("Updated software installation", [
@@ -380,7 +384,34 @@ class HardwareUpdateService
             'updated_by'           => $employeeId,
         ]);
     }
+ public function updateSoftwareManual(array $softwareData, int $employeeId): void
+{
+    // Find the HardwareSoftware pivot to get software_inventory_id
+    $hardwareSoftware = $this->hardwareRepository->findHardwareSoftwareById($softwareData['id']);
 
+    if (!$hardwareSoftware) {
+        throw new \Exception("Hardware software not found: {$softwareData['id']}");
+    }
+
+    // Update the actual SoftwareInventory record
+    $updateData = array_filter([
+        'software_name' => $softwareData['software_name'] ?? null,
+        'software_type' => $softwareData['software_type'] ?? null,
+        'version'       => $softwareData['version']       ?? null,
+    ], fn($v) => $v !== null);
+
+    $this->hardwareRepository->updateSoftwareInventory(
+        $hardwareSoftware->software_inventory_id,
+        $updateData
+    );
+
+    Log::info("Updated software inventory (manual)", [
+        'hardware_software_id'  => $hardwareSoftware->id,
+        'software_inventory_id' => $hardwareSoftware->software_inventory_id,
+        'updated_fields'        => $updateData,
+        'updated_by'            => $employeeId,
+    ]);
+}
     /**
      * Delete software installation and decrement license activation
      */
